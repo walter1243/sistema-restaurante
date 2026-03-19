@@ -1,0 +1,15 @@
+{
+  "name": "Entregador Restaurante",
+  "short_name": "Entregador",
+  "start_url": "/entregador.html",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2972/2972185.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

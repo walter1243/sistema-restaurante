@@ -1,0 +1,3740 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="/manifest-entregador.webmanifest">
+    <title>Painel do Entregador</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        :root {
+            --bg: #0b1220;
+            --card: #121a2b;
+            --text: #e6edf7;
+            --muted: #93a4bc;
+            --primary: #22c55e;
+            --primary-dark: #16a34a;
+            --danger: #ef4444;
+            --warning: #f97316;
+            --border: #22324a;
+            --surface: rgba(10, 18, 32, 0.94);
+            --surface-soft: rgba(17, 30, 50, 0.86);
+            --blue: #3b82f6;
+            --blue-dark: #1d4ed8;
+            --ring: rgba(59,130,246,0.28);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            background: radial-gradient(circle at top, #0f1f3c 0%, #0b1220 46%, #0b1220 100%);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ─── TOP BAR ─── */
+        .topbar {
+            background: linear-gradient(135deg, rgba(18, 33, 63, 0.95), rgba(13, 26, 49, 0.95));
+            border-bottom: 1px solid rgba(59, 130, 246, 0.28);
+            padding: 0.72rem 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            z-index: 1000;
+            position: relative;
+            box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+        }
+        .topbar.com-pedido {
+            border-bottom-color: rgba(34, 197, 94, 0.55);
+            box-shadow: 0 10px 24px rgba(22, 163, 74, 0.2), 0 8px 24px rgba(2, 6, 23, 0.35);
+        }
+        .topbar-left { display: flex; align-items: center; gap: 0.6rem; }
+        .topbar-icon {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            flex-shrink: 0;
+            box-shadow: 0 6px 14px rgba(29, 78, 216, 0.35);
+            overflow: hidden;
+            position: relative;
+        }
+        .topbar-avatar {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+        .topbar-avatar-fallback {
+            font-size: 0.9rem;
+            line-height: 1;
+            color: #e2e8f0;
+        }
+        .topbar-info h1 { font-size: 0.95rem; font-weight: 700; line-height: 1.2; letter-spacing: 0.01em; }
+        .topbar-info .sub { font-size: 0.72rem; color: var(--muted); }
+        .badge-status {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.25rem 0.6rem;
+            border-radius: 999px;
+            background: rgba(34,197,94,0.15);
+            color: #86efac;
+            border: 1px solid rgba(34,197,94,0.42);
+            white-space: nowrap;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .badge-status.inativo   { background: rgba(239,68,68,0.15);  color: var(--danger);  border-color: rgba(239,68,68,0.3); }
+        .badge-status.aguardando{ background: rgba(249,115,22,0.15); color: var(--warning); border-color: rgba(249,115,22,0.3); }
+        .badge-status.novo {
+            background: rgba(34,197,94,0.2);
+            color: #bbf7d0;
+            border-color: rgba(34,197,94,0.58);
+            box-shadow: 0 0 0 0 rgba(34,197,94,0.45);
+            animation: pulse-badge-novo 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse-badge-novo {
+            0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.42); }
+            70%  { box-shadow: 0 0 0 8px rgba(34,197,94,0.0); }
+            100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.0); }
+        }
+
+        /* ─── MAP ─── */
+        #map { flex: 1; min-height: 0; z-index: 1; }
+        body:not(.waiting) .topbar {
+            display: none;
+        }
+        body.waiting #map,
+        body.waiting .bottom-panel {
+            display: none;
+        }
+        .leaflet-container { background: #0d1520; }
+        .leaflet-tile { filter: brightness(0.9) saturate(0.95); }
+        .map-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 1rem;
+            color: #93a4bc;
+            font-size: 0.85rem;
+            background: radial-gradient(circle at center, #10203e 0%, #0b1220 70%);
+        }
+
+        .wait-screen {
+            display: none;
+            flex: 1;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 2;
+        }
+        body.waiting .wait-screen {
+            display: flex;
+        }
+        .wait-card {
+            width: min(460px, 100%);
+            background: rgba(15, 28, 48, 0.9);
+            border: 1px solid rgba(59,130,246,0.35);
+            border-radius: 16px;
+            padding: 1.05rem;
+            box-shadow: 0 12px 28px rgba(2, 6, 23, 0.45);
+            display: grid;
+            gap: 0.56rem;
+            text-align: center;
+        }
+        .wait-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #dbeafe;
+        }
+        .wait-sub {
+            font-size: 0.83rem;
+            color: #9fb3cf;
+            line-height: 1.35;
+        }
+        .wait-chip {
+            display: inline-flex;
+            justify-self: center;
+            align-items: center;
+            gap: 0.28rem;
+            padding: 0.24rem 0.56rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            color: #bfdbfe;
+            background: rgba(29,78,216,0.2);
+            border: 1px solid rgba(96,165,250,0.35);
+        }
+        .wait-order {
+            display: none;
+            text-align: left;
+            border: 1px solid rgba(34,197,94,0.4);
+            background: rgba(22, 163, 74, 0.12);
+            border-radius: 12px;
+            padding: 0.78rem;
+            margin-top: 0.2rem;
+            gap: 0.45rem;
+        }
+        .wait-order.active {
+            display: grid;
+        }
+        .wait-order-title {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #bbf7d0;
+        }
+        .wait-order-sub {
+            font-size: 0.78rem;
+            color: #d1fae5;
+            line-height: 1.35;
+        }
+        .wait-order .btn {
+            width: 100%;
+            margin-top: 0.15rem;
+            min-height: 46px;
+            font-size: 0.84rem;
+            box-shadow: 0 10px 18px rgba(29, 78, 216, 0.32);
+            border: 1px solid rgba(147, 197, 253, 0.5);
+        }
+        .wait-order .btn:hover {
+            filter: brightness(1.05);
+        }
+        .wait-visual {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.48rem;
+            margin-top: 0.2rem;
+        }
+        .wait-visual-item {
+            display: grid;
+            gap: 0.22rem;
+            align-items: center;
+            justify-items: center;
+            text-align: center;
+            border: 1px solid rgba(96,165,250,0.28);
+            background: rgba(13, 26, 49, 0.72);
+            border-radius: 12px;
+            padding: 0.52rem 0.45rem;
+        }
+        .wait-visual-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 7px;
+            border: 1px solid rgba(96, 165, 250, 0.42);
+            background: rgba(15, 35, 64, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.64rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: #bfdbfe;
+            line-height: 1;
+        }
+        .wait-visual-label {
+            font-size: 0.7rem;
+            color: #bfdbfe;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .wait-clock {
+            font-size: 0.76rem;
+            color: #dbeafe;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .wait-feedback {
+            display: none;
+            border: 1px solid rgba(34,197,94,0.38);
+            background: rgba(22,163,74,0.12);
+            color: #bbf7d0;
+            border-radius: 10px;
+            padding: 0.54rem 0.6rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1.35;
+            text-align: center;
+        }
+        .wait-feedback.active {
+            display: block;
+        }
+
+        .conta-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(2, 6, 23, 0.72);
+            padding: 0.9rem;
+        }
+        .conta-overlay.active {
+            display: flex;
+        }
+        .conta-modal {
+            width: min(460px, 100%);
+            background: rgba(15, 28, 48, 0.98);
+            border: 1px solid rgba(96,165,250,0.32);
+            border-radius: 14px;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.55);
+            padding: 0.95rem;
+            display: grid;
+            gap: 0.62rem;
+        }
+        .conta-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.6rem;
+        }
+        .conta-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #dbeafe;
+        }
+        .conta-close {
+            min-height: 34px;
+            border-radius: 10px;
+            padding: 0.45rem 0.68rem;
+            font-size: 0.78rem;
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(71, 85, 105, 0.7);
+            color: #dbeafe;
+            cursor: pointer;
+        }
+        .conta-grid {
+            display: grid;
+            gap: 0.52rem;
+        }
+        .conta-input {
+            width: 100%;
+            height: 2.42rem;
+            border-radius: 0.56rem;
+            border: 1px solid #475569;
+            background: #0b1220;
+            color: #e2e8f0;
+            padding: 0 0.72rem;
+            outline: none;
+        }
+        .conta-input::placeholder {
+            color: #8ea4c6;
+        }
+        .conta-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .conta-foto {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.46rem 0.52rem;
+            border: 1px solid rgba(71,85,105,0.62);
+            border-radius: 0.62rem;
+            background: rgba(12, 22, 39, 0.95);
+        }
+        .conta-avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 1px solid rgba(96,165,250,0.45);
+            background: rgba(30, 58, 138, 0.3);
+            object-fit: cover;
+        }
+        .conta-feedback {
+            font-size: 0.76rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(71,85,105,0.6);
+            background: rgba(15, 23, 42, 0.92);
+            padding: 0.42rem 0.56rem;
+            color: #bfdbfe;
+            display: none;
+        }
+        .conta-feedback.active {
+            display: block;
+        }
+
+        /* ─── BOTTOM PANEL ─── */
+        .bottom-panel {
+            background: var(--surface);
+            border-top: 1px solid rgba(59, 130, 246, 0.22);
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            flex-shrink: 0;
+            z-index: 1000;
+            position: relative;
+            box-shadow: 0 -12px 28px rgba(2, 6, 23, 0.42);
+            max-height: 58vh;
+            overflow: hidden;
+            backdrop-filter: blur(8px);
+        }
+        .panel-handle {
+            width: 36px; height: 4px;
+            background: #3b4b67;
+            border-radius: 2px;
+            margin: 0.5rem auto 0;
+        }
+        .panel-body {
+            padding: 0.62rem 0.85rem 0.95rem;
+            overflow-y: auto;
+            height: calc(58vh - 14px);
+            display: grid;
+            gap: 0.5rem;
+            align-content: start;
+            padding-bottom: 6rem;
+        }
+
+        .section-title {
+            font-size: 0.66rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8ea4c6;
+            font-weight: 700;
+            margin-top: 0.08rem;
+        }
+
+        .legend {
+            display: flex;
+            gap: 0.65rem;
+            flex-wrap: wrap;
+            padding: 0.5rem 0.58rem;
+            border-radius: 0.65rem;
+            background: rgba(15, 28, 48, 0.68);
+            border: 1px solid rgba(46, 66, 96, 0.55);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.69rem;
+            color: #b5c6dc;
+            background: rgba(17, 30, 50, 0.7);
+            border: 1px solid rgba(54, 74, 106, 0.55);
+            border-radius: 999px;
+            padding: 0.24rem 0.44rem;
+        }
+        .legend-line  { width: 20px; height: 3px; border-radius: 2px; }
+        .legend-dash  { width: 20px; height: 0; border-top: 3px dashed #f97316; }
+        .legend-dot   { width: 9px; height: 9px; border-radius: 50%; }
+
+        .info-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.45rem;
+        }
+        .info-row-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.45rem;
+        }
+        .info-item {
+            background: var(--surface-soft);
+            border: 1px solid #263851;
+            border-radius: 0.6rem;
+            padding: 0.48rem 0.62rem;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        }
+        .info-label { font-size: 0.65rem; color: #93a4bc; text-transform: uppercase; letter-spacing: 0.06em; }
+        .info-value { font-size: 0.82rem; font-weight: 700; margin-top: 0.12rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .location-panel {
+            background: rgba(16, 28, 47, 0.75);
+            border: 1px solid #2a3e5a;
+            border-radius: 0.65rem;
+            padding: 0.58rem 0.68rem;
+            display: grid;
+            gap: 0.42rem;
+        }
+        .location-item { display: grid; gap: 0.16rem; }
+        .location-title {
+            font-size: 0.67rem;
+            color: #93c5fd;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+        }
+        .location-value {
+            font-size: 0.76rem;
+            color: #dce8f7;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .location-actions {
+            display: flex;
+            gap: 0.45rem;
+            flex-wrap: nowrap;
+        }
+        .btn-map {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        }
+        .btn-outline {
+            background: rgba(28, 42, 66, 0.9);
+            border: 1px solid #3a5479;
+            color: #cbd5e1;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 0.6rem;
+            padding: 0.64rem 0.34rem;
+            font-weight: 700;
+            font-size: 0.77rem;
+            cursor: pointer;
+            color: #fff;
+            display: flex; align-items: center; justify-content: center; gap: 0.3rem;
+            transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+            min-height: 44px;
+            white-space: nowrap;
+            box-shadow: 0 6px 14px rgba(2, 6, 23, 0.3);
+            border: 1px solid transparent;
+        }
+        .btn:active { transform: scale(0.97); opacity: 0.85; }
+        .btn:disabled { opacity: 0.55; cursor: default; }
+        .btn-start  { background: linear-gradient(135deg, #16a34a, #15803d); }
+        .btn-stop   { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+        .btn-accept { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+        .btn-center {
+            background: rgba(30,41,59,0.9);
+            border: 1px solid var(--border);
+            font-size: 1rem;
+            padding: 0;
+        }
+        .btn-map {
+            min-height: 43px;
+            border: 1px solid rgba(96, 165, 250, 0.45);
+        }
+        .btn-outline { border-color: rgba(148, 163, 184, 0.35); }
+
+        .floating-actions {
+            position: fixed;
+            left: 50%;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+            transform: translateX(-50%);
+            width: min(520px, calc(100% - 24px));
+            display: flex;
+            gap: 0.7rem;
+            z-index: 1600;
+            pointer-events: none;
+        }
+        .floating-actions .btn {
+            flex: 1 1 0;
+            min-height: 56px;
+            border-radius: 16px;
+            font-size: 0.9rem;
+            box-shadow: 0 16px 34px rgba(2, 6, 23, 0.46);
+            pointer-events: auto;
+        }
+        body.waiting .floating-actions {
+            display: none;
+        }
+
+        .timeline {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.4rem;
+        }
+        .step {
+            text-align: center;
+            border: 1px solid #2b3e5a;
+            border-radius: 0.65rem;
+            padding: 0.42rem 0.35rem;
+            font-size: 0.66rem;
+            font-weight: 700;
+            color: #9cb0c9;
+            background: rgba(18, 30, 50, 0.8);
+        }
+        .step.active {
+            color: #86efac;
+            border-color: rgba(34,197,94,0.45);
+            background: rgba(34,197,94,0.12);
+        }
+        .step.current {
+            color: #93c5fd;
+            border-color: rgba(59,130,246,0.5);
+            background: rgba(59,130,246,0.12);
+        }
+
+        @media (max-width: 560px) {
+            .info-row-3 { grid-template-columns: 1fr 1fr; }
+            .info-row-3 .info-item:last-child { grid-column: 1 / -1; }
+            .location-actions { flex-wrap: wrap; }
+            .timeline { grid-template-columns: 1fr; }
+            .btn { font-size: 0.79rem; }
+            .wait-visual { grid-template-columns: 1fr; }
+            .floating-actions {
+                width: calc(100% - 20px);
+                gap: 0.55rem;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+            }
+            .floating-actions .btn {
+                min-height: 54px;
+                font-size: 0.84rem;
+            }
+        }
+
+        .status-bar {
+            margin-top: 0.02rem;
+            font-size: 0.75rem;
+            color: #86efac;
+            min-height: 1rem;
+            padding: 0.34rem 0.44rem;
+            border-radius: 0.5rem;
+            background: rgba(15, 28, 48, 0.6);
+            border: 1px solid rgba(56, 78, 110, 0.45);
+        }
+        .status-bar.erro  { color: #fca5a5; }
+        .status-bar.aviso { color: #fcd34d; }
+        .status-bar.destaque {
+            color: #bbf7d0;
+            border-color: rgba(34,197,94,0.48);
+            background: linear-gradient(90deg, rgba(22,163,74,0.2), rgba(29,78,216,0.2));
+        }
+
+        .map-hud {
+            position: fixed;
+            top: 0.75rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1400;
+            display: flex;
+            align-items: center;
+            gap: 0.42rem;
+            max-width: calc(100% - 20px);
+            overflow-x: auto;
+            padding: 0.14rem;
+        }
+        .map-hud-chip {
+            background: rgba(8, 15, 28, 0.88);
+            border: 1px solid rgba(96, 165, 250, 0.36);
+            color: #dbeafe;
+            border-radius: 999px;
+            padding: 0.32rem 0.58rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+            box-shadow: 0 8px 22px rgba(2, 6, 23, 0.42);
+        }
+        .map-hud-chip strong {
+            color: #93c5fd;
+            margin-right: 0.2rem;
+        }
+        body.waiting .map-hud {
+            display: none;
+        }
+
+        .compat-hidden {
+            display: none !important;
+        }
+
+        .floating-actions.single {
+            width: min(360px, calc(100% - 24px));
+        }
+
+        /* ─── CUSTOM MARKERS ─── */
+        .marker-driver {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, #1e3a5f, #0f2040);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.45rem;
+            box-shadow: 0 0 0 5px rgba(59,130,246,0.35), 0 3px 12px rgba(0,0,0,0.6);
+            animation: pulse-driver 2s ease-in-out infinite;
+            cursor: pointer;
+        }
+        @keyframes pulse-driver {
+            0%,100% { box-shadow: 0 0 0 5px rgba(59,130,246,0.35), 0 3px 12px rgba(0,0,0,.6); }
+            50%      { box-shadow: 0 0 0 11px rgba(59,130,246,0.10), 0 3px 12px rgba(0,0,0,.6); }
+        }
+        .marker-restaurant {
+            width: 34px; height: 34px;
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            border: 2px solid #fff;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.05rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        /* Ícone de destino — pin vermelho com casa */
+        .marker-home-wrap {
+            display: flex; flex-direction: column; align-items: center;
+            width: 36px;
+        }
+        .marker-home-body {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border: 3px solid #fff;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 3px 12px rgba(0,0,0,0.55);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .marker-home-emoji {
+            transform: rotate(45deg);
+            font-size: 1.15rem;
+            line-height: 1;
+        }
+        .marker-home-tip {
+            width: 0; height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 7px solid #b91c1c;
+            margin-top: -2px;
+        }
+        .marker-pin-wrap {
+            width: 26px; height: 34px;
+            position: relative;
+        }
+        .marker-pin-body {
+            width: 26px; height: 26px;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border: 2px solid #fff;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .marker-pin-inner {
+            position: absolute;
+            top: 5px; left: 8px;
+            width: 8px; height: 8px;
+            background: #fff; border-radius: 50%;
+        }
+
+        /* ─── LOADING OVERLAY ─── */
+        #loading-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: var(--bg);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 0.9rem;
+            transition: opacity 0.35s;
+        }
+        #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid #1e293b;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.75s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 0.88rem; color: var(--muted); }
+
+        /* ─── Leaflet popup dark ─── */
+        .leaflet-popup-content-wrapper {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        .leaflet-popup-tip { background: var(--card); }
+        .leaflet-popup-content { margin: 10px 14px; font-size: 0.81rem; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text">Inicializando painel...</div>
+</div>
+
+<!-- Top bar -->
+<div class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-icon">
+            <img id="topbar-avatar" class="topbar-avatar" alt="Perfil do entregador">
+            <span id="topbar-avatar-fallback" class="topbar-avatar-fallback">👤</span>
+        </div>
+        <div class="topbar-info">
+            <h1 id="entregador-nome">Carregando...</h1>
+            <div class="sub" id="restaurante-nome">Conectando...</div>
+        </div>
+    </div>
+    <div class="badge-status aguardando" id="badge-status" onclick="abrirPainelConta()">Aguardando</div>
+</div>
+
+<div class="conta-overlay" id="conta-overlay">
+    <div class="conta-modal">
+        <div class="conta-head">
+            <div class="conta-title" id="conta-titulo">Acesso do entregador</div>
+            <button class="conta-close" type="button" onclick="fecharPainelConta()">Fechar</button>
+        </div>
+
+        <div id="conta-login-box" class="conta-grid">
+            <input id="login-restaurante" class="conta-input" type="text" placeholder="Nome do restaurante (opcional)">
+            <input id="login-telefone" class="conta-input" type="text" placeholder="Telefone cadastrado no admin">
+            <input id="login-senha" class="conta-input" type="password" placeholder="Senha do entregador">
+            <button class="btn btn-map" id="btn-login-entregador" onclick="fazerLoginEntregador()">Entrar no app do entregador</button>
+            <button class="btn btn-stop" type="button" onclick="mostrarCadastroEntregador()">Cadastrar entregador</button>
+        </div>
+
+        <div id="conta-cadastro-box" class="conta-grid" style="display:none;">
+            <input id="cadastro-restaurante" class="conta-input" type="text" placeholder="Nome do restaurante">
+            <input id="cadastro-nome" class="conta-input" type="text" placeholder="Nome completo do entregador">
+            <input id="cadastro-telefone" class="conta-input" type="text" placeholder="Telefone / WhatsApp">
+            <button class="btn btn-stop" id="btn-solicitar-codigo-cadastro" type="button" onclick="solicitarCodigoCadastroEntregador()">Solicitar código de 5 dígitos</button>
+            <input id="cadastro-codigo" class="conta-input" type="text" inputmode="numeric" maxlength="5" placeholder="Código de verificação (5 dígitos)">
+            <input id="cadastro-senha" class="conta-input" type="password" placeholder="Crie uma senha">
+            <button class="btn btn-map" id="btn-cadastrar-entregador" onclick="fazerCadastroEntregador()">Cadastrar e entrar</button>
+            <button class="btn btn-stop" type="button" onclick="mostrarLoginEntregador()">Voltar ao login</button>
+        </div>
+
+        <div id="conta-perfil-box" class="conta-grid" style="display:none;">
+            <div class="conta-foto">
+                <img id="perfil-foto-preview" class="conta-avatar" alt="Foto do entregador">
+                <input id="perfil-foto-input" type="file" accept="image/*" class="conta-input" style="height:2.2rem;padding:0.34rem 0.55rem;" onchange="lerFotoPerfilEntregador(event)">
+            </div>
+            <input id="perfil-restaurante" class="conta-input" type="text" readonly placeholder="Restaurante">
+            <input id="perfil-whatsapp" class="conta-input" type="text" placeholder="Telefone / WhatsApp">
+            <div class="conta-row">
+                <input id="perfil-senha-atual" class="conta-input" type="password" placeholder="Senha atual">
+                <input id="perfil-nova-senha" class="conta-input" type="password" placeholder="Nova senha">
+            </div>
+            <button class="btn btn-map" id="btn-salvar-perfil" onclick="salvarPerfilEntregador()">Salvar alterações</button>
+            <button class="btn btn-stop" id="btn-sair-entregador" onclick="sairSessaoEntregador()">Sair</button>
+        </div>
+
+        <div id="conta-feedback" class="conta-feedback"></div>
+    </div>
+</div>
+
+<!-- Map -->
+<div id="map"></div>
+<div class="map-hud" id="map-hud" aria-live="polite">
+    <div class="map-hud-chip"><strong>Base</strong><span id="hud-base">Restaurante → Cliente</span></div>
+    <div class="map-hud-chip"><strong>Dist</strong><span id="hud-distancia">--</span></div>
+    <div class="map-hud-chip"><strong>Tempo</strong><span id="hud-tempo">--</span></div>
+    <div class="map-hud-chip"><strong>Status</strong><span id="hud-modo-camera">Seguindo</span></div>
+</div>
+
+<!-- Wait screen (sem pedido ativo) -->
+<div class="wait-screen" id="wait-screen">
+    <div class="wait-card">
+        <div class="wait-chip">Painel do entregador ativo</div>
+        <div class="wait-title">Aguardando novo pedido</div>
+        <div class="wait-sub">Sem mapa e sem GPS nessa tela. Quando chegar corrida, o celular vibra, toca alerta e mostra ação imediata.</div>
+        <div class="wait-visual" id="wait-visual">
+            <div class="wait-visual-item">
+                <div class="wait-visual-icon">ENT</div>
+                <div class="wait-visual-label">Entrega</div>
+            </div>
+            <div class="wait-visual-item">
+                <div class="wait-visual-icon">CLK</div>
+                <div class="wait-visual-label">Em espera</div>
+                <div class="wait-clock" id="wait-clock-text">--:--:--</div>
+            </div>
+        </div>
+        <div class="wait-feedback" id="wait-feedback">Entrega concluída com sucesso. Aguardando nova corrida...</div>
+        <div class="wait-order" id="wait-order-box">
+            <div class="wait-order-title" id="wait-order-title">Nova corrida disponível</div>
+            <div class="wait-order-sub" id="wait-order-sub">Toque no botão abaixo para abrir a entrega no app do motoboy.</div>
+            <button class="btn btn-map" id="btn-fazer-entrega" onclick="abrirTelaEntrega()">Aceitar entrega</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom panel -->
+<div class="compat-hidden" aria-hidden="true">
+    <span id="pedido-id">-</span>
+    <span id="pedido-status">Aguardando</span>
+    <span id="ultima-posicao">Aguardando GPS</span>
+    <span id="destino-endereco">Aguardando endereço...</span>
+    <span id="status-msg">Pronto.</span>
+</div>
+
+<div class="floating-actions single" id="floating-actions">
+    <button class="btn btn-stop" id="btn-finalizar-corrida" onclick="finalizarCorrida()">Pedido entregue</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="./api_config.js"></script>
+<script>
+/* ═══ CONFIG ═══ */
+const params = new URLSearchParams(window.location.search);
+const GPS_ACCURACY_MAX_METROS = 200;
+const DESVIO_RECALCULO_METROS = 70;
+const STORAGE_MOTOBOY = 'entregador_painel_sessao';
+const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
+const AUTO_ABRIR_CORRIDA = false;
+
+function lerVinculoRestauranteAtivo() {
+    try {
+        const bruto = localStorage.getItem(STORAGE_ACTIVE_RESTAURANTE_LINK) || '{}';
+        const data = JSON.parse(bruto);
+        return (data && typeof data === 'object') ? data : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function lerSessaoMotoboy() {
+    try {
+        const bruto = localStorage.getItem(STORAGE_MOTOBOY) || '';
+        const data = bruto ? JSON.parse(bruto) : {};
+        return (data && typeof data === 'object') ? data : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function salvarSessaoMotoboy(dados = {}) {
+    try {
+        const atual = lerSessaoMotoboy();
+        const prox = {
+            token: String(dados.token ?? atual.token ?? '').trim(),
+            slug: String(dados.slug ?? atual.slug ?? '').trim(),
+            telefone_login: String(dados.telefone_login ?? atual.telefone_login ?? '').replace(/\D/g, ''),
+        };
+        localStorage.setItem(STORAGE_MOTOBOY, JSON.stringify(prox));
+    } catch (_) {}
+}
+
+const sessaoMotoboy = lerSessaoMotoboy();
+const vinculoAtivo = lerVinculoRestauranteAtivo();
+
+function normalizarBaseApi(valor = '') {
+    const texto = String(valor || '').trim();
+    if (!texto) return '';
+    try {
+        return new URL(texto).origin.replace(/\/$/, '');
+    } catch (_) {
+        return '';
+    }
+}
+
+function extrairParamDeUrl(urlTexto = '', chave = '') {
+    const alvo = String(chave || '').trim();
+    if (!alvo) return '';
+    try {
+        const url = new URL(String(urlTexto || '').trim(), window.location.origin);
+        return String(url.searchParams.get(alvo) || '').trim();
+    } catch (_) {
+        return '';
+    }
+}
+
+const tokenViaVinculoUrl = extrairParamDeUrl(vinculoAtivo.delivery_url || '', 'token');
+const slugViaVinculoUrl = extrairParamDeUrl(vinculoAtivo.delivery_url || '', 'slug');
+const pedidoViaVinculoUrl = extrairParamDeUrl(vinculoAtivo.delivery_url || '', 'pedido');
+const apiViaVinculoUrl = extrairParamDeUrl(vinculoAtivo.delivery_url || '', 'api');
+
+function obterBasesApiEntregador() {
+    const queryApi = params.get('api') || '';
+    const resolved = window.resolveApiBase ? window.resolveApiBase() : window.location.origin;
+    const salvoApiBase = localStorage.getItem('api_base_url') || '';
+    const vinculoApi = String(vinculoAtivo.api_base_url || '').trim();
+    const host = window.location.hostname || '127.0.0.1';
+    const ambienteLocal = host === 'localhost' || host === '127.0.0.1';
+
+    const bases = [
+        queryApi,
+        apiViaVinculoUrl,
+        salvoApiBase,
+        vinculoApi,
+        resolved,
+        window.location.origin
+    ];
+
+    if (ambienteLocal) {
+        bases.push(
+            'http://127.0.0.1:8080',
+            'http://localhost:8080',
+            'http://127.0.0.1:8000',
+            'http://localhost:8000',
+            'http://127.0.0.1:8012',
+            'http://localhost:8012',
+            'http://127.0.0.1:8010',
+            'http://localhost:8010'
+        );
+    }
+
+    return Array.from(new Set(
+        bases
+            .map(normalizarBaseApi)
+            .filter(Boolean)
+    ));
+}
+
+const API_BASES = obterBasesApiEntregador();
+let API_URL = API_BASES[0] || window.location.origin.replace(/\/$/, '');
+
+function obterGoogleMapsApiKeyEntregador(...candidatos) {
+    if (typeof window.getGoogleMapsApiKey === 'function') {
+        return window.getGoogleMapsApiKey(...candidatos);
+    }
+    for (const candidato of candidatos) {
+        const valor = String(candidato || '').trim().replace(/^['"]+|['"]+$/g, '');
+        if (!valor) continue;
+        const normalizado = valor.toLowerCase();
+        if (normalizado === 'null' || normalizado === 'undefined') continue;
+        return valor;
+    }
+    return String(window.__GOOGLE_MAPS_API_KEY__ || '').trim();
+}
+
+async function descobrirApiAtivaEntregador() {
+    const bases = Array.from(new Set((API_BASES || []).filter(Boolean)));
+
+    for (const base of bases) {
+        if (!base || /:8022$/.test(base)) continue;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        try {
+            const res = await fetch(`${base}/health`, {
+                method: 'GET',
+                signal: controller.signal,
+            });
+            if (!res.ok) continue;
+            const data = await res.json().catch(() => ({}));
+            if (data && data.ok === true) {
+                API_URL = base;
+                localStorage.setItem('api_base_url', API_URL);
+                return base;
+            }
+        } catch (_) {
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    return API_URL;
+}
+
+const cacheOpenApiBases = {};
+
+function traduzirErroApi(det, status = 0) {
+    const texto = String(det || '').trim();
+    const norm = texto.toLowerCase();
+    if (!texto) {
+        if (status === 405) return 'Método não permitido nesta API. Tentando outra base...';
+        if (status === 404) return 'Endpoint não encontrado nesta API. Tentando outra base...';
+        if (status >= 500) return 'Falha interna na API. Tente novamente em instantes.';
+        return 'Não foi possível concluir agora.';
+    }
+
+    if (norm.includes('method not allowed')) return 'Método não permitido nesta API.';
+    if (norm.includes('not found')) return 'Endpoint não encontrado na API.';
+    if (norm.includes('failed to fetch')) return 'Falha de conexão com a API.';
+    if (norm.includes('networkerror')) return 'Falha de conexão com a API.';
+    if (norm.includes('forbidden')) return 'Acesso negado.';
+    if (norm.includes('unauthorized')) return 'Credenciais inválidas.';
+    if (norm.includes('internal server error')) return 'Erro interno do servidor.';
+    return texto;
+}
+
+async function baseTemEndpoint(base, caminho, metodo) {
+    const chave = `${base}|${caminho}|${metodo}`;
+    if (cacheOpenApiBases[chave] !== undefined) return cacheOpenApiBases[chave];
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+        const res = await fetch(`${base}/openapi.json`, { method: 'GET', signal: controller.signal });
+        if (!res.ok) {
+            cacheOpenApiBases[chave] = false;
+            return false;
+        }
+        const openapi = await res.json().catch(() => ({}));
+        const path = openapi?.paths?.[caminho];
+        const ok = !!(path && path[String(metodo || '').toLowerCase()]);
+        cacheOpenApiBases[chave] = ok;
+        return ok;
+    } catch (_) {
+        cacheOpenApiBases[chave] = false;
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function obterBasesCompativeisEntregador(caminho, metodo = 'post') {
+    const apiAtiva = await descobrirApiAtivaEntregador();
+    const bases = Array.from(new Set([apiAtiva, ...(API_BASES || [])].filter(Boolean)));
+    const compativeis = [];
+
+    for (const base of bases) {
+        if (!base || /:8022$/.test(base)) continue;
+        const ok = await baseTemEndpoint(base, caminho, metodo);
+        if (ok) compativeis.push(base);
+    }
+
+    return compativeis;
+}
+
+function coordenadaValida(lat, lon) {
+    return Number.isFinite(lat)
+        && Number.isFinite(lon)
+        && Math.abs(lat) <= 90
+        && Math.abs(lon) <= 180
+        && !(lat === 0 && lon === 0);
+}
+
+function distanciaHaversineMetros(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function projetarMetro(lat, lon, latRef) {
+    const x = lon * 111320 * Math.cos((latRef * Math.PI) / 180);
+    const y = lat * 110540;
+    return { x, y };
+}
+
+function distanciaPontoSegmentoMetros(p, a, b) {
+    const latRef = (p.lat + a.lat + b.lat) / 3;
+    const pp = projetarMetro(p.lat, p.lon, latRef);
+    const aa = projetarMetro(a.lat, a.lon, latRef);
+    const bb = projetarMetro(b.lat, b.lon, latRef);
+
+    const abx = bb.x - aa.x;
+    const aby = bb.y - aa.y;
+    const apx = pp.x - aa.x;
+    const apy = pp.y - aa.y;
+    const ab2 = (abx * abx) + (aby * aby);
+    if (ab2 <= 0) return Math.hypot(pp.x - aa.x, pp.y - aa.y);
+
+    const t = Math.max(0, Math.min(1, ((apx * abx) + (apy * aby)) / ab2));
+    const cx = aa.x + (abx * t);
+    const cy = aa.y + (aby * t);
+    return Math.hypot(pp.x - cx, pp.y - cy);
+}
+
+function distanciaAteRotaMetros(lat, lon, geojson) {
+    if (!geojson || geojson.type !== 'LineString' || !Array.isArray(geojson.coordinates)) return null;
+    const coords = geojson.coordinates;
+    if (coords.length < 2) return null;
+
+    const p = { lat, lon };
+    let menor = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < coords.length - 1; i += 1) {
+        const c1 = coords[i];
+        const c2 = coords[i + 1];
+        if (!Array.isArray(c1) || !Array.isArray(c2)) continue;
+
+        const a = { lat: Number(c1[1]), lon: Number(c1[0]) };
+        const b = { lat: Number(c2[1]), lon: Number(c2[0]) };
+        if (!coordenadaValida(a.lat, a.lon) || !coordenadaValida(b.lat, b.lon)) continue;
+
+        const d = distanciaPontoSegmentoMetros(p, a, b);
+        if (d < menor) menor = d;
+    }
+
+    return Number.isFinite(menor) ? menor : null;
+}
+
+const app = {
+    token:       params.get('token')  || sessaoMotoboy.token || String(vinculoAtivo.delivery_token_ultimo || '').trim() || tokenViaVinculoUrl || '',
+    slug:        params.get('slug')   || sessaoMotoboy.slug || String(vinculoAtivo.slug || '').trim() || slugViaVinculoUrl || '',
+    restauranteNome: '',
+    fotoPerfilBase64: '',
+    modoCadastroConta: false,
+    pedidoId:    params.get('pedido') || pedidoViaVinculoUrl || '-',
+    modoEspera:  !(params.get('pedido') || '').trim(),
+    /* state */
+    watchId:     null,
+    ultimoEnvio: 0,
+    origem:      null,   // {lat, lon, label}
+    destino:     null,   // {lat, lon, label}
+    statusPedido: '',
+    mapa:        null,
+    driverMarker: null,
+    driverLatLon: null,
+    statusIntervalId: null,
+    pedidoAceito: false,
+    mapaDisponivel: false,
+    enderecoOrigemTexto: '',
+    enderecoDestinoTexto: '',
+    esperaIntervalId: null,
+    ultimoPedidoAlertado: null,
+    audioLiberado: false,
+    pedidoDisponivel: null,
+    pushRegistrado: false,
+    ultimoCalculoRota: 0,
+    googleMapsApiKey: obterGoogleMapsApiKeyEntregador(),
+    ultimaRotaGeojson: null,
+    ultimoRecalculoRota: 0,
+    ultimoEnderecoOrigemGeocodificado: '',
+    ultimoEnderecoDestinoGeocodificado: '',
+    ultimoRetryGeocodeOrigem: 0,
+    ultimoRetryGeocodeDestino: 0,
+    pedidoContextoId: 0,
+    seguirEntregador: true,
+    ultimaCentralizacaoMapa: 0,
+    pausaCameraAte: 0,
+    resumoDistanciaMetros: null,
+    resumoDuracaoSegundos: null,
+    resumoOrigemDestinoKey: '',
+    ultimoResumoOrigemDestino: 0,
+    trajetoPontos: [],
+    abrindoPedidoAutomatico: false,
+    ultimoPedidoAutoAbertura: 0,
+    falhasConsultaPedido: 0,
+    ultimaFalhaConsultaMsg: '',
+    finalizandoCorrida: false,
+    restauranteCidadeTrava: '',
+    restauranteUfTrava: '',
+    centroCidadeTrava: null,
+    ultimaCidadeTravaGeocodificada: '',
+};
+
+if (app.token || app.slug) {
+    salvarSessaoMotoboy({ token: app.token, slug: app.slug, telefone_login: sessaoMotoboy.telefone_login || '' });
+}
+
+function normalizarTextoGeoEntregador(texto = '') {
+    return String(texto || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+function normalizarUfGeoEntregador(uf = '') {
+    return String(uf || '')
+        .replace(/^BR-/i, '')
+        .replace(/[^A-Za-z]/g, '')
+        .trim()
+        .toUpperCase()
+        .slice(0, 2);
+}
+
+function atualizarTravaCidadeRestaurante(cidade = '', uf = '') {
+    const cidadeNova = String(cidade || '').trim();
+    const ufNova = normalizarUfGeoEntregador(uf);
+    const mudou = cidadeNova !== app.restauranteCidadeTrava || ufNova !== app.restauranteUfTrava;
+
+    app.restauranteCidadeTrava = cidadeNova;
+    app.restauranteUfTrava = ufNova;
+
+    if (mudou) {
+        app.centroCidadeTrava = null;
+        app.ultimaCidadeTravaGeocodificada = '';
+    }
+}
+
+function obterConsultaCidadeTrava() {
+    return [app.restauranteCidadeTrava, app.restauranteUfTrava, 'Brasil']
+        .map(v => String(v || '').trim())
+        .filter(Boolean)
+        .join(', ');
+}
+
+function itemNominatimBateCidadeTrava(item, cidadeNorm, ufNorm) {
+    if (!item || typeof item !== 'object') return false;
+    if (!cidadeNorm && !ufNorm) return true;
+
+    const address = item.address && typeof item.address === 'object' ? item.address : {};
+    const cidadeItem = normalizarTextoGeoEntregador(
+        address.city || address.town || address.village || address.municipality || address.county || ''
+    );
+    const ufItem = normalizarUfGeoEntregador(address.state_code || address['ISO3166-2-lvl4'] || address['ISO3166-2-lvl6'] || '');
+    const display = normalizarTextoGeoEntregador(item.display_name || '');
+
+    if (ufNorm && ufItem && ufItem !== ufNorm) return false;
+    if (cidadeNorm && cidadeItem && cidadeItem !== cidadeNorm && !display.includes(cidadeNorm)) return false;
+    return true;
+}
+
+async function focarMapaNaCidadeTrava(zoom = 13) {
+    if (!app.mapaDisponivel || !app.mapa) return false;
+
+    const consulta = obterConsultaCidadeTrava();
+    if (!consulta) return false;
+
+    if (!app.centroCidadeTrava || app.ultimaCidadeTravaGeocodificada !== consulta) {
+        const centro = await geocodificarNominatim(consulta, {
+            cidade: app.restauranteCidadeTrava,
+            uf: app.restauranteUfTrava,
+            ignorarTrava: true,
+        });
+        if (!centro || !coordenadaValida(Number(centro.lat), Number(centro.lon))) return false;
+
+        app.centroCidadeTrava = {
+            lat: Number(centro.lat),
+            lon: Number(centro.lon),
+        };
+        app.ultimaCidadeTravaGeocodificada = consulta;
+    }
+
+    app.mapa.setView([app.centroCidadeTrava.lat, app.centroCidadeTrava.lon], Number(zoom) || 13, { animate: true });
+    return true;
+}
+
+function setContaFeedback(msg = '', erro = false) {
+    const el = document.getElementById('conta-feedback');
+    if (!el) return;
+    const texto = String(msg || '').trim();
+    if (!texto) {
+        el.classList.remove('active');
+        el.textContent = '';
+        return;
+    }
+    el.classList.add('active');
+    el.style.color = erro ? '#fda4af' : '#86efac';
+    el.textContent = texto;
+}
+
+function atualizarSecoesConta() {
+    const boxLogin = document.getElementById('conta-login-box');
+    const boxCadastro = document.getElementById('conta-cadastro-box');
+    const boxPerfil = document.getElementById('conta-perfil-box');
+    const titulo = document.getElementById('conta-titulo');
+    const semToken = !String(app.token || '').trim();
+
+    if (boxLogin) boxLogin.style.display = semToken && !app.modoCadastroConta ? 'grid' : 'none';
+    if (boxCadastro) boxCadastro.style.display = semToken && app.modoCadastroConta ? 'grid' : 'none';
+    if (boxPerfil) boxPerfil.style.display = semToken ? 'none' : 'grid';
+    if (titulo) titulo.textContent = semToken ? (app.modoCadastroConta ? 'Cadastro do entregador' : 'Login do entregador') : 'Minha conta';
+}
+
+function mostrarCadastroEntregador() {
+    app.modoCadastroConta = true;
+    atualizarSecoesConta();
+    setContaFeedback('');
+    const origemRest = String(document.getElementById('login-restaurante')?.value || app.restauranteNome || app.slug || '').trim();
+    const campoRest = document.getElementById('cadastro-restaurante');
+    if (campoRest && !campoRest.value) campoRest.value = origemRest;
+}
+
+function mostrarLoginEntregador() {
+    app.modoCadastroConta = false;
+    atualizarSecoesConta();
+    setContaFeedback('');
+}
+
+function abrirPainelConta() {
+    const overlay = document.getElementById('conta-overlay');
+    if (!overlay) return;
+
+    atualizarSecoesConta();
+    overlay.classList.add('active');
+
+    const inputRestaurante = document.getElementById('login-restaurante');
+    const inputTelefone = document.getElementById('login-telefone');
+    if (inputRestaurante && !inputRestaurante.value) {
+        inputRestaurante.value = app.restauranteNome || app.slug || String(vinculoAtivo.slug || '').trim();
+    }
+    if (inputTelefone && !inputTelefone.value) inputTelefone.value = String(sessaoMotoboy.telefone_login || '').trim();
+
+    if (app.token) {
+        carregarPerfilEntregador().catch(() => {});
+    }
+}
+
+function fecharPainelConta() {
+    const overlay = document.getElementById('conta-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+    setContaFeedback('');
+}
+
+function preencherPerfilEntregador(payload = {}) {
+    const entregador = payload.entregador || {};
+    const restaurante = payload.restaurante || {};
+
+    app.restauranteNome = String(restaurante.nome || payload.restaurante_nome || app.restauranteNome || '').trim();
+    atualizarTravaCidadeRestaurante(
+        payload.restaurante_cidade || restaurante.cidade || app.restauranteCidadeTrava,
+        payload.restaurante_uf || restaurante.uf || app.restauranteUfTrava,
+    );
+    app.fotoPerfilBase64 = String(entregador.foto_perfil_base64 || app.fotoPerfilBase64 || '').trim();
+
+    const campoRestaurante = document.getElementById('perfil-restaurante');
+    const campoWhats = document.getElementById('perfil-whatsapp');
+    const foto = document.getElementById('perfil-foto-preview');
+
+    if (campoRestaurante) campoRestaurante.value = app.restauranteNome || app.slug || '';
+    if (campoWhats) campoWhats.value = String(entregador.whatsapp || '').trim();
+    if (foto) {
+        foto.src = app.fotoPerfilBase64 || 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+    }
+
+    atualizarCabecalhoEntregador({
+        nome: String(entregador.nome || '').trim(),
+        restauranteNome: app.restauranteNome,
+        fotoBase64: app.fotoPerfilBase64,
+    });
+}
+
+async function carregarPerfilEntregador() {
+    if (!app.token) return;
+    const res = await fetchComTimeout(`${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}/perfil`, {}, 12000);
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    preencherPerfilEntregador(data || {});
+}
+
+async function autenticarEntregadorPorCredenciais({ restaurante, telefone, senha }) {
+    const basesCompativeis = await obterBasesCompativeisEntregador('/api/public/entregadores/login', 'post');
+    const apiAtiva = await descobrirApiAtivaEntregador();
+    const bases = basesCompativeis.length
+        ? basesCompativeis
+        : Array.from(new Set([apiAtiva, ...(API_BASES || [])].filter(Boolean)));
+    let ultimoDetalhe = 'Não foi possível autenticar no momento.';
+
+    for (const base of bases) {
+        if (!base || /:8022$/.test(base)) continue;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+        try {
+            const res = await fetch(`${base}/api/public/entregadores/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    restaurante,
+                    telefone,
+                    senha,
+                }),
+                signal: controller.signal,
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data?.token_rastreamento) {
+                API_URL = base;
+                localStorage.setItem('api_base_url', API_URL);
+                return { base, data };
+            }
+
+            if (res.status === 404 || res.status === 405) {
+                ultimoDetalhe = traduzirErroApi(data?.detail, res.status);
+                continue;
+            }
+
+            ultimoDetalhe = traduzirErroApi(
+                typeof data?.detail === 'string' ? data.detail : 'Credenciais inválidas para o entregador.',
+                res.status
+            );
+        } catch (_) {
+            ultimoDetalhe = 'Falha de conexão com a API.';
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    throw new Error(ultimoDetalhe);
+}
+
+async function cadastrarEntregadorPorCredenciais({ restaurante, nome, telefone, senha, codigo }) {
+    const basesCompativeis = await obterBasesCompativeisEntregador('/api/public/entregadores/cadastro', 'post');
+    const apiAtiva = await descobrirApiAtivaEntregador();
+    const bases = basesCompativeis.length
+        ? basesCompativeis
+        : Array.from(new Set([apiAtiva, ...(API_BASES || [])].filter(Boolean)));
+    let ultimoDetalhe = 'Não foi possível cadastrar no momento.';
+
+    for (const base of bases) {
+        if (!base || /:8022$/.test(base)) continue;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+        try {
+            const res = await fetch(`${base}/api/public/entregadores/cadastro`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ restaurante, nome, telefone, senha, codigo_verificacao: codigo }),
+                signal: controller.signal,
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data?.token_rastreamento) {
+                API_URL = base;
+                localStorage.setItem('api_base_url', API_URL);
+                return { base, data };
+            }
+
+            if (res.status === 404 || res.status === 405) {
+                ultimoDetalhe = traduzirErroApi(data?.detail, res.status);
+                continue;
+            }
+
+            ultimoDetalhe = traduzirErroApi(
+                typeof data?.detail === 'string' ? data.detail : 'Não foi possível concluir o cadastro.',
+                res.status
+            );
+        } catch (_) {
+            ultimoDetalhe = 'Falha de conexão com a API.';
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    throw new Error(ultimoDetalhe);
+}
+
+async function fazerLoginEntregador() {
+    const inputRestaurante = document.getElementById('login-restaurante');
+    const inputTelefone = document.getElementById('login-telefone');
+    const inputSenha = document.getElementById('login-senha');
+    const botao = document.getElementById('btn-login-entregador');
+
+    const restaurante = String(inputRestaurante?.value || '').trim();
+    const telefone = String(inputTelefone?.value || '').replace(/\D/g, '');
+    const senha = String(inputSenha?.value || '').trim();
+
+    if (telefone.length < 8) {
+        setContaFeedback('Informe um telefone válido.', true);
+        return;
+    }
+    if (senha.length < 4) {
+        setContaFeedback('Senha inválida.', true);
+        return;
+    }
+
+    if (botao) {
+        botao.disabled = true;
+        botao.textContent = 'Entrando...';
+    }
+    setContaFeedback('Validando acesso...');
+
+    try {
+        const resultado = await autenticarEntregadorPorCredenciais({ restaurante, telefone, senha });
+        const data = resultado.data || {};
+        const token = String(data.token_rastreamento || '').trim();
+        const slugRetorno = String(data.slug || '').trim().toLowerCase();
+
+        if (!token || !slugRetorno) {
+            throw new Error('API retornou login incompleto.');
+        }
+
+        app.restauranteNome = String(data.restaurante_nome || data.restaurante || restaurante).trim();
+    salvarSessaoMotoboy({ token, slug: slugRetorno, telefone_login: telefone });
+        setContaFeedback('Login confirmado. Abrindo painel...', false);
+
+        const query = new URLSearchParams(window.location.search);
+        query.set('token', token);
+        query.set('slug', slugRetorno);
+        query.delete('pedido');
+        if (resultado.base && normalizarBaseApi(resultado.base) !== normalizarBaseApi(window.location.origin)) {
+            query.set('api', resultado.base);
+        }
+
+        window.location.href = `${window.location.pathname}?${query.toString()}`;
+    } catch (erro) {
+        setContaFeedback(erro.message || 'Não foi possível realizar login agora.', true);
+    } finally {
+        if (botao) {
+            botao.disabled = false;
+            botao.textContent = 'Entrar no app do entregador';
+        }
+    }
+}
+
+async function fazerCadastroEntregador() {
+    const inputRestaurante = document.getElementById('cadastro-restaurante');
+    const inputNome = document.getElementById('cadastro-nome');
+    const inputTelefone = document.getElementById('cadastro-telefone');
+    const inputSenha = document.getElementById('cadastro-senha');
+    const inputCodigo = document.getElementById('cadastro-codigo');
+    const botao = document.getElementById('btn-cadastrar-entregador');
+
+    const restaurante = String(inputRestaurante?.value || '').trim();
+    const nome = String(inputNome?.value || '').trim();
+    const telefone = String(inputTelefone?.value || '').replace(/\D/g, '');
+    const senha = String(inputSenha?.value || '').trim();
+    const codigo = String(inputCodigo?.value || '').replace(/\D/g, '').slice(0, 5);
+
+    if (restaurante.length < 2) {
+        setContaFeedback('Informe o restaurante para cadastrar.', true);
+        return;
+    }
+    if (nome.length < 2) {
+        setContaFeedback('Informe o nome completo.', true);
+        return;
+    }
+    if (telefone.length < 8) {
+        setContaFeedback('Informe um telefone válido.', true);
+        return;
+    }
+    if (senha.length < 4) {
+        setContaFeedback('A senha deve ter no mínimo 4 caracteres.', true);
+        return;
+    }
+    if (codigo.length !== 5) {
+        setContaFeedback('Solicite e informe o código de verificação com 5 dígitos.', true);
+        return;
+    }
+
+    if (botao) {
+        botao.disabled = true;
+        botao.textContent = 'Cadastrando...';
+    }
+    setContaFeedback('Criando cadastro do entregador...');
+
+    try {
+        const resultado = await cadastrarEntregadorPorCredenciais({ restaurante, nome, telefone, senha, codigo });
+        const data = resultado.data || {};
+        const token = String(data.token_rastreamento || '').trim();
+        const slugRetorno = String(data.slug || '').trim().toLowerCase();
+
+        if (!token || !slugRetorno) {
+            throw new Error('API retornou cadastro incompleto.');
+        }
+
+        app.restauranteNome = String(data.restaurante_nome || restaurante).trim();
+        salvarSessaoMotoboy({ token, slug: slugRetorno, telefone_login: telefone });
+        setContaFeedback('Cadastro confirmado. Abrindo painel...', false);
+
+        const query = new URLSearchParams(window.location.search);
+        query.set('token', token);
+        query.set('slug', slugRetorno);
+        query.delete('pedido');
+        if (resultado.base && normalizarBaseApi(resultado.base) !== normalizarBaseApi(window.location.origin)) {
+            query.set('api', resultado.base);
+        }
+
+        window.location.href = `${window.location.pathname}?${query.toString()}`;
+    } catch (erro) {
+        setContaFeedback(erro.message || 'Não foi possível realizar o cadastro agora.', true);
+    } finally {
+        if (botao) {
+            botao.disabled = false;
+            botao.textContent = 'Cadastrar e entrar';
+        }
+    }
+}
+
+async function solicitarCodigoCadastroEntregador() {
+    const inputRestaurante = document.getElementById('cadastro-restaurante');
+    const inputTelefone = document.getElementById('cadastro-telefone');
+    const inputCodigo = document.getElementById('cadastro-codigo');
+    const botao = document.getElementById('btn-solicitar-codigo-cadastro');
+
+    const restaurante = String(inputRestaurante?.value || '').trim();
+    const telefone = String(inputTelefone?.value || '').replace(/\D/g, '');
+
+    if (restaurante.length < 2) {
+        setContaFeedback('Informe o restaurante antes de solicitar o código.', true);
+        return;
+    }
+    if (telefone.length < 8) {
+        setContaFeedback('Informe um telefone válido para receber o código.', true);
+        return;
+    }
+
+    if (botao) {
+        botao.disabled = true;
+        botao.textContent = 'Gerando código...';
+    }
+    setContaFeedback('Gerando código de cadastro...');
+
+    try {
+        const res = await fetchComTimeout(`${API_URL}/api/public/entregadores/solicitar-codigo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ restaurante, telefone })
+        }, 12000);
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(typeof data?.detail === 'string' ? data.detail : 'Não foi possível gerar o código.');
+        }
+
+        const codigo = String(data?.codigo_copia || '').replace(/\D/g, '').slice(0, 5);
+        if (codigo && inputCodigo) {
+            inputCodigo.value = codigo;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(codigo);
+                }
+            } catch (_) {}
+        }
+
+        if (data?.codigo_enviado_whatsapp) {
+            setContaFeedback('Código enviado por WhatsApp. Cole no campo para concluir o cadastro.', false);
+        } else {
+            setContaFeedback('Código gerado. Copie e cole no campo de verificação para concluir o cadastro.', false);
+        }
+    } catch (erro) {
+        setContaFeedback(erro.message || 'Falha ao solicitar código.', true);
+    } finally {
+        if (botao) {
+            botao.disabled = false;
+            botao.textContent = 'Solicitar código de 5 dígitos';
+        }
+    }
+}
+
+function lerFotoPerfilEntregador(evento) {
+    const arquivo = evento?.target?.files?.[0];
+    if (!arquivo) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        app.fotoPerfilBase64 = String(reader.result || '').trim();
+        const foto = document.getElementById('perfil-foto-preview');
+        if (foto && app.fotoPerfilBase64) foto.src = app.fotoPerfilBase64;
+    };
+    reader.readAsDataURL(arquivo);
+}
+
+async function salvarPerfilEntregador() {
+    if (!app.token) {
+        setContaFeedback('Faça login primeiro.', true);
+        return;
+    }
+
+    const whatsapp = String(document.getElementById('perfil-whatsapp')?.value || '').replace(/\D/g, '');
+    const senhaAtual = String(document.getElementById('perfil-senha-atual')?.value || '').trim();
+    const novaSenha = String(document.getElementById('perfil-nova-senha')?.value || '').trim();
+
+    if (whatsapp.length < 8) {
+        setContaFeedback('Informe um telefone válido.', true);
+        return;
+    }
+    if (novaSenha && novaSenha.length < 4) {
+        setContaFeedback('A nova senha precisa ter ao menos 4 caracteres.', true);
+        return;
+    }
+    if (novaSenha && !senhaAtual) {
+        setContaFeedback('Informe a senha atual para trocar a senha.', true);
+        return;
+    }
+
+    const payload = {
+        email_login: whatsapp,
+        whatsapp,
+        foto_perfil_base64: app.fotoPerfilBase64 || '',
+    };
+    if (novaSenha) {
+        payload.senha_atual = senhaAtual;
+        payload.nova_senha = novaSenha;
+    }
+
+    try {
+        const res = await fetchComTimeout(`${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}/perfil`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        }, 12000);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(typeof data?.detail === 'string' ? data.detail : 'Não foi possível salvar o perfil.');
+        }
+
+        salvarSessaoMotoboy({ telefone_login: whatsapp });
+        preencherPerfilEntregador({ entregador: data.entregador || {}, restaurante: { nome: app.restauranteNome, slug: app.slug } });
+        const senhaAtualEl = document.getElementById('perfil-senha-atual');
+        const novaSenhaEl = document.getElementById('perfil-nova-senha');
+        if (senhaAtualEl) senhaAtualEl.value = '';
+        if (novaSenhaEl) novaSenhaEl.value = '';
+        setContaFeedback('Perfil atualizado com sucesso.', false);
+    } catch (erro) {
+        setContaFeedback(erro.message || 'Falha ao salvar perfil.', true);
+    }
+}
+
+function sairSessaoEntregador() {
+    localStorage.removeItem(STORAGE_MOTOBOY);
+    app.token = '';
+    app.slug = '';
+    app.restauranteNome = '';
+    app.fotoPerfilBase64 = '';
+
+    const query = new URLSearchParams(window.location.search);
+    query.delete('token');
+    query.delete('slug');
+    query.delete('pedido');
+    window.location.href = `${window.location.pathname}?${query.toString()}`;
+}
+
+function atualizarCabecalhoEntregador({ nome = '', restauranteNome = '', fotoBase64 = '' } = {}) {
+    const nomeEl = document.getElementById('entregador-nome');
+    const restauranteEl = document.getElementById('restaurante-nome');
+    const avatar = document.getElementById('topbar-avatar');
+    const fallback = document.getElementById('topbar-avatar-fallback');
+
+    if (nomeEl) {
+        nomeEl.textContent = String(nome || '').trim() || 'Entregador';
+    }
+
+    const nomeRest = String(restauranteNome || app.restauranteNome || '').trim();
+    if (restauranteEl) {
+        restauranteEl.textContent = nomeRest ? `@ ${nomeRest}` : 'Conectando...';
+    }
+
+    const foto = String(fotoBase64 || app.fotoPerfilBase64 || '').trim();
+    if (avatar && fallback) {
+        if (foto) {
+            avatar.src = foto;
+            avatar.style.display = 'block';
+            fallback.style.display = 'none';
+        } else {
+            avatar.style.display = 'none';
+            fallback.style.display = 'inline';
+        }
+    }
+}
+
+/* ═══ UI helpers ═══ */
+let statusEl = null;
+let badgeEl = null;
+let topbarEl = null;
+
+function inicializarElementosUI() {
+    if (!statusEl) statusEl = document.getElementById('status-msg');
+    if (!badgeEl) badgeEl = document.getElementById('badge-status');
+    if (!topbarEl) topbarEl = document.querySelector('.topbar');
+}
+
+function setStatus(msg, tipo = 'ok') {
+    inicializarElementosUI();
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.className = 'status-bar' + (
+        tipo === 'erro' ? ' erro' :
+        tipo === 'aviso' ? ' aviso' :
+        tipo === 'destaque' ? ' destaque' : ''
+    );
+}
+function setBadge(txt, tipo = 'ok') {
+    inicializarElementosUI();
+    if (!badgeEl) return;
+    
+    const textoOriginal = String(txt || '').trim();
+    const deveVirarConta = (
+        textoOriginal.toLowerCase() === 'aguardando'
+        && app.modoEspera
+        && !app.pedidoDisponivel
+    );
+
+    if (deveVirarConta) {
+        badgeEl.textContent = app.token ? 'Conta' : 'Login';
+    } else {
+        badgeEl.textContent = textoOriginal || (app.token ? 'Conta' : 'Login');
+    }
+
+    badgeEl.className = 'badge-status' + (
+        tipo === 'inativo' ? ' inativo' :
+        tipo === 'aguardando' ? ' aguardando' :
+        tipo === 'novo' ? ' novo' : ''
+    );
+    if (topbarEl) {
+        topbarEl.classList.toggle('com-pedido', tipo === 'novo');
+    }
+}
+function setLoading(msg) { 
+    const loadingText = document.getElementById('loading-text');
+    if (loadingText) loadingText.textContent = msg; 
+}
+function esconderLoading() { 
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.add('hidden'); 
+}
+
+function atualizarHudRota() {
+    const baseEl = document.getElementById('hud-base');
+    const distEl = document.getElementById('hud-distancia');
+    const tempoEl = document.getElementById('hud-tempo');
+    const cameraEl = document.getElementById('hud-modo-camera');
+    if (baseEl) {
+        baseEl.textContent = 'Restaurante → Cliente';
+    }
+    if (distEl) {
+        const d = Number(app.resumoDistanciaMetros);
+        distEl.textContent = Number.isFinite(d) && d > 0 ? fmtDist(d) : '--';
+    }
+    if (tempoEl) {
+        const s = Number(app.resumoDuracaoSegundos);
+        tempoEl.textContent = Number.isFinite(s) && s > 0 ? fmtDur(s) : '--';
+    }
+    if (cameraEl) {
+        const pausado = Date.now() < Number(app.pausaCameraAte || 0);
+        cameraEl.textContent = pausado ? 'Manual' : 'Seguindo';
+    }
+}
+
+function pausarCameraPorInteracao(ms = 12000) {
+    app.pausaCameraAte = Date.now() + Number(ms || 12000);
+    app.seguirEntregador = true;
+    atualizarHudRota();
+}
+
+function centralizarCameraCorrida(force = false) {
+    if (!app.mapaDisponivel || !app.mapa) return;
+    const agora = Date.now();
+    if (!force) {
+        if (agora < Number(app.pausaCameraAte || 0)) return;
+        if (agora - Number(app.ultimaCentralizacaoMapa || 0) < 2500) return;
+    }
+
+    const temDriver = Array.isArray(app.driverLatLon)
+        && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]));
+    const temDestino = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon));
+
+    if (temDriver && temDestino) {
+        app.mapa.fitBounds(
+            L.latLngBounds([
+                [Number(app.driverLatLon[0]), Number(app.driverLatLon[1])],
+                [Number(app.destino.lat), Number(app.destino.lon)]
+            ]),
+            { padding: [60, 60], maxZoom: 16 }
+        );
+    } else if (temDestino) {
+        app.mapa.setView([Number(app.destino.lat), Number(app.destino.lon)], 16, { animate: true });
+    } else if (temDriver) {
+        app.mapa.setView([Number(app.driverLatLon[0]), Number(app.driverLatLon[1])], 16, { animate: true });
+    }
+
+    app.ultimaCentralizacaoMapa = Date.now();
+    atualizarHudRota();
+}
+
+function definirModoEspera(ativo) {
+    app.modoEspera = !!ativo;
+    document.body.classList.toggle('waiting', app.modoEspera);
+    if (!app.modoEspera && app.esperaIntervalId) {
+        clearInterval(app.esperaIntervalId);
+        app.esperaIntervalId = null;
+    }
+}
+
+function atualizarRelogioEspera() {
+    const relogio = document.getElementById('wait-clock-text');
+    if (!relogio) return;
+    relogio.textContent = new Date().toLocaleTimeString('pt-BR');
+}
+
+function mostrarFeedbackEspera(texto = '') {
+    const feedback = document.getElementById('wait-feedback');
+    if (!feedback) return;
+    if (!texto) {
+        feedback.classList.remove('active');
+        return;
+    }
+    feedback.textContent = texto;
+    feedback.classList.add('active');
+    setTimeout(() => {
+        feedback.classList.remove('active');
+    }, 2800);
+}
+
+function tocarAlertaSonoro() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const tocar = (inicioMs) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 920;
+            gain.gain.value = 0.0001;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            const now = ctx.currentTime + (inicioMs / 1000);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.12, now + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+            osc.start(now);
+            osc.stop(now + 0.26);
+        };
+        tocar(0);
+        tocar(340);
+        tocar(680);
+        setTimeout(() => {
+            try { ctx.close(); } catch (_) {}
+        }, 1300);
+    } catch (_) {}
+}
+
+function enviarNotificacaoPedido(titulo, corpo) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    try {
+        const n = new Notification(titulo, {
+            body: corpo,
+            icon: 'https://cdn-icons-png.flaticon.com/512/2972/2972185.png',
+            requireInteraction: true,
+        });
+        n.onclick = () => {
+            try { window.focus(); } catch (_) {}
+        };
+    } catch (_) {}
+}
+
+function base64UrlToUint8Array(base64String = '') {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+async function registrarPushMotoboy() {
+    if (app.pushRegistrado) return;
+    if (!app.token || !API_URL) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+
+    try {
+        const cfgRes = await fetchComTimeout(`${API_URL}/api/public/push/config`, {}, 10000);
+        if (!cfgRes.ok) return;
+        const cfg = await cfgRes.json();
+        const publicKey = String(cfg?.vapid_public_key || '').trim();
+        if (!cfg?.enabled || !publicKey) return;
+
+        const swReg = await navigator.serviceWorker.register('/sw-entregador.js');
+        let permission = Notification.permission;
+        if (permission === 'default') {
+            permission = await Notification.requestPermission();
+        }
+        if (permission !== 'granted') return;
+
+        let subscription = await swReg.pushManager.getSubscription();
+        if (!subscription) {
+            subscription = await swReg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: base64UrlToUint8Array(publicKey),
+            });
+        }
+
+        const subJson = subscription.toJSON();
+        await fetchComTimeout(`${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}/push-subscription`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                endpoint: subJson.endpoint,
+                keys: subJson.keys || {},
+            })
+        }, 10000);
+
+        app.pushRegistrado = true;
+    } catch (_) {}
+}
+
+function configurarListenerPushEmTela() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        const data = event?.data || {};
+        if (String(data.type || '') !== 'delivery-push') return;
+
+        if (navigator.vibrate) {
+            try { navigator.vibrate([240, 120, 240]); } catch (_) {}
+        }
+        tocarAlertaSonoro();
+        setBadge('Novo pedido', 'novo');
+        setStatus('Entrega recebida. Abra para iniciar.', 'destaque');
+    });
+}
+
+async function ativarAlertasMotoboy() {
+    try {
+        if ('Notification' in window && Notification.permission === 'default') {
+            await Notification.requestPermission();
+        }
+        app.audioLiberado = true;
+        setStatus('Alertas do celular ativados.', 'ok');
+    } catch (_) {
+        setStatus('Não foi possível ativar alertas agora.', 'aviso');
+    }
+}
+
+function alertarNovoPedido(pedido) {
+    const pedidoId = Number(pedido?.id || 0);
+    if (!pedidoId) return;
+    if (app.ultimoPedidoAlertado === pedidoId) return;
+
+    app.ultimoPedidoAlertado = pedidoId;
+    if (navigator.vibrate) {
+        try { navigator.vibrate([280, 140, 280, 140, 320]); } catch (_) {}
+    }
+    if (app.audioLiberado || document.visibilityState === 'visible') {
+        tocarAlertaSonoro();
+    }
+
+    const cliente = String(pedido?.cliente_nome || 'Cliente').trim();
+    enviarNotificacaoPedido(
+        `Novo pedido #${pedidoId}`,
+        `Corrida disponível para ${cliente}. Toque para abrir.`
+    );
+}
+
+function atualizarUrlComPedido(pedidoId) {
+    const q = new URLSearchParams(window.location.search);
+    q.set('pedido', String(pedidoId));
+    if (app.slug) q.set('slug', app.slug);
+    if (app.token) q.set('token', app.token);
+    const novaUrl = `${window.location.pathname}?${q.toString()}`;
+    window.history.replaceState({}, '', novaUrl);
+}
+
+function atualizarUrlModoEspera() {
+    const q = new URLSearchParams(window.location.search);
+    q.delete('pedido');
+    if (app.slug) q.set('slug', app.slug);
+    if (app.token) q.set('token', app.token);
+    const novaUrl = `${window.location.pathname}?${q.toString()}`;
+    window.history.replaceState({}, '', novaUrl);
+}
+
+function voltarParaTelaEspera() {
+    limparContextoRota({ manterMarcadorEntregador: false });
+    app.pedidoId = '-';
+    app.pedidoContextoId = 0;
+    app.statusPedido = '';
+    app.pedidoDisponivel = null;
+    app.ultimoPedidoAlertado = null;
+    marcarPedidoAceito(false);
+
+    atualizarUrlModoEspera();
+    definirModoEspera(true);
+    renderizarPedidoDisponivel(null);
+
+    const pedidoIdEl = document.getElementById('pedido-id');
+    const pedidoStatusEl = document.getElementById('pedido-status');
+    const ultimaPosicaoEl = document.getElementById('ultima-posicao');
+
+    if (pedidoIdEl) pedidoIdEl.textContent = '-';
+    if (pedidoStatusEl) pedidoStatusEl.textContent = 'Aguardando';
+    if (ultimaPosicaoEl) ultimaPosicaoEl.textContent = 'Aguardando GPS';
+
+    setBadge('Aguardando', 'aguardando');
+    setStatus('Aguardando novo pedido...', 'aviso');
+    mostrarFeedbackEspera('Entrega finalizada. Voltando para o modo de espera...');
+    atualizarRelogioEspera();
+
+    if (!app.esperaIntervalId) {
+        app.esperaIntervalId = setInterval(verificarPedidoNovo, 7000);
+    }
+}
+
+function renderizarPedidoDisponivel(pedido) {
+    const box = document.getElementById('wait-order-box');
+    const title = document.getElementById('wait-order-title');
+    const sub = document.getElementById('wait-order-sub');
+    if (!box || !title || !sub) return;
+
+    const pedidoId = Number(pedido?.id || 0);
+    if (!pedidoId) {
+        box.classList.remove('active');
+        app.pedidoDisponivel = null;
+        return;
+    }
+
+    app.pedidoDisponivel = {
+        id: pedidoId,
+        status: String(pedido?.status || ''),
+        cliente_nome: String(pedido?.cliente_nome || '').trim(),
+    };
+
+    const cliente = app.pedidoDisponivel.cliente_nome || 'Cliente';
+    title.textContent = `Pedido #${pedidoId} saiu para entrega`;
+    sub.textContent = `${cliente} · toque em “Aceitar entrega” para abrir mapa e localização da corrida.`;
+
+    const btnAceitar = document.getElementById('btn-fazer-entrega');
+    if (btnAceitar) {
+        btnAceitar.disabled = false;
+        btnAceitar.textContent = 'Aceitar entrega';
+    }
+    box.classList.add('active');
+}
+
+async function abrirTelaEntrega() {
+    const pedidoId = Number(app.pedidoDisponivel?.id || app.pedidoId || 0);
+    if (!pedidoId) {
+        setStatus('Nenhum pedido disponível no momento.', 'aviso');
+        return;
+    }
+
+    const btn = document.getElementById('btn-fazer-entrega');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Iniciando corrida...';
+    }
+    setBadge('Aceitando', 'ok');
+    setStatus('Aceitando e iniciando corrida...', 'ok');
+    if (topbarEl) {
+        topbarEl.classList.remove('com-pedido');
+    }
+
+    app.pedidoId = String(pedidoId);
+    app.pedidoContextoId = pedidoId;
+    app.statusPedido = String(app.pedidoDisponivel?.status || app.statusPedido || '').toLowerCase();
+    limparContextoRota({ manterMarcadorEntregador: true });
+    app.driverLatLon = null;
+
+    try {
+        if (app.statusPedido !== 'em_entrega') {
+            await atualizarStatusPedidoEntregador('em_entrega');
+        }
+        marcarPedidoAceito(true);
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = Number(pos?.coords?.latitude);
+                    const lon = Number(pos?.coords?.longitude);
+                    const acc = Number(pos?.coords?.accuracy);
+                    enviarLocalizacao(lat, lon, acc);
+                },
+                () => {},
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+            );
+        }
+    } catch (erro) {
+        const msg = String(erro?.message || '').trim();
+        setStatus(msg || 'Não foi possível confirmar o status agora, abrindo corrida mesmo assim...', 'aviso');
+    }
+
+    app.modoEspera = false;
+    definirModoEspera(false);
+    renderizarPedidoDisponivel(null);
+    atualizarUrlComPedido(pedidoId);
+    app.pausaCameraAte = 0;
+    app.seguirEntregador = true;
+    app.ultimaCentralizacaoMapa = 0;
+    atualizarHudRota();
+
+    if (!app.mapaDisponivel) {
+        iniciarMapa();
+    }
+
+    if (app.mapaDisponivel && app.mapa && app.slug) {
+        try {
+            await atualizarStatusPedidoAtual();
+            await atualizarRotaEntregadorDestino(true);
+            centralizarCameraCorrida(true);
+        } catch (_) {}
+    }
+
+    setTimeout(async () => {
+        try {
+            await carregarCorrida();
+        } catch (_) {}
+    }, 120);
+}
+
+async function fetchComTimeout(url, options = {}, timeoutMs = 12000) {
+    const urlTexto = String(url || '').trim();
+    const matchPath = urlTexto.match(/^https?:\/\/[^/]+(\/.*)$/i);
+    const caminhoApi = matchPath ? matchPath[1] : '';
+    const deveTentarFallback = caminhoApi.startsWith('/api/');
+
+    const tentativas = [];
+    const adicionarTentativa = (base, finalUrl) => {
+        if (!finalUrl) return;
+        if (!tentativas.some(item => item.url === finalUrl)) {
+            tentativas.push({ base, url: finalUrl });
+        }
+    };
+
+    adicionarTentativa(normalizarBaseApi(urlTexto), urlTexto);
+    if (deveTentarFallback) {
+        API_BASES.forEach(base => adicionarTentativa(base, `${base}${caminhoApi}`));
+    }
+
+    let ultimaResposta = null;
+    let ultimoErro = null;
+
+    for (const tentativa of tentativas) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const resposta = await fetch(tentativa.url, { ...options, signal: controller.signal });
+
+            if (resposta.ok && tentativa.base) {
+                API_URL = tentativa.base;
+                localStorage.setItem('api_base_url', API_URL);
+                const bruto = localStorage.getItem(STORAGE_ACTIVE_RESTAURANTE_LINK) || '{}';
+                let atual = {};
+                try { atual = JSON.parse(bruto) || {}; } catch { atual = {}; }
+                localStorage.setItem(STORAGE_ACTIVE_RESTAURANTE_LINK, JSON.stringify({
+                    ...atual,
+                    api_base_url: API_URL,
+                    atualizado_em: Date.now()
+                }));
+                return resposta;
+            }
+
+            ultimaResposta = resposta;
+            if (!deveTentarFallback || ![404, 405].includes(Number(resposta.status))) {
+                return resposta;
+            }
+        } catch (erro) {
+            ultimoErro = erro;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    if (ultimaResposta) {
+        return ultimaResposta;
+    }
+    if (ultimoErro) {
+        throw ultimoErro;
+    }
+
+    throw new Error('Falha ao consultar API');
+}
+
+function statusPermiteRastreamento(status) {
+    return ['em_entrega'].includes(String(status || '').toLowerCase());
+}
+
+function obterTextoEnderecoMapeavel(texto, coords) {
+    const valor = String(texto || '').trim();
+    if (valor) return valor;
+    if (coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lon)) {
+        return `${coords.lat},${coords.lon}`;
+    }
+    return '';
+}
+
+function atualizarBlocoLocalizacao() {
+    const destinoEl = document.getElementById('destino-endereco');
+    const destinoTexto = obterTextoEnderecoMapeavel(app.enderecoDestinoTexto, app.destino);
+
+    if (destinoEl) {
+        destinoEl.textContent = destinoTexto || 'Destino sem endereço configurado';
+    }
+}
+
+async function verificarPedidoNovo() {
+    if (!app.modoEspera) return;
+    if (!app.token) return;
+    if (app.abrindoPedidoAutomatico) return;
+    try {
+        const res = await fetchComTimeout(`${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}`, {}, 12000);
+        if (!res.ok) {
+            const detalhe = await res.json().catch(() => ({}));
+            const msgApi = String(detalhe?.detail || '').trim();
+
+            if (res.status === 403) {
+                app.falhasConsultaPedido = 0;
+                const msg = msgApi || 'Entregador inativo. Ative no painel admin para receber corridas.';
+                app.ultimaFalhaConsultaMsg = msg;
+                setBadge('Inativo', 'inativo');
+                setStatus(msg, 'erro');
+                return;
+            }
+
+            if (res.status === 404) {
+                app.falhasConsultaPedido = 0;
+                const msg = msgApi || 'Token do entregador não encontrado. Faça login novamente.';
+                app.ultimaFalhaConsultaMsg = msg;
+                setBadge('Login', 'aguardando');
+                setStatus(msg, 'erro');
+                return;
+            }
+
+            app.falhasConsultaPedido += 1;
+            const msg = msgApi || `Falha ao consultar pedidos (${res.status}).`;
+            if (app.falhasConsultaPedido >= 2 && app.ultimaFalhaConsultaMsg !== msg) {
+                app.ultimaFalhaConsultaMsg = msg;
+                setStatus(`${msg} Tentando reconectar...`, 'aviso');
+            }
+            if (app.falhasConsultaPedido >= 3) {
+                await descobrirApiAtivaEntregador();
+            }
+            return;
+        }
+        const data = await res.json();
+        app.falhasConsultaPedido = 0;
+        app.ultimaFalhaConsultaMsg = '';
+
+        if (data?.slug && !app.slug) app.slug = String(data.slug);
+        salvarSessaoMotoboy({ token: app.token, slug: app.slug || data?.slug || '' });
+        app.restauranteNome = String(data?.restaurante_nome || app.restauranteNome || '').trim();
+        atualizarCabecalhoEntregador({
+            nome: data?.nome || 'Entregador',
+            restauranteNome: app.restauranteNome,
+            fotoBase64: app.fotoPerfilBase64,
+        });
+
+        const pedidoAtivo = data?.pedido_ativo;
+        const pedidoId = Number(pedidoAtivo?.id || 0);
+        if (!pedidoId) {
+            renderizarPedidoDisponivel(null);
+            setBadge('Aguardando', 'aguardando');
+            setStatus('Aguardando novo pedido...', 'aviso');
+            return;
+        }
+
+        const statusPedidoAtivo = String(pedidoAtivo?.status || '').toLowerCase();
+        if (statusPedidoAtivo !== 'em_entrega') {
+            renderizarPedidoDisponivel(null);
+            setBadge('Aguardando', 'aguardando');
+            setStatus('Aguardando o dono colocar o pedido em entrega...', 'aviso');
+            return;
+        }
+
+        alertarNovoPedido(pedidoAtivo);
+        renderizarPedidoDisponivel(pedidoAtivo);
+        setBadge('Novo pedido', 'novo');
+        setStatus('Pedido em entrega recebido. Toque em “Aceitar entrega”.', 'destaque');
+
+        const pedidoPodeAbrirAutomatico = AUTO_ABRIR_CORRIDA && statusPedidoAtivo === 'em_entrega';
+        const pedidoAindaNaoAberto = app.ultimoPedidoAutoAbertura !== pedidoId;
+
+        if (pedidoPodeAbrirAutomatico && pedidoAindaNaoAberto) {
+            app.abrindoPedidoAutomatico = true;
+            app.ultimoPedidoAutoAbertura = pedidoId;
+            setStatus('Novo pedido detectado. Iniciando corrida automaticamente...', 'destaque');
+            setTimeout(async () => {
+                try {
+                    await abrirTelaEntrega();
+                } catch (_) {
+                    setStatus('Não foi possível iniciar automaticamente. Toque em “Aceitar entrega”.', 'aviso');
+                } finally {
+                    app.abrindoPedidoAutomatico = false;
+                }
+            }, 200);
+        }
+    } catch (erro) {
+        app.falhasConsultaPedido += 1;
+        if (app.falhasConsultaPedido >= 2) {
+            const mensagem = String(erro?.message || '').trim() || 'Falha de conexão ao consultar novos pedidos.';
+            if (app.ultimaFalhaConsultaMsg !== mensagem) {
+                app.ultimaFalhaConsultaMsg = mensagem;
+                setStatus(`${mensagem} Tentando reconectar...`, 'aviso');
+            }
+        }
+        if (app.falhasConsultaPedido >= 3) {
+            await descobrirApiAtivaEntregador();
+        }
+    }
+}
+
+function abrirRotaNoMaps() {
+    const destinoTexto = obterTextoEnderecoMapeavel(app.enderecoDestinoTexto, app.destino);
+    if (!destinoTexto) {
+        setStatus('Destino indisponível para abrir rota.', 'aviso');
+        return;
+    }
+
+    const origemPreferencial = app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))
+        ? `${Number(app.origem.lat)},${Number(app.origem.lon)}`
+        : obterTextoEnderecoMapeavel(app.enderecoOrigemTexto, null);
+
+    const destinoPreferencial = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon))
+        ? `${Number(app.destino.lat)},${Number(app.destino.lon)}`
+        : destinoTexto;
+
+    const base = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destinoPreferencial)}&travelmode=driving`;
+    const link = origemPreferencial
+        ? `${base}&origin=${encodeURIComponent(origemPreferencial)}`
+        : base;
+
+    window.open(link, '_blank');
+}
+
+function keyAceite() {
+    return `entregador_aceite_${app.token}_${app.pedidoId}`;
+}
+
+function marcarPedidoAceito(valor) {
+    app.pedidoAceito = !!valor;
+    if (app.pedidoAceito) {
+        localStorage.setItem(keyAceite(), '1');
+    } else {
+        localStorage.removeItem(keyAceite());
+    }
+}
+
+function statusLegivel(status) {
+    const st = String(status || '').toLowerCase();
+    const map = {
+        novo: 'Novo',
+        preparando: 'Preparando',
+        pronto: 'Pronto para coleta',
+        em_entrega: 'Saiu para entrega',
+        entregue: 'Entregue',
+        cancelado: 'Cancelado',
+        fechado: 'Fechado'
+    };
+    return map[st] || (status || '-');
+}
+
+function atualizarTimeline(status) {
+    return;
+}
+
+function atualizarAcoesCorrida() {
+    const st = String(app.statusPedido || '').toLowerCase();
+    const btnFinalizarCorrida = document.getElementById('btn-finalizar-corrida');
+    if (!btnFinalizarCorrida) return;
+
+    const emCorrida = st === 'em_entrega';
+    const finalizado = ['entregue', 'cancelado', 'fechado'].includes(st);
+
+    btnFinalizarCorrida.disabled = !(emCorrida && app.pedidoAceito);
+    btnFinalizarCorrida.textContent = finalizado ? 'Corrida encerrada' : 'Pedido entregue';
+
+    if (finalizado) {
+        btnFinalizarCorrida.disabled = true;
+    }
+
+    if (st === 'pronto') {
+        setBadge(app.pedidoAceito ? 'Aceito' : 'Aguardando aceite', app.pedidoAceito ? 'ok' : 'aguardando');
+    } else if (st === 'em_entrega') {
+        setBadge('Em corrida', 'ok');
+    } else if (st === 'entregue') {
+        setBadge('Finalizado', 'inativo');
+    } else {
+        setBadge('Aguardando', 'aguardando');
+    }
+}
+
+function atualizarResumoPedido(data) {
+    const status = String(data?.pedido?.status || app.statusPedido || '').toLowerCase();
+    const pedidoStatus = document.getElementById('pedido-status');
+    if (pedidoStatus) {
+        pedidoStatus.textContent = statusLegivel(status);
+    }
+    atualizarTimeline(status);
+}
+
+async function atualizarStatusPedidoEntregador(statusNovo) {
+    const pedidoIdNum = Number(app.pedidoId || 0);
+    if (!pedidoIdNum || !app.token) {
+        throw new Error('Pedido/token inválido');
+    }
+
+    const res = await fetchComTimeout(
+        `${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}/pedidos/${pedidoIdNum}/status`,
+        {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: statusNovo })
+        },
+        12000
+    );
+    if (!res.ok) {
+        const detalhe = await res.json().catch(() => ({}));
+        throw new Error(detalhe?.detail || 'Falha ao atualizar status do pedido');
+    }
+
+    const data = await res.json();
+    app.statusPedido = String(data?.status || app.statusPedido || '').toLowerCase();
+    atualizarAcoesCorrida();
+    atualizarTimeline(app.statusPedido);
+}
+
+function aceitarPedido() {
+    iniciarCorrida();
+}
+
+async function iniciarCorrida() {
+    try {
+        const statusAtual = String(app.statusPedido || '').toLowerCase();
+        if (!['pronto', 'em_entrega'].includes(statusAtual)) {
+            setStatus('A entrega ainda não está liberada para aceite.', 'aviso');
+            return;
+        }
+        if (statusAtual !== 'em_entrega') {
+            await atualizarStatusPedidoEntregador('em_entrega');
+        }
+        marcarPedidoAceito(true);
+        atualizarAcoesCorrida();
+        iniciarRastreamento();
+        setStatus('Corrida iniciada. Enviando localização em tempo real para cliente e restaurante.', 'ok');
+    } catch (erro) {
+        setStatus(erro.message || 'Não foi possível iniciar corrida.', 'erro');
+    }
+}
+
+async function finalizarCorrida() {
+    if (app.finalizandoCorrida) {
+        setStatus('Finalização já em andamento...', 'aviso');
+        return;
+    }
+
+    const btnFinalizarCorrida = document.getElementById('btn-finalizar-corrida');
+    app.finalizandoCorrida = true;
+    if (btnFinalizarCorrida) {
+        btnFinalizarCorrida.disabled = true;
+        btnFinalizarCorrida.textContent = 'Finalizando...';
+    }
+
+    try {
+        const statusAtual = String(app.statusPedido || '').toLowerCase();
+        if (statusAtual !== 'em_entrega') {
+            setStatus('A corrida ainda não está em entrega para finalizar.', 'aviso');
+            return;
+        }
+
+        await atualizarStatusPedidoEntregador('entregue');
+        marcarPedidoAceito(false);
+        pararRastreamento();
+        atualizarAcoesCorrida();
+        setStatus('Pedido entregue com sucesso. Voltando para espera...', 'ok');
+        setTimeout(() => {
+            voltarParaTelaEspera();
+        }, 700);
+    } catch (erro) {
+        const mensagem = String(erro?.message || '').trim();
+        const mensagemNormalizada = mensagem.toLowerCase();
+        const conflitoFinalizacao =
+            mensagemNormalizada.includes('precisa estar em entrega')
+            || mensagemNormalizada.includes('rastreamento encerrado')
+            || mensagemNormalizada.includes('pedido entregue')
+            || mensagemNormalizada.includes('pedido já entregue')
+            || mensagemNormalizada.includes('conflito')
+            || mensagemNormalizada.includes('409');
+
+        if (conflitoFinalizacao) {
+            marcarPedidoAceito(false);
+            pararRastreamento();
+            setStatus('Pedido já finalizado no sistema. Voltando para espera...', 'aviso');
+            setTimeout(() => {
+                voltarParaTelaEspera();
+            }, 500);
+            return;
+        }
+
+        setStatus(mensagem || 'Não foi possível finalizar a corrida.', 'erro');
+    } finally {
+        app.finalizandoCorrida = false;
+        atualizarAcoesCorrida();
+    }
+}
+
+/* ═══ MAPA ═══ */
+function iniciarMapa() {
+    if (typeof L === 'undefined') {
+        app.mapaDisponivel = false;
+        const mapEl = document.getElementById('map');
+        if (mapEl) {
+            mapEl.innerHTML = '<div class="map-fallback">Não foi possível carregar o mapa.<br>Verifique a conexão e recarregue.</div>';
+        }
+        setStatus('Mapa indisponível (sem conexão com CDN). Painel seguirá sem mapa.', 'aviso');
+        return;
+    }
+
+    app.mapa = L.map('map', { zoomControl: false, attributionControl: false })
+                .setView([-15.77, -47.93], 13);
+
+    app.mapaDisponivel = true;
+    inicializarIconesMapa();
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
+     .addTo(app.mapa);
+
+    setTimeout(() => {
+        try { app.mapa.invalidateSize(); } catch (_) {}
+    }, 150);
+
+    L.control.zoom({ position: 'topright' }).addTo(app.mapa);
+    L.control.attribution({ position: 'bottomright', prefix: '© OSM' }).addTo(app.mapa);
+
+    app.mapa.on('dragstart zoomstart', () => {
+        pausarCameraPorInteracao(12000);
+    });
+
+    focarMapaNaCidadeTrava(13).catch(() => {});
+}
+
+/* ─── Ícones customizados ─── */
+let iconRestaurante = null;
+let iconDestino = null;
+let iconEntregador = null;
+
+function inicializarIconesMapa() {
+    if (typeof L === 'undefined') return;
+
+    iconRestaurante = L.divIcon({
+        html: '<div class="marker-restaurant">🏪</div>',
+        iconSize: [34, 34], iconAnchor: [17, 17], className: '',
+    });
+    iconDestino = L.divIcon({
+        html: '<div class="marker-home-wrap"><div class="marker-home-body"><span class="marker-home-emoji">🏠</span></div><div class="marker-home-tip"></div></div>',
+        iconSize: [36, 46], iconAnchor: [18, 46], className: '',
+    });
+    iconEntregador = L.divIcon({
+        html: '<div class="marker-driver">🏍️</div>',
+        iconSize: [44, 44], iconAnchor: [22, 22], className: '',
+    });
+}
+
+/* ═══ GEOCODIFICAÇÃO (Nominatim) ═══ */
+async function geocodificarNominatim(texto, opcoes = {}) {
+    const q = String(texto || '').trim();
+    if (!q) return null;
+    const cidadeTrava = String(opcoes?.cidade || app.restauranteCidadeTrava || '').trim();
+    const ufTrava = normalizarUfGeoEntregador(opcoes?.uf || app.restauranteUfTrava || '');
+    const usarTrava = !opcoes?.ignorarTrava;
+    const cidadeNorm = normalizarTextoGeoEntregador(cidadeTrava);
+
+    const consultas = [];
+    if (usarTrava && cidadeTrava && ufTrava) consultas.push(`${q}, ${cidadeTrava}, ${ufTrava}, Brasil`);
+    if (usarTrava && cidadeTrava) consultas.push(`${q}, ${cidadeTrava}, Brasil`);
+    if (usarTrava && ufTrava) consultas.push(`${q}, ${ufTrava}, Brasil`);
+    consultas.push(/brasil/i.test(q) ? q : `${q}, Brasil`);
+
+    const unicas = Array.from(new Set(consultas.map(v => String(v || '').trim()).filter(Boolean)));
+    try {
+        for (const query of unicas) {
+            const r = await fetchComAbortTimeout(
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=br&addressdetails=1`,
+                { headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' } },
+                7000
+            );
+            const d = await r.json().catch(() => ([]));
+            if (!Array.isArray(d) || d.length === 0) continue;
+
+            const candidatos = d.filter(item => {
+                const lat = Number.parseFloat(item?.lat);
+                const lon = Number.parseFloat(item?.lon);
+                if (!coordenadaValida(lat, lon)) return false;
+                if (!usarTrava) return true;
+                return itemNominatimBateCidadeTrava(item, cidadeNorm, ufTrava);
+            });
+            const escolhido = candidatos[0] || null;
+            if (escolhido) {
+                const lat = Number.parseFloat(escolhido.lat);
+                const lon = Number.parseFloat(escolhido.lon);
+                return { lat, lon, label: escolhido.display_name || q };
+            }
+        }
+    } catch (_) {}
+    return null;
+}
+
+async function geocodificarGoogle(texto) {
+    const q = String(texto || '').trim();
+    const key = String(app.googleMapsApiKey || '').trim();
+    if (!q || !key) return null;
+    const query = /brasil/i.test(q) ? q : `${q}, Brasil`;
+    const cidadeNorm = normalizarTextoGeoEntregador(app.restauranteCidadeTrava || '');
+    const ufTrava = normalizarUfGeoEntregador(app.restauranteUfTrava || '');
+    try {
+        const r = await fetchComAbortTimeout(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&region=br&language=pt-BR&key=${encodeURIComponent(key)}`,
+            {},
+            7000
+        );
+        const d = await r.json().catch(() => ({}));
+        const resultados = Array.isArray(d?.results) ? d.results : [];
+        const first = resultados.find((item) => {
+            if (!item || typeof item !== 'object') return false;
+            const comps = Array.isArray(item.address_components) ? item.address_components : [];
+            const cidadeComp = comps.find(c => Array.isArray(c.types) && (c.types.includes('locality') || c.types.includes('administrative_area_level_2')));
+            const ufComp = comps.find(c => Array.isArray(c.types) && c.types.includes('administrative_area_level_1'));
+            const cidadeItem = normalizarTextoGeoEntregador(cidadeComp?.long_name || '');
+            const ufItem = normalizarUfGeoEntregador(ufComp?.short_name || '');
+            const display = normalizarTextoGeoEntregador(item.formatted_address || '');
+            if (ufTrava && ufItem && ufItem !== ufTrava) return false;
+            if (cidadeNorm && cidadeItem && cidadeItem !== cidadeNorm && !display.includes(cidadeNorm)) return false;
+            return true;
+        }) || (resultados[0] || null);
+
+        const lat = Number(first?.geometry?.location?.lat);
+        const lon = Number(first?.geometry?.location?.lng);
+        if (!coordenadaValida(lat, lon)) return null;
+        return { lat, lon, label: String(first?.formatted_address || q).trim() };
+    } catch (_) {
+        return null;
+    }
+}
+
+async function geocodificar(texto) {
+    const q = String(texto || '').trim();
+    if (!q) return null;
+    const viaNominatim = await geocodificarNominatim(q);
+    if (viaNominatim) return viaNominatim;
+    return geocodificarGoogle(q);
+}
+
+async function fetchComAbortTimeout(url, options = {}, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function enderecoParaTexto(obj) {
+    if (!obj) return '';
+    if (typeof obj === 'string') return obj.trim();
+    if (typeof obj !== 'object') return String(obj || '').trim();
+
+    // Preferir texto formatado pelo backend (mais preciso para geocodificação)
+    const mapsFormatado = String(obj.maps_formatado || obj.formatted_address || '').trim();
+    if (mapsFormatado) return mapsFormatado;
+
+    const campos = [
+        'logradouro', 'rua', 'endereco', 'address',
+        'numero', 'complemento', 'bairro',
+        'cidade', 'city', 'estado', 'state', 'uf', 'cep'
+    ];
+    const partes = campos
+        .map(c => obj[c])
+        .filter(v => v !== null && v !== undefined && String(v).trim())
+        .map(v => String(v).trim());
+
+    if (partes.length) return partes.join(', ');
+
+    return Object.entries(obj)
+        .filter(([k, v]) => {
+            const chave = String(k || '').toLowerCase();
+            if (['lat', 'lng', 'lon', 'longitude', 'latitude'].includes(chave)) return false;
+            return v !== null && v !== undefined && String(v).trim();
+        })
+        .map(([, v]) => String(v).trim())
+        .join(', ');
+}
+
+function extrairLatLonEndereco(endereco) {
+    if (!endereco || typeof endereco !== 'object') return null;
+    const blocoCoords = endereco.coordenadas || endereco.coordinates || endereco.location || null;
+
+    const lat = Number(
+        endereco.latitude
+        ?? endereco.lat
+        ?? endereco.latitude_destino
+        ?? blocoCoords?.latitude
+        ?? blocoCoords?.lat
+    );
+    const lon = Number(
+        endereco.longitude
+        ?? endereco.lng
+        ?? endereco.lon
+        ?? endereco.long
+        ?? endereco.longitude_destino
+        ?? endereco.long_destino
+        ?? endereco.lon_destino
+        ?? blocoCoords?.longitude
+        ?? blocoCoords?.lng
+        ?? blocoCoords?.lon
+        ?? blocoCoords?.long
+    );
+    if (!coordenadaValida(lat, lon)) return null;
+    return { lat, lon };
+}
+
+/* ═══ ROTA (Google Directions + fallback OSRM) ═══ */
+let googleDirectionsReady = false;
+let googleDirectionsLoading = null;
+
+async function carregarGoogleDirectionsApi() {
+    const key = obterGoogleMapsApiKeyEntregador(app.googleMapsApiKey);
+    if (!key) return false;
+    if (window.google?.maps?.DirectionsService) {
+        googleDirectionsReady = true;
+        return true;
+    }
+    if (googleDirectionsLoading) {
+        await googleDirectionsLoading;
+        return !!window.google?.maps?.DirectionsService;
+    }
+
+    googleDirectionsLoading = new Promise((resolve) => {
+        const scriptId = 'google-directions-api-entregador';
+        const existente = document.getElementById(scriptId);
+        if (existente) {
+            const wait = () => {
+                if (window.google?.maps?.DirectionsService) {
+                    googleDirectionsReady = true;
+                    resolve(true);
+                } else {
+                    setTimeout(wait, 200);
+                }
+            };
+            wait();
+            return;
+        }
+
+        const callbackName = '__gmDirectionsReadyEntregador';
+        window[callbackName] = () => {
+            googleDirectionsReady = true;
+            resolve(true);
+        };
+
+        const script = document.createElement('script');
+        script.id = scriptId;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&callback=${callbackName}`;
+        script.async = true;
+        script.defer = true;
+        script.onerror = () => resolve(false);
+        document.head.appendChild(script);
+    });
+
+    const ok = await googleDirectionsLoading;
+    googleDirectionsLoading = null;
+    return !!ok;
+}
+
+function converterOverviewPathParaGeoJson(path = []) {
+    if (!Array.isArray(path) || path.length < 2) return null;
+    const coords = path
+        .map(p => {
+            const lat = Number(p?.lat?.());
+            const lon = Number(p?.lng?.());
+            if (!coordenadaValida(lat, lon)) return null;
+            return [lon, lat];
+        })
+        .filter(Boolean);
+
+    if (coords.length < 2) return null;
+    return {
+        type: 'LineString',
+        coordinates: coords,
+    };
+}
+
+async function buscarRotaGoogle(latA, lonA, latB, lonB) {
+    const okApi = await carregarGoogleDirectionsApi();
+    if (!okApi || !window.google?.maps?.DirectionsService) return null;
+
+    return await new Promise((resolve) => {
+        try {
+            const service = new google.maps.DirectionsService();
+            service.route(
+                {
+                    origin: { lat: latA, lng: lonA },
+                    destination: { lat: latB, lng: lonB },
+                    travelMode: google.maps.TravelMode.DRIVING,
+                    region: 'BR',
+                    language: 'pt-BR',
+                },
+                (result, status) => {
+                    if (status !== 'OK' || !result?.routes?.length) {
+                        resolve(null);
+                        return;
+                    }
+                    const route = result.routes[0] || {};
+                    const leg = Array.isArray(route.legs) ? route.legs[0] : null;
+                    const geojson = converterOverviewPathParaGeoJson(route.overview_path || []);
+                    if (!geojson) {
+                        resolve(null);
+                        return;
+                    }
+                    resolve({
+                        geojson,
+                        dist: Number(leg?.distance?.value || 0),
+                        dur: Number(leg?.duration?.value || 0),
+                    });
+                }
+            );
+        } catch (_) {
+            resolve(null);
+        }
+    });
+}
+
+async function buscarRotaOsrm(latA, lonA, latB, lonB) {
+    try {
+        const r = await fetchComAbortTimeout(
+            `https://router.project-osrm.org/route/v1/driving/${lonA},${latA};${lonB},${latB}?overview=full&geometries=geojson`,
+            {},
+            8000
+        );
+        const d = await r.json();
+        if (d.code === 'Ok' && d.routes.length > 0)
+            return { geojson: d.routes[0].geometry, dist: d.routes[0].distance, dur: d.routes[0].duration };
+    } catch (_) {}
+    return null;
+}
+
+async function buscarRota(latA, lonA, latB, lonB) {
+    const viaGoogle = await buscarRotaGoogle(latA, lonA, latB, lonB);
+    if (viaGoogle) return viaGoogle;
+    return buscarRotaOsrm(latA, lonA, latB, lonB);
+}
+
+async function atualizarResumoOrigemDestino(force = false) {
+    const origem = app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))
+        ? { lat: Number(app.origem.lat), lon: Number(app.origem.lon) }
+        : null;
+    const destino = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon))
+        ? { lat: Number(app.destino.lat), lon: Number(app.destino.lon) }
+        : null;
+
+    if (!origem || !destino) {
+        app.resumoDistanciaMetros = null;
+        app.resumoDuracaoSegundos = null;
+        app.resumoOrigemDestinoKey = '';
+        atualizarHudRota();
+        return;
+    }
+
+    const key = `${origem.lat.toFixed(6)},${origem.lon.toFixed(6)}|${destino.lat.toFixed(6)},${destino.lon.toFixed(6)}`;
+    const agora = Date.now();
+    if (!force) {
+        if (app.resumoOrigemDestinoKey === key && (agora - Number(app.ultimoResumoOrigemDestino || 0) < 30000)) {
+            return;
+        }
+    }
+
+    app.ultimoResumoOrigemDestino = agora;
+    app.resumoOrigemDestinoKey = key;
+
+    const rota = await buscarRota(origem.lat, origem.lon, destino.lat, destino.lon);
+    if (rota && Number.isFinite(Number(rota.dist)) && Number(rota.dist) > 0) {
+        app.resumoDistanciaMetros = Number(rota.dist);
+        app.resumoDuracaoSegundos = Number.isFinite(Number(rota.dur)) && Number(rota.dur) > 0
+            ? Number(rota.dur)
+            : null;
+        atualizarHudRota();
+        return;
+    }
+
+    const distLinhaReta = distanciaHaversineMetros(origem.lat, origem.lon, destino.lat, destino.lon);
+    const distAproximada = distLinhaReta * 1.28;
+    const velocidadeMediaKmh = 28;
+    const tempoAproximado = (distAproximada / 1000) / velocidadeMediaKmh * 3600;
+
+    app.resumoDistanciaMetros = Number.isFinite(distAproximada) && distAproximada > 0 ? distAproximada : null;
+    app.resumoDuracaoSegundos = Number.isFinite(tempoAproximado) && tempoAproximado > 0 ? tempoAproximado : null;
+    atualizarHudRota();
+}
+
+function fmtDist(m)  { return m >= 1000 ? `${(m/1000).toFixed(1)} km` : `${Math.round(m)} m`; }
+function fmtDur(s) {
+    const total = Math.max(0, Math.round(Number(s || 0)));
+    const min = Math.round(total / 60);
+    if (min < 60) return `${min} min`;
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m ? `${h}h ${m}min` : `${h}h`;
+}
+
+/* ─── Traçado da rota (entregador → destino) ─── */
+let camadaRota = null;
+let camadaTrajeto = null;
+let marcadorDestino = null;
+let marcadorOrigem = null;
+let rotaRequestSeq = 0;
+
+function atualizarCamadaTrajetoEntregador() {
+    if (!app.mapaDisponivel || !app.mapa) return;
+
+    if (camadaTrajeto) {
+        try { app.mapa.removeLayer(camadaTrajeto); } catch (_) {}
+        camadaTrajeto = null;
+    }
+
+    if (!Array.isArray(app.trajetoPontos) || app.trajetoPontos.length < 2) return;
+
+    camadaTrajeto = L.polyline(app.trajetoPontos, {
+        color: '#60a5fa',
+        weight: 4,
+        opacity: 0.92,
+    }).addTo(app.mapa);
+}
+
+function registrarPontoTrajetoEntregador(lat, lon) {
+    if (!coordenadaValida(lat, lon)) return;
+    if (!Array.isArray(app.trajetoPontos)) app.trajetoPontos = [];
+
+    const ultimo = app.trajetoPontos.length ? app.trajetoPontos[app.trajetoPontos.length - 1] : null;
+    const deveAdicionar = !ultimo || distanciaHaversineMetros(Number(ultimo[0]), Number(ultimo[1]), lat, lon) >= 8;
+    if (!deveAdicionar) return;
+
+    app.trajetoPontos.push([lat, lon]);
+    if (app.trajetoPontos.length > 600) {
+        app.trajetoPontos.shift();
+    }
+
+    atualizarCamadaTrajetoEntregador();
+}
+
+function limparContextoRota({ manterMarcadorEntregador = false } = {}) {
+    app.origem = null;
+    app.destino = null;
+    app.enderecoOrigemTexto = '';
+    app.enderecoDestinoTexto = '';
+    app.ultimoEnderecoOrigemGeocodificado = '';
+    app.ultimoEnderecoDestinoGeocodificado = '';
+    app.ultimoRetryGeocodeOrigem = 0;
+    app.ultimoRetryGeocodeDestino = 0;
+    app.ultimaRotaGeojson = null;
+    app.ultimoCalculoRota = 0;
+    app.ultimoRecalculoRota = 0;
+    app.resumoDistanciaMetros = null;
+    app.resumoDuracaoSegundos = null;
+    app.resumoOrigemDestinoKey = '';
+    app.ultimoResumoOrigemDestino = 0;
+    app.trajetoPontos = [];
+    app.pausaCameraAte = 0;
+    app.ultimaCentralizacaoMapa = 0;
+    app.seguirEntregador = true;
+    atualizarHudRota();
+
+    if (!app.mapaDisponivel || !app.mapa) {
+        if (!manterMarcadorEntregador) {
+            app.driverLatLon = null;
+        }
+        return;
+    }
+
+    if (camadaRota) {
+        try { app.mapa.removeLayer(camadaRota); } catch (_) {}
+        camadaRota = null;
+    }
+    if (camadaTrajeto) {
+        try { app.mapa.removeLayer(camadaTrajeto); } catch (_) {}
+        camadaTrajeto = null;
+    }
+    if (marcadorDestino) {
+        try { app.mapa.removeLayer(marcadorDestino); } catch (_) {}
+        marcadorDestino = null;
+    }
+    if (marcadorOrigem) {
+        try { app.mapa.removeLayer(marcadorOrigem); } catch (_) {}
+        marcadorOrigem = null;
+    }
+
+    if (!manterMarcadorEntregador) {
+        if (app.driverMarker) {
+            try { app.mapa.removeLayer(app.driverMarker); } catch (_) {}
+        }
+        app.driverMarker = null;
+        app.driverLatLon = null;
+    }
+}
+
+async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado = false) {
+    if (!app.mapaDisponivel || !app.mapa) return;
+    if (!app.destino || !coordenadaValida(Number(app.destino.lat), Number(app.destino.lon))) return;
+    const to = { lat: Number(app.destino.lat), lon: Number(app.destino.lon) };
+
+    if (!marcadorDestino) {
+        marcadorDestino = L.marker([to.lat, to.lon], { icon: iconDestino })
+            .addTo(app.mapa)
+            .bindPopup(`<b>Destino da entrega</b><br><span style="color:#94a3b8;font-size:0.75rem;">${app.enderecoDestinoTexto || ''}</span>`);
+    } else {
+        marcadorDestino.setLatLng([to.lat, to.lon]);
+    }
+
+    if (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))) {
+        if (!marcadorOrigem) {
+            marcadorOrigem = L.marker([app.origem.lat, app.origem.lon], { icon: iconRestaurante })
+                .addTo(app.mapa)
+                .bindPopup('<b>Restaurante</b>');
+        } else {
+            marcadorOrigem.setLatLng([app.origem.lat, app.origem.lon]);
+        }
+    }
+
+    const temDriver = app.driverLatLon && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]));
+    const fromDriver = temDriver
+        ? { lat: Number(app.driverLatLon[0]), lon: Number(app.driverLatLon[1]) }
+        : null;
+    const fromOrigem = app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))
+        ? { lat: Number(app.origem.lat), lon: Number(app.origem.lon) }
+        : null;
+    const from = fromDriver || fromOrigem;
+
+    if (from) {
+        const rotaSeqLocal = ++rotaRequestSeq;
+        const agora = Date.now();
+        const podeAplicarThrottle = !!camadaRota;
+        if (podeAplicarThrottle && !forceFit && !recalculoForcado && (agora - (app.ultimoCalculoRota || 0) < 4000)) return;
+        app.ultimoCalculoRota = agora;
+
+        const ida = await buscarRota(from.lat, from.lon, to.lat, to.lon);
+        if (rotaSeqLocal !== rotaRequestSeq) return;
+
+        if (camadaRota) {
+            app.mapa.removeLayer(camadaRota);
+            camadaRota = null;
+        }
+
+        if (ida) {
+            app.ultimaRotaGeojson = ida.geojson || null;
+            camadaRota = L.geoJSON(ida.geojson, { style: { color: '#ef4444', weight: 5, opacity: 0.92 } })
+                .addTo(app.mapa)
+                .bindPopup(`<b>${fromDriver ? 'Rota ativa' : 'Rota estimada'}</b><br>📏 ${fmtDist(ida.dist)}`);
+
+            if (forceFit || recalculoForcado) {
+                const resumoDist = Number.isFinite(Number(ida?.dist)) && Number(ida.dist) > 0 ? fmtDist(Number(ida.dist)) : null;
+                const resumoDur = Number.isFinite(Number(ida?.dur)) && Number(ida.dur) > 0 ? fmtDur(Number(ida.dur)) : null;
+                if (resumoDist && resumoDur) {
+                    setStatus(`Rota traçada: ${resumoDist} · ${resumoDur}.`, 'ok');
+                } else if (resumoDist) {
+                    setStatus(`Rota traçada: ${resumoDist}.`, 'ok');
+                }
+            }
+        } else {
+            app.ultimaRotaGeojson = {
+                type: 'LineString',
+                coordinates: [[from.lon, from.lat], [to.lon, to.lat]],
+            };
+            camadaRota = L.polyline(
+                [[from.lat, from.lon], [to.lat, to.lon]],
+                { color: '#ef4444', weight: 4, opacity: 0.85, dashArray: '8 6' }
+            ).addTo(app.mapa);
+        }
+    } else {
+        rotaRequestSeq += 1;
+        if (camadaRota) {
+            app.mapa.removeLayer(camadaRota);
+            camadaRota = null;
+        }
+        app.ultimaRotaGeojson = null;
+    }
+
+    if (forceFit) {
+        if (from) {
+            const distanciaExtrema = distanciaHaversineMetros(from.lat, from.lon, to.lat, to.lon);
+            if (Number.isFinite(distanciaExtrema) && distanciaExtrema > 80000 && app.driverLatLon) {
+                app.mapa.setView(app.driverLatLon, 14, { animate: true });
+                setStatus('Destino com localização imprecisa. Ajuste o endereço do cliente para traçar rota correta.', 'aviso');
+            } else {
+                app.mapa.fitBounds(
+                    L.latLngBounds([[from.lat, from.lon], [to.lat, to.lon]]),
+                    { padding: [45, 45], maxZoom: 16 }
+                );
+            }
+        } else if (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))) {
+            app.mapa.fitBounds(
+                L.latLngBounds([[app.origem.lat, app.origem.lon], [to.lat, to.lon]]),
+                { padding: [45, 45], maxZoom: 16 }
+            );
+        } else {
+            app.mapa.setView([to.lat, to.lon], 16, { animate: true });
+        }
+    }
+}
+
+/* ═══ CENTRALIZAR ═══ */
+function centralizarMapa() {
+    if (!app.mapaDisponivel || !app.mapa) return;
+
+    if (app.driverLatLon) {
+        app.mapa.setView(app.driverLatLon, 16, { animate: true });
+    } else if (app.origem && app.destino) {
+        app.mapa.fitBounds(
+            L.latLngBounds([app.origem.lat, app.origem.lon], [app.destino.lat, app.destino.lon]),
+            { padding: [50, 50] }
+        );
+    }
+}
+
+/* Tenta geocodificar o destino pendente (chamado quando GPS chega mas destino ainda não foi mapeado) */
+let _geocodificarDestinoEmAndamento = false;
+async function tentarGeocodificarDestinoPendente() {
+    if (_geocodificarDestinoEmAndamento) return;
+    if (app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon))) return;
+    const texto = String(app.enderecoDestinoTexto || '').trim();
+    if (!texto) return;
+    const agora = Date.now();
+    if (agora - (app.ultimoRetryGeocodeDestino || 0) < 8000) return;
+    app.ultimoRetryGeocodeDestino = agora;
+    _geocodificarDestinoEmAndamento = true;
+    try {
+        const coord = await geocodificar(texto);
+        if (coord && coordenadaValida(coord.lat, coord.lon)) {
+            app.destino = { lat: coord.lat, lon: coord.lon, label: texto };
+            app.ultimoEnderecoDestinoGeocodificado = texto;
+            await atualizarRotaEntregadorDestino(true);
+        }
+    } catch (_) {}
+    _geocodificarDestinoEmAndamento = false;
+}
+
+function atualizarMarcadorEntregadorNoMapa(lat, lon) {
+    if (!coordenadaValida(lat, lon)) return;
+
+    const latlng = [lat, lon];
+    app.driverLatLon = latlng;
+    registrarPontoTrajetoEntregador(lat, lon);
+
+    if (!app.mapaDisponivel || !app.mapa || !iconEntregador) return;
+
+    if (!app.driverMarker) {
+        app.driverMarker = L.marker(latlng, { icon: iconEntregador, zIndexOffset: 1000 })
+            .addTo(app.mapa)
+            .bindPopup('<b>Sua posição atual</b>');
+        atualizarRotaEntregadorDestino(true);
+    } else {
+        app.driverMarker.setLatLng(latlng);
+        atualizarRotaEntregadorDestino();
+    }
+
+    /* Se destino ainda não foi resolvido, tenta geocodificar em background */
+    if (!app.destino || !coordenadaValida(Number(app.destino.lat), Number(app.destino.lon))) {
+        tentarGeocodificarDestinoPendente();
+    }
+
+    centralizarCameraCorrida(false);
+}
+
+async function verificarDesvioERecalcularRota(lat, lon) {
+    if (!coordenadaValida(lat, lon)) return;
+    if (!app.destino || !coordenadaValida(Number(app.destino.lat), Number(app.destino.lon))) return;
+
+    const distanciaRota = distanciaAteRotaMetros(lat, lon, app.ultimaRotaGeojson);
+    if (!Number.isFinite(distanciaRota)) return;
+    if (distanciaRota <= DESVIO_RECALCULO_METROS) return;
+
+    const agora = Date.now();
+    if (agora - (app.ultimoRecalculoRota || 0) < 5000) return;
+    app.ultimoRecalculoRota = agora;
+
+    setStatus(`Rota recalculada: desvio de ${Math.round(distanciaRota)}m detectado.`, 'aviso');
+    await atualizarRotaEntregadorDestino(false, true);
+}
+
+/* ═══ CARREGAMENTO INICIAL ═══ */
+async function carregarCorrida() {
+    document.getElementById('pedido-id').textContent = `#${app.pedidoId}`;
+    app.pedidoAceito = localStorage.getItem(keyAceite()) === '1';
+    const pedidoAtualNum = Number(app.pedidoId || 0);
+
+    if (pedidoAtualNum > 0 && app.pedidoContextoId !== pedidoAtualNum) {
+        limparContextoRota({ manterMarcadorEntregador: true });
+        app.pedidoContextoId = pedidoAtualNum;
+    }
+
+    if (!app.token) {
+        setStatus('Token de rastreamento inválido.', 'erro');
+        setBadge('Erro', 'inativo');
+        esconderLoading();
+        return;
+    }
+
+    try {
+        setLoading('Validando entregador...');
+        const pedidoParam = app.pedidoId !== '-' ? `?pedido_id=${app.pedidoId}` : '';
+        const res  = await fetchComTimeout(`${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}${pedidoParam}`, {}, 12000);
+        if (!res.ok) throw new Error('Entregador não encontrado');
+        const data = await res.json();
+
+        if (data?.slug && !app.slug) {
+            app.slug = String(data.slug).trim();
+        }
+
+        app.restauranteNome = String(data.restaurante_nome || app.restauranteNome || app.slug || '').trim();
+        atualizarTravaCidadeRestaurante(data.restaurante_cidade || app.restauranteCidadeTrava, data.restaurante_uf || app.restauranteUfTrava);
+        atualizarCabecalhoEntregador({
+            nome: data.nome || 'Entregador',
+            restauranteNome: app.restauranteNome,
+            fotoBase64: app.fotoPerfilBase64,
+        });
+        setBadge('Conectado', 'ok');
+
+        if (data?.pedido_status) {
+            app.statusPedido = String(data.pedido_status).toLowerCase();
+        }
+        atualizarResumoPedido(data);
+        atualizarAcoesCorrida();
+
+        if (['pronto', 'em_entrega'].includes(String(app.statusPedido || '').toLowerCase()) && !app.pedidoAceito) {
+            await iniciarCorrida();
+        } else if (String(app.statusPedido || '').toLowerCase() === 'em_entrega' && app.watchId === null) {
+            iniciarRastreamento();
+        }
+
+        await atualizarStatusPedidoAtual();
+
+        if (!app.driverLatLon && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = Number(pos?.coords?.latitude);
+                    const lon = Number(pos?.coords?.longitude);
+                    const acc = Number(pos?.coords?.accuracy);
+                    if (coordenadaValida(lat, lon)) {
+                        atualizarMarcadorEntregadorNoMapa(lat, lon);
+                        enviarLocalizacao(lat, lon, acc);
+                    }
+                },
+                () => {},
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+
+        /* Endereços */
+        const textoDestino = data.endereco_entrega ? enderecoParaTexto(data.endereco_entrega) : '';
+        const textoOrigem = String(data.endereco_restaurante || '').trim();
+        app.enderecoOrigemTexto = textoOrigem;
+        app.enderecoDestinoTexto = textoDestino;
+
+        const coordDestinoPayload =
+            extrairLatLonEndereco(data.endereco_entrega || {})
+            || extrairLatLonEndereco(data.destino || {})
+            || (() => {
+                const lat = Number(data?.destino_lat ?? data?.lat_destino ?? data?.pedido?.destino_lat ?? data?.pedido?.lat_destino);
+                const lon = Number(data?.destino_lon ?? data?.destino_lng ?? data?.destino_long ?? data?.lon_destino ?? data?.pedido?.destino_lon ?? data?.pedido?.destino_lng ?? data?.pedido?.destino_long);
+                return coordenadaValida(lat, lon) ? { lat, lon } : null;
+            })();
+        const destinoMapsValido = !!(data?.endereco_entrega && data.endereco_entrega.maps_valido === true);
+        if (coordDestinoPayload) {
+            app.destino = {
+                lat: coordDestinoPayload.lat,
+                lon: coordDestinoPayload.lon,
+                label: textoDestino || `${coordDestinoPayload.lat},${coordDestinoPayload.lon}`,
+            };
+        } else {
+            app.destino = null;
+        }
+
+        if (app.enderecoOrigemTexto) {
+            const coordOrigem = await geocodificar(app.enderecoOrigemTexto);
+            if (coordOrigem) {
+                app.origem = { ...coordOrigem, label: app.enderecoOrigemTexto };
+                app.ultimoEnderecoOrigemGeocodificado = app.enderecoOrigemTexto;
+            }
+        } else {
+            app.origem = null;
+        }
+
+        if (!app.destino && app.enderecoDestinoTexto) {
+            setLoading('Localizando destino...');
+            const coordDest = await geocodificar(app.enderecoDestinoTexto);
+            if (coordDest) {
+                app.destino = { ...coordDest, label: app.enderecoDestinoTexto };
+                app.ultimoEnderecoDestinoGeocodificado = app.enderecoDestinoTexto;
+            }
+        }
+
+        atualizarBlocoLocalizacao();
+        await atualizarResumoOrigemDestino(true);
+
+        if (app.destino) {
+            if (app.mapaDisponivel && app.mapa && !app.driverLatLon) {
+                app.mapa.setView([app.destino.lat, app.destino.lon], 14);
+            }
+            await atualizarRotaEntregadorDestino(true);
+            if (!destinoMapsValido) {
+                setStatus('Destino carregado com precisão baixa (endereço não validado).', 'aviso');
+            } else {
+                setStatus('Destino carregado. Aceite a corrida para iniciar o rastreamento ao vivo.', 'ok');
+            }
+        } else {
+            setStatus('Destino ainda indisponível. Configure o endereço da entrega.', 'aviso');
+            if (app.mapaDisponivel && app.mapa) {
+                const focouCidade = await focarMapaNaCidadeTrava(14);
+                if (!focouCidade) app.mapa.setView([-15.77, -47.93], 5);
+            }
+        }
+
+        esconderLoading();
+    } catch (e) {
+        setStatus('Falha ao carregar dados da corrida.', 'erro');
+        setBadge('Erro', 'inativo');
+        esconderLoading();
+    }
+}
+
+async function atualizarStatusPedidoAtual() {
+    const pedidoIdNum = Number(app.pedidoId || 0);
+    if (!pedidoIdNum || !app.slug) return;
+
+    try {
+        const res = await fetchComTimeout(`${API_URL}/api/public/pedidos/${pedidoIdNum}/rastreamento?slug=${encodeURIComponent(app.slug)}`, {}, 10000);
+        if (!res.ok) return;
+        const data = await res.json();
+        const status = String(data?.pedido?.status || '').toLowerCase();
+        app.statusPedido = status;
+        atualizarResumoPedido(data);
+
+        const enderecoRestaurante = String(data?.restaurante?.endereco || '').trim();
+        app.enderecoOrigemTexto = enderecoRestaurante;
+        atualizarTravaCidadeRestaurante(data?.restaurante?.cidade || app.restauranteCidadeTrava, data?.restaurante?.uf || app.restauranteUfTrava);
+        const gKey = String(data?.restaurante?.google_maps_api_key || '').trim();
+        app.googleMapsApiKey = obterGoogleMapsApiKeyEntregador(gKey, app.googleMapsApiKey);
+
+        const enderecoDestinoApi = enderecoParaTexto(data?.destino?.endereco || {});
+        app.enderecoDestinoTexto = enderecoDestinoApi;
+
+        const agoraGeo = Date.now();
+        const latRestApi = Number(data?.restaurante?.lat ?? data?.restaurante?.latitude);
+        const lonRestApi = Number(data?.restaurante?.lon ?? data?.restaurante?.lng ?? data?.restaurante?.longitude ?? data?.restaurante?.long);
+        if (coordenadaValida(latRestApi, lonRestApi)) {
+            app.origem = {
+                lat: latRestApi,
+                lon: lonRestApi,
+                label: app.enderecoOrigemTexto || `${latRestApi},${lonRestApi}`,
+            };
+            app.ultimoEnderecoOrigemGeocodificado = app.enderecoOrigemTexto || app.ultimoEnderecoOrigemGeocodificado;
+        } else if (
+            !app.origem
+            && app.enderecoOrigemTexto
+            && (
+                app.ultimoEnderecoOrigemGeocodificado !== app.enderecoOrigemTexto
+                || (agoraGeo - (app.ultimoRetryGeocodeOrigem || 0) > 15000)
+            )
+        ) {
+            app.ultimoRetryGeocodeOrigem = agoraGeo;
+            const coordOrigem = await geocodificar(app.enderecoOrigemTexto);
+            if (coordOrigem) {
+                app.origem = { ...coordOrigem, label: app.enderecoOrigemTexto };
+                app.ultimoEnderecoOrigemGeocodificado = app.enderecoOrigemTexto;
+            }
+        } else if (!app.enderecoOrigemTexto) {
+            app.origem = null;
+        }
+
+        const latDestinoApi = Number(data?.destino?.lat ?? data?.destino?.latitude ?? data?.destino?.lat_destino);
+        const lonDestinoApi = Number(data?.destino?.lon ?? data?.destino?.lng ?? data?.destino?.longitude ?? data?.destino?.long ?? data?.destino?.lon_destino);
+        // Também tenta extrair do objeto endereco completo (cobre campos como .long, .long_destino etc.)
+        const coordDestinoEndereco = extrairLatLonEndereco(data?.destino?.endereco || {});
+        if (coordenadaValida(latDestinoApi, lonDestinoApi)) {
+            app.destino = {
+                lat: latDestinoApi,
+                lon: lonDestinoApi,
+                label: app.enderecoDestinoTexto || `${latDestinoApi},${lonDestinoApi}`,
+            };
+        } else if (coordDestinoEndereco) {
+            app.destino = {
+                lat: coordDestinoEndereco.lat,
+                lon: coordDestinoEndereco.lon,
+                label: app.enderecoDestinoTexto || `${coordDestinoEndereco.lat},${coordDestinoEndereco.lon}`,
+            };
+        } else if (
+            !app.destino
+            && app.enderecoDestinoTexto
+            && (
+                app.ultimoEnderecoDestinoGeocodificado !== app.enderecoDestinoTexto
+                || (agoraGeo - (app.ultimoRetryGeocodeDestino || 0) > 15000)
+            )
+        ) {
+            app.ultimoRetryGeocodeDestino = agoraGeo;
+            const coordDestino = await geocodificar(app.enderecoDestinoTexto);
+            if (coordDestino) {
+                app.destino = { ...coordDestino, label: app.enderecoDestinoTexto };
+                app.ultimoEnderecoDestinoGeocodificado = app.enderecoDestinoTexto;
+            }
+        } else if (!app.enderecoDestinoTexto) {
+            app.destino = null;
+        }
+
+        atualizarBlocoLocalizacao();
+        await atualizarResumoOrigemDestino(false);
+
+        const latUltima = Number(data?.pedido?.lat_entregador ?? data?.entregador?.lat);
+        const lonUltima = Number(data?.pedido?.long_entregador ?? data?.entregador?.lon);
+        if (coordenadaValida(latUltima, lonUltima)) {
+            atualizarMarcadorEntregadorNoMapa(latUltima, lonUltima);
+            const ultimaPosicaoEl = document.getElementById('ultima-posicao');
+            if (ultimaPosicaoEl) {
+                ultimaPosicaoEl.textContent = `${latUltima.toFixed(5)}, ${lonUltima.toFixed(5)}`;
+            }
+            await verificarDesvioERecalcularRota(latUltima, lonUltima);
+            await atualizarRotaEntregadorDestino(true);
+        } else {
+            await atualizarRotaEntregadorDestino(true);
+        }
+
+        if (['entregue', 'cancelado', 'fechado'].includes(status)) {
+            marcarPedidoAceito(false);
+        }
+
+        atualizarAcoesCorrida();
+
+        if (!statusPermiteRastreamento(status)) {
+            if (app.watchId !== null) {
+                pararRastreamento();
+            }
+            if (status === 'pronto') {
+                setStatus('Pedido pronto para aceite.', 'ok');
+            } else if (status === 'entregue') {
+                setStatus('Entrega concluída.', 'ok');
+            } else {
+                setStatus('Rastreamento disponível quando o pedido estiver em entrega.', 'aviso');
+            }
+        }
+    } catch (_) {}
+}
+
+/* ═══ GPS → API ═══ */
+async function enviarLocalizacao(lat, lon, prec) {
+    if (!coordenadaValida(lat, lon)) {
+        setStatus('GPS inválido. Aguardando nova leitura...', 'aviso');
+        return;
+    }
+
+    const precisao = Number(prec || 0);
+
+    /* Atualiza marcador */
+    atualizarMarcadorEntregadorNoMapa(lat, lon);
+    await verificarDesvioERecalcularRota(lat, lon);
+    await atualizarRotaEntregadorDestino();
+
+    const ultimaPosicaoEl = document.getElementById('ultima-posicao');
+    if (ultimaPosicaoEl) {
+        ultimaPosicaoEl.textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    }
+    if (!Number.isFinite(precisao) || precisao <= 0) {
+        setStatus(`GPS ativo · ${new Date().toLocaleTimeString('pt-BR')}`, 'ok');
+    } else if (precisao > GPS_ACCURACY_MAX_METROS) {
+        setStatus(`GPS com precisão fraca (${Math.round(precisao)}m).`, 'aviso');
+    } else {
+        setStatus(`GPS ${Math.round(precisao)}m · ${new Date().toLocaleTimeString('pt-BR')}`, 'ok');
+    }
+
+    const agora = Date.now();
+    if (agora - app.ultimoEnvio < 5000) return;
+    app.ultimoEnvio = agora;
+
+    /* Envia */
+    try {
+        let res;
+        const pedidoIdNum = Number(app.pedidoId || 0);
+        if (pedidoIdNum) {
+            res = await fetchComTimeout(
+                `${API_URL}/api/pedidos/${pedidoIdNum}/localizacao`,
+                {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        latitude: lat,
+                        longitude: lon,
+                        precisao: prec,
+                        token_rastreamento: app.token,
+                    })
+                },
+                10000
+            );
+
+            if (!res.ok) {
+                res = await fetchComTimeout(
+                    `${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}/localizacao`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ latitude: lat, longitude: lon, precisao: prec })
+                    },
+                    10000
+                );
+            }
+        } else {
+            res = await fetchComTimeout(
+                `${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}/localizacao`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: lat, longitude: lon, precisao: prec })
+                },
+                10000
+            );
+        }
+
+        if (!res.ok) {
+            const detalhe = await res.json().catch(() => ({}));
+            throw new Error(detalhe?.detail || `Falha no endpoint (${res.status})`);
+        }
+    } catch (_) {
+        setStatus('Erro ao enviar posição. Tentará novamente.', 'aviso');
+    }
+}
+
+/* ═══ RASTREAMENTO ═══ */
+function iniciarRastreamento() {
+    if (!navigator.geolocation) { setStatus('Geolocalização não suportada.', 'erro'); return; }
+    if (app.watchId !== null)   { setStatus('Rastreamento já ativo.', 'aviso'); return; }
+    if (!statusPermiteRastreamento(app.statusPedido)) {
+        setStatus('Inicie a corrida antes de ativar o rastreio GPS.', 'aviso');
+        return;
+    }
+
+    app.watchId = navigator.geolocation.watchPosition(
+        pos => {
+            const lat = Number(pos?.coords?.latitude);
+            const lon = Number(pos?.coords?.longitude);
+            const acc = Number(pos?.coords?.accuracy);
+
+            if (!coordenadaValida(lat, lon)) {
+                setStatus('Sem coordenadas válidas no GPS.', 'aviso');
+                return;
+            }
+
+            enviarLocalizacao(lat, lon, acc);
+        },
+        err => setStatus(`GPS: ${err.message}`, 'erro'),
+        { enableHighAccuracy: true, maximumAge: 2000, timeout: 12000 }
+    );
+
+    setBadge('Rastreando', 'ok');
+    setStatus('Rastreamento ativo. Não feche esta tela.', 'ok');
+}
+
+function pararRastreamento() {
+    if (app.watchId !== null) {
+        navigator.geolocation.clearWatch(app.watchId);
+        app.watchId = null;
+    }
+    setBadge('Pausado', 'aguardando');
+    setStatus('Rastreamento pausado.', 'aviso');
+}
+
+/* ═══ BOOT ═══ */
+async function boot() {
+    try {
+        inicializarElementosUI();
+        atualizarCabecalhoEntregador({
+            nome: 'Entregador',
+            restauranteNome: app.restauranteNome || app.slug || '',
+            fotoBase64: app.fotoPerfilBase64,
+        });
+        configurarListenerPushEmTela();
+        await ativarAlertasMotoboy();
+
+        if (!app.token) {
+            definirModoEspera(true);
+            setBadge('Aguardando', 'aguardando');
+            setStatus('Entre com seus dados do entregador para começar.', 'aviso');
+            esconderLoading();
+            abrirPainelConta();
+            return;
+        }
+
+        await carregarPerfilEntregador();
+        await registrarPushMotoboy();
+        atualizarRelogioEspera();
+        setInterval(atualizarRelogioEspera, 1000);
+        definirModoEspera(app.modoEspera);
+        if (!app.modoEspera) {
+            iniciarMapa();
+            atualizarBlocoLocalizacao();
+        }
+
+        if (app.modoEspera) {
+            setBadge('Aguardando', 'aguardando');
+            setStatus('Aguardando novo pedido...', 'aviso');
+            esconderLoading();
+            await verificarPedidoNovo();
+            if (!app.esperaIntervalId) {
+                app.esperaIntervalId = setInterval(verificarPedidoNovo, 7000);
+            }
+        } else {
+            await carregarCorrida();
+        }
+    } catch (_) {
+        setStatus('Falha ao inicializar painel. Abra o login e tente novamente.', 'erro');
+        setBadge('Erro', 'inativo');
+        esconderLoading();
+    } finally {
+        app.statusIntervalId = setInterval(() => {
+            if (!app.modoEspera) {
+                atualizarStatusPedidoAtual();
+            }
+        }, 8000);
+    }
+}
+
+boot();
+window.addEventListener('beforeunload', pararRastreamento);
+window.addEventListener('resize', () => {
+    if (app.mapaDisponivel && app.mapa) {
+        setTimeout(() => {
+            try { app.mapa.invalidateSize(); } catch (_) {}
+        }, 120);
+    }
+});
+</script>
+</body>
+</html>

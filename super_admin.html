@@ -1,0 +1,2961 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Super Admin — SaaS Restaurante</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-soft: rgba(99, 102, 241, 0.12);
+            --primary-dark: #4f46e5;
+            --danger: #ef4444;
+            --danger-soft: rgba(239, 68, 68, 0.12);
+            --success: #10b981;
+            --success-soft: rgba(16, 185, 129, 0.12);
+            --warning: #f59e0b;
+            --warning-soft: rgba(245, 158, 11, 0.12);
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-300: #cbd5e1;
+            --slate-400: #94a3b8;
+            --slate-500: #64748b;
+            --slate-700: #334155;
+            --slate-900: #0f172a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--slate-100);
+            color: var(--slate-700);
+            min-height: 100dvh;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            min-height: 100dvh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.34);
+            z-index: 44;
+            display: none;
+        }
+
+        .sidebar-overlay.active { display: block; }
+
+        .sidebar {
+            width: 280px;
+            max-height: calc(100vh - 7rem);
+            overflow-y: auto;
+            position: fixed;
+            left: 1rem;
+            top: 5.1rem;
+            z-index: 45;
+            border-radius: 1rem;
+            background: linear-gradient(160deg, #1e1b4b 0%, #0f172a 100%);
+            box-shadow: 0 12px 36px rgba(15, 23, 42, 0.32);
+            transform: translateX(-120%);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.22s ease, opacity 0.22s ease;
+        }
+
+        body.menu-open {
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .sidebar-content { padding: 1.65rem 0; }
+
+        .sidebar-logo {
+            padding: 0 1.5rem 1.2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 1.2rem;
+        }
+
+        .sidebar-logo h1 {
+            color: #fff;
+            font-size: 1.08rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .sidebar-logo p {
+            color: #a5b4fc;
+            font-size: 0.72rem;
+            margin-top: 0.2rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .nav-section {
+            padding: 0 0.75rem 0.35rem 1.2rem;
+            color: #818cf8;
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-top: 0.5rem;
+        }
+
+        .nav-item {
+            padding: 0.7rem 1.5rem;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+        }
+
+        .nav-item.active {
+            background: rgba(99, 102, 241, 0.2);
+            color: #a5b4fc;
+            border-left-color: #818cf8;
+        }
+
+        .nav-item i { width: 20px; font-size: 0.88rem; }
+
+        .header {
+            background: #fff;
+            padding: 0.8rem 1.5rem;
+            border-bottom: 1px solid #e8edf5;
+            box-shadow: 0 2px 16px rgba(15, 23, 42, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            gap: 0.6rem;
+        }
+
+        .header-left { display: flex; align-items: center; }
+
+        .header-center {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            text-align: center;
+            min-width: 0;
+        }
+
+        .header-title {
+            font-size: 1.12rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            letter-spacing: -0.03em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .header-subtitle {
+            font-size: 0.69rem;
+            color: var(--primary);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .menu-float-btn {
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 0.55rem;
+            border: 1.5px solid var(--slate-200);
+            background: var(--slate-50);
+            color: var(--slate-500);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.18s;
+            font-size: 0.85rem;
+        }
+
+        .menu-float-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-soft);
+            box-shadow: 0 0 0 3px var(--primary-soft);
+        }
+
+        .header-user {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #1e293b;
+            cursor: pointer;
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            background: var(--slate-50);
+            border: 1.5px solid var(--slate-200);
+            transition: all 0.18s;
+        }
+
+        .header-user:hover { border-color: var(--primary); }
+
+        .avatar {
+            width: 1.8rem;
+            height: 1.8rem;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            font-weight: 800;
+        }
+
+        .content { padding: 1.75rem; }
+
+        .section { display: none; }
+
+        .section.active {
+            display: block;
+            animation: fadeIn 0.25s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-header { margin-bottom: 1.5rem; }
+
+        .page-header h2 {
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            letter-spacing: -0.02em;
+        }
+
+        .page-header p {
+            color: var(--slate-500);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .kpi-card {
+            background: #fff;
+            border: 1px solid #e8edf5;
+            border-radius: 1rem;
+            padding: 1.25rem 1.5rem;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .kpi-icon {
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .kpi-icon.purple { background: var(--primary-soft); color: var(--primary); }
+        .kpi-icon.green { background: var(--success-soft); color: var(--success); }
+        .kpi-icon.red { background: var(--danger-soft); color: var(--danger); }
+        .kpi-icon.yellow { background: var(--warning-soft); color: var(--warning); }
+        .kpi-icon.blue { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+
+        .kpi-info span {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--slate-500);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .kpi-info strong {
+            display: block;
+            font-size: 1.65rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            line-height: 1.2;
+        }
+
+        .kpi-info small {
+            display: block;
+            color: var(--slate-400);
+            font-size: 0.72rem;
+            margin-top: 0.1rem;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e8edf5;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+            margin-bottom: 1.25rem;
+        }
+
+        .card-title {
+            font-size: 1.08rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-desc {
+            color: var(--text-muted);
+            font-size: 0.84rem;
+            margin: -0.35rem 0 1rem;
+            line-height: 1.45;
+        }
+
+        .operational-alert {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            border-radius: 0.7rem;
+            padding: 0.72rem 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .operational-alert i {
+            margin-top: 0.15rem;
+            font-size: 0.92rem;
+        }
+
+        .operational-alert strong {
+            display: block;
+            color: #0f172a;
+            font-size: 0.86rem;
+        }
+
+        .operational-alert span {
+            display: block;
+            color: #64748b;
+            font-size: 0.79rem;
+            margin-top: 0.12rem;
+        }
+
+        .card-toolbar {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 180px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.6rem 1rem 0.6rem 2.4rem;
+            border: 1.5px solid var(--slate-200);
+            border-radius: 0.65rem;
+            font-size: 0.875rem;
+            background: var(--slate-50);
+            transition: all 0.18s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+            box-shadow: 0 0 0 3px var(--primary-soft);
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 0.8rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--slate-400);
+            font-size: 0.82rem;
+        }
+
+        .table-wrap { overflow-x: auto; }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            background: var(--slate-50);
+            padding: 0.85rem 1rem;
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--slate-500);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            border-bottom: 1.5px solid #e8edf5;
+        }
+
+        .table td {
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid var(--slate-100);
+            vertical-align: middle;
+            font-size: 0.875rem;
+            color: var(--slate-700);
+        }
+
+        .table tr:last-child td { border-bottom: none; }
+
+        .table tbody tr:hover td { background: #fafbff; }
+
+        .rest-name {
+            font-weight: 700;
+            color: var(--slate-900);
+        }
+
+        .rest-slug {
+            font-size: 0.75rem;
+            color: var(--slate-400);
+            margin-top: 0.1rem;
+        }
+
+        .rest-email {
+            font-size: 0.78rem;
+            color: var(--slate-500);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--slate-400);
+        }
+
+        .empty-state i {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.28rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        .badge i { font-size: 0.68rem; }
+
+        .badge-ativo { background: var(--success-soft); color: #065f46; }
+        .badge-bloqueado { background: var(--danger-soft); color: #991b1b; }
+        .badge-aviso { background: var(--warning-soft); color: #92400e; }
+        .badge-vencida { background: #fee2e2; color: #b91c1c; animation: pulse 1.5s infinite; }
+        .badge-em-dia { background: var(--success-soft); color: #065f46; }
+        .badge-trial { background: rgba(99, 102, 241, 0.12); color: #4338ca; }
+        .badge-cancelado { background: var(--slate-100); color: var(--slate-500); }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2); }
+            50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+        }
+
+        .btn {
+            padding: 0.55rem 1.1rem;
+            border-radius: 0.55rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.18s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px var(--primary-soft); }
+        .btn-secondary { background: var(--slate-100); color: var(--slate-700); border: 1.5px solid var(--slate-200); }
+        .btn-secondary:hover { background: var(--slate-200); }
+        .btn-danger { background: #fff; color: var(--danger); border: 1.5px solid #fca5a5; }
+        .btn-danger:hover { background: var(--danger); color: #fff; }
+        .btn-success { background: #fff; color: var(--success); border: 1.5px solid #6ee7b7; }
+        .btn-success:hover { background: var(--success); color: #fff; }
+
+        .btn-icon {
+            width: 2.1rem;
+            height: 2.1rem;
+            border-radius: 0.45rem;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.82rem;
+        }
+
+        .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.78rem; }
+
+        .action-group { display: flex; gap: 0.4rem; align-items: center; }
+
+        .form-group { margin-bottom: 1rem; }
+
+        .form-label {
+            display: block;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.45rem;
+            font-size: 0.82rem;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 0.7rem 0.9rem;
+            border: 1.5px solid var(--slate-200);
+            border-radius: 0.6rem;
+            font-size: 0.875rem;
+            font-family: inherit;
+            background: #fff;
+            color: var(--slate-900);
+            transition: all 0.18s;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-soft);
+        }
+
+        .form-hint {
+            font-size: 0.73rem;
+            color: var(--slate-400);
+            margin-top: 0.35rem;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 60;
+            padding: 1rem;
+        }
+
+        .modal.active { display: flex; animation: fadeIn 0.2s; }
+
+        .modal-content {
+            background: #fff;
+            border-radius: 1.1rem;
+            width: 100%;
+            max-width: 580px;
+            max-height: 92vh;
+            overflow-y: auto;
+            box-shadow: 0 24px 64px rgba(15, 23, 42, 0.24);
+        }
+
+        .modal-header {
+            padding: 1.35rem 1.5rem;
+            border-bottom: 1px solid var(--slate-100);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 1;
+            border-radius: 1.1rem 1.1rem 0 0;
+        }
+
+        .modal-header h2 {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--slate-900);
+        }
+
+        .modal-body { padding: 1.35rem 1.5rem; }
+
+        .modal-footer {
+            padding: 1.1rem 1.5rem;
+            border-top: 1px solid var(--slate-100);
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+
+        .close-btn {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            border: none;
+            background: var(--slate-100);
+            color: var(--slate-500);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            transition: all 0.18s;
+        }
+
+        .close-btn:hover { background: #fee2e2; color: var(--danger); }
+
+        .confirm-icon {
+            width: 4rem;
+            height: 4rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            margin: 0 auto 1rem;
+        }
+
+        .confirm-icon.danger { background: var(--danger-soft); color: var(--danger); }
+        .confirm-icon.success { background: var(--success-soft); color: var(--success); }
+
+        .confirm-title {
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .confirm-desc {
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--slate-500);
+            line-height: 1.55;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .chip {
+            border: 1.5px solid var(--slate-200);
+            background: #fff;
+            color: #475569;
+            border-radius: 999px;
+            padding: 0.4rem 0.9rem;
+            font-weight: 700;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+
+        .chip:hover { border-color: var(--primary); color: var(--primary); }
+        .chip.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+        .conv-chart-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.75rem;
+        }
+
+        .conv-chart-title {
+            font-size: 0.83rem;
+            font-weight: 700;
+            color: var(--slate-500);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .conv-chart {
+            border: 1px solid var(--slate-200);
+            border-radius: 0.85rem;
+            background: var(--slate-50);
+            padding: 1rem 0.85rem 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .conv-bars {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(26px, 1fr));
+            align-items: end;
+            gap: 0.35rem;
+            min-height: 150px;
+        }
+
+        .conv-day {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .conv-bars-stack {
+            width: 100%;
+            min-height: 120px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 3px;
+            padding: 0 1px;
+        }
+
+        .conv-bar {
+            width: 9px;
+            min-height: 3px;
+            border-radius: 0.4rem 0.4rem 0.2rem 0.2rem;
+        }
+
+        .conv-bar.visitas {
+            background: rgba(99, 102, 241, 0.65);
+            border: 1px solid rgba(79, 70, 229, 0.45);
+        }
+
+        .conv-bar.sucessos {
+            background: rgba(16, 185, 129, 0.72);
+            border: 1px solid rgba(5, 150, 105, 0.5);
+        }
+
+        .conv-day-label {
+            font-size: 0.66rem;
+            color: var(--slate-400);
+            letter-spacing: 0.01em;
+        }
+
+        .conv-legend {
+            margin-top: 0.65rem;
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .conv-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.38rem;
+            font-size: 0.72rem;
+            color: var(--slate-500);
+            font-weight: 700;
+        }
+
+        .conv-legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            display: inline-block;
+        }
+
+        .conv-legend-dot.visitas { background: rgba(99, 102, 241, 0.8); }
+        .conv-legend-dot.sucessos { background: rgba(16, 185, 129, 0.85); }
+
+        .plan-basic,
+        .plan-pro,
+        .plan-enterprise {
+            border-radius: 999px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.7rem;
+            font-weight: 800;
+        }
+
+        .plan-basic { background: rgba(99, 102, 241, 0.1); color: #4f46e5; }
+        .plan-pro { background: rgba(245, 158, 11, 0.12); color: #b45309; }
+        .plan-enterprise { background: rgba(16, 185, 129, 0.12); color: #065f46; }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: min(86vw, 340px);
+                left: 0;
+                top: 0;
+                max-height: 100dvh;
+                height: 100dvh;
+                border-radius: 0 1rem 1rem 0;
+                padding-top: env(safe-area-inset-top);
+                padding-bottom: env(safe-area-inset-bottom);
+                box-shadow: 0 12px 36px rgba(2, 6, 23, 0.45);
+            }
+
+            .sidebar-overlay {
+                background: rgba(2, 6, 23, 0.5);
+                backdrop-filter: blur(2px);
+            }
+
+            .sidebar-content {
+                height: 100%;
+                overflow-y: auto;
+                padding-top: 0.85rem;
+            }
+
+            .nav-item {
+                min-height: 46px;
+                font-size: 0.92rem;
+            }
+
+            .menu-float-btn {
+                width: 2.5rem;
+                height: 2.5rem;
+                border-radius: 0.65rem;
+                font-size: 0.95rem;
+            }
+
+            .content { padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom)); }
+            .kpi-grid { grid-template-columns: 1fr 1fr; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .conv-bars { grid-template-columns: repeat(auto-fit, minmax(20px, 1fr)); }
+            .conv-bars-stack { min-height: 105px; }
+            .conv-bar { width: 7px; }
+
+            #restaurantes .table-wrap { margin: 0 -0.25rem; }
+            #restaurantes .table { width: 100%; min-width: 0; table-layout: fixed; }
+            #restaurantes .table th,
+            #restaurantes .table td {
+                padding: 0.7rem 0.45rem;
+                font-size: 0.78rem;
+            }
+
+            #restaurantes .table th:nth-child(3),
+            #restaurantes .table td:nth-child(3),
+            #restaurantes .table th:nth-child(5),
+            #restaurantes .table td:nth-child(5),
+            #restaurantes .table th:nth-child(6),
+            #restaurantes .table td:nth-child(6) {
+                display: none;
+            }
+
+            #restaurantes .table th:nth-child(1),
+            #restaurantes .table td:nth-child(1) { width: 44%; }
+            #restaurantes .table th:nth-child(2),
+            #restaurantes .table td:nth-child(2) { width: 20%; }
+            #restaurantes .table th:nth-child(4),
+            #restaurantes .table td:nth-child(4) { width: 20%; }
+            #restaurantes .table th:nth-child(7),
+            #restaurantes .table td:nth-child(7) { width: 16%; text-align: right; }
+
+            #restaurantes .action-group {
+                justify-content: flex-end;
+                gap: 0.25rem;
+            }
+
+            #restaurantes .btn-icon {
+                width: 1.9rem;
+                height: 1.9rem;
+                font-size: 0.74rem;
+            }
+
+            .header {
+                padding: 0.75rem 1rem;
+                display: grid;
+                grid-template-columns: auto minmax(0, 1fr) auto;
+                column-gap: 0.5rem;
+                align-items: center;
+                top: 0;
+                z-index: 50;
+            }
+
+            .header-center {
+                position: static;
+                transform: none;
+                pointer-events: auto;
+                justify-self: center;
+                max-width: 100%;
+            }
+
+            .header-title {
+                max-width: 160px;
+            }
+
+            #header-user-name,
+            .header-user .fa-chevron-down { display: none; }
+            .header-user {
+                padding: 0.2rem;
+                min-width: 2.2rem;
+                justify-content: center;
+            }
+
+            #toast {
+                right: 1rem !important;
+                left: 1rem;
+                bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+            }
+
+            #toast-inner {
+                min-width: 0 !important;
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+            .header-subtitle { display: none; }
+            .header-title { font-size: 1rem; }
+
+            #restaurantes .table th,
+            #restaurantes .table td {
+                padding: 0.62rem 0.35rem;
+            }
+
+            #restaurantes .rest-email,
+            #restaurantes .rest-slug {
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar-overlay" id="overlay" onclick="fecharMenu()"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <div style="display:flex;justify-content:flex-end;padding:0 0.9rem 0.65rem;">
+                <button class="menu-float-btn" onclick="fecharMenu()" style="background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.25);color:#e2e8f0;">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <div class="sidebar-logo">
+                <h1>Super Admin</h1>
+                <p>Painel de Controle SaaS</p>
+            </div>
+            <nav>
+                <div class="nav-section">Principal</div>
+                <div class="nav-item active" data-secao="dashboard" onclick="mudarSecao('dashboard')"><i class="fas fa-chart-pie"></i> Dashboard</div>
+                <div class="nav-item" data-secao="restaurantes" onclick="mudarSecao('restaurantes')"><i class="fas fa-store"></i> Restaurantes</div>
+
+                <div class="nav-section" style="margin-top:1rem;">Financeiro</div>
+                <div class="nav-item" data-secao="financeiro" onclick="mudarSecao('financeiro')"><i class="fas fa-dollar-sign"></i> Pagamentos</div>
+
+                <div class="nav-section" style="margin-top:1rem;">Sistema</div>
+                <div class="nav-item" data-secao="configuracoes" onclick="mudarSecao('configuracoes')"><i class="fas fa-sliders"></i> Configurações</div>
+                <div class="nav-item" data-secao="credenciais" onclick="mudarSecao('credenciais')"><i class="fas fa-user-shield"></i> Acesso Super Admin</div>
+                <div class="nav-item" data-secao="comunicacao" onclick="mudarSecao('comunicacao')"><i class="fas fa-envelope-open-text"></i> E-mail e Comunicação</div>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="main-container">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-float-btn" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+            </div>
+            <div class="header-center">
+                <div class="header-title">Super Admin</div>
+                <div class="header-subtitle">Controle de Restaurantes</div>
+            </div>
+            <div class="header-user" onclick="logout()">
+                <div class="avatar" id="avatar-initials">SA</div>
+                <span id="header-user-name">Super Admin</span>
+                <i class="fas fa-chevron-down" style="font-size:0.65rem;color:#94a3b8;"></i>
+            </div>
+        </header>
+
+        <div class="content">
+            <section id="dashboard" class="section active">
+                <div class="page-header">
+                    <h2>Dashboard</h2>
+                    <p>Visão geral de todos os restaurantes cadastrados no sistema.</p>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-icon purple"><i class="fas fa-store"></i></div>
+                        <div class="kpi-info">
+                            <span>Total de Lojas</span>
+                            <strong id="kpi-total">0</strong>
+                            <small>cadastros</small>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon green"><i class="fas fa-circle-check"></i></div>
+                        <div class="kpi-info">
+                            <span>Ativas</span>
+                            <strong id="kpi-ativas">0</strong>
+                            <small>em operação</small>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon red"><i class="fas fa-ban"></i></div>
+                        <div class="kpi-info">
+                            <span>Bloqueadas</span>
+                            <strong id="kpi-bloqueadas">0</strong>
+                            <small>sem acesso</small>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon yellow"><i class="fas fa-triangle-exclamation"></i></div>
+                        <div class="kpi-info">
+                            <span>Inadimplentes</span>
+                            <strong id="kpi-inadimplentes">0</strong>
+                            <small>faturas em aberto</small>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon blue"><i class="fas fa-coins"></i></div>
+                        <div class="kpi-info">
+                            <span>MRR Estimado</span>
+                            <strong id="kpi-mrr">R$ 0</strong>
+                            <small>receita mensal</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-bullseye" style="color:var(--primary);"></i> Funil de Conversão (Site de Vendas)</div>
+                    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));margin-bottom:1rem;">
+                        <div class="kpi-card">
+                            <div class="kpi-icon purple"><i class="fas fa-eye"></i></div>
+                            <div class="kpi-info"><span>Visitas</span><strong id="conv-visitas">0</strong><small>page views</small></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-icon blue"><i class="fas fa-hand-pointer"></i></div>
+                            <div class="kpi-info"><span>Clicks em Assinar</span><strong id="conv-clicks">0</strong><small>ctas</small></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-icon yellow"><i class="fas fa-paper-plane"></i></div>
+                            <div class="kpi-info"><span>Cadastros Enviados</span><strong id="conv-envios">0</strong><small>submit</small></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-icon green"><i class="fas fa-circle-check"></i></div>
+                            <div class="kpi-info"><span>Cadastros Concluídos</span><strong id="conv-sucesso">0</strong><small>sucesso</small></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-icon" style="background:#ecfeff;color:#155e75;"><i class="fas fa-percent"></i></div>
+                            <div class="kpi-info"><span>Taxa Conversão</span><strong id="conv-taxa">0%</strong><small>sucesso / visitas</small></div>
+                        </div>
+                    </div>
+
+                    <div class="conv-chart">
+                        <div class="conv-chart-head">
+                            <div class="conv-chart-title">Evolução diária de conversão</div>
+                            <div class="filter-bar" style="margin:0;">
+                                <button id="conv-range-7" class="chip active" onclick="alterarIntervaloConversao(7)">Últimos 7 dias</button>
+                                <button id="conv-range-30" class="chip" onclick="alterarIntervaloConversao(30)">Últimos 30 dias</button>
+                            </div>
+                        </div>
+                        <div id="conv-bars" class="conv-bars"></div>
+                        <div class="conv-legend">
+                            <span class="conv-legend-item"><span class="conv-legend-dot visitas"></span> Visitas</span>
+                            <span class="conv-legend-item"><span class="conv-legend-dot sucessos"></span> Cadastros concluídos</span>
+                        </div>
+                        <div id="conv-serie-empty" class="empty-state" style="display:none;padding:1rem 0.5rem;">
+                            <i class="fas fa-chart-column" style="font-size:1.5rem;margin-bottom:0.45rem;"></i>
+                            <p>Sem dados diários para exibir neste período.</p>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Data/Hora</th>
+                                    <th>Evento</th>
+                                    <th>Plano</th>
+                                    <th>Origem</th>
+                                    <th>Sessão</th>
+                                </tr>
+                            </thead>
+                            <tbody id="conv-eventos-body"></tbody>
+                        </table>
+                        <div id="conv-eventos-empty" class="empty-state" style="display:none;">
+                            <i class="fas fa-chart-line"></i>
+                            <p>Sem eventos de conversão registrados ainda.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-bell" style="color:var(--warning);"></i> Alertas de Vencimento</div>
+                    <p class="card-desc">Restaurantes com assinatura perto do vencimento ou já vencida para ação imediata.</p>
+                    <div id="dash-alertas">
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle" style="color:var(--success);"></i>
+                            <p>Nenhum vencimento próximo. Tudo em dia.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-triangle-exclamation" style="color:var(--danger);"></i> Alertas Operacionais</div>
+                    <p class="card-desc">Checklist rápido para não perder envio de e-mail, autenticação e higiene da base de clientes.</p>
+                    <div id="dash-alertas-operacionais">
+                        <div class="empty-state">
+                            <i class="fas fa-shield-check" style="color:var(--success);"></i>
+                            <p>Sem alertas operacionais no momento.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-store" style="color:var(--primary);"></i> Cadastros Recentes</div>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Restaurante</th>
+                                    <th>Plano</th>
+                                    <th>Status</th>
+                                    <th>Vencimento</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dash-tabela"></tbody>
+                        </table>
+                        <div id="dash-empty" class="empty-state" style="display:none;">
+                            <i class="fas fa-store-slash"></i>
+                            <p>Nenhum restaurante cadastrado ainda. Vá em Restaurantes para começar.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="restaurantes" class="section">
+                <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
+                    <div>
+                        <h2>Restaurantes</h2>
+                        <p>Gerencie todos os estabelecimentos cadastrados na plataforma.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="abrirModalCadastro()">
+                        <i class="fas fa-plus"></i> Novo Restaurante
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-toolbar">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="busca-rest" placeholder="Buscar por nome, slug ou email" oninput="renderRestaurantes()">
+                        </div>
+                        <div class="filter-bar" style="margin:0;">
+                            <div class="chip active" onclick="filtroStatus='todos'; atualizarChips(this); renderRestaurantes()">Todos</div>
+                            <div class="chip" onclick="filtroStatus='ativo'; atualizarChips(this); renderRestaurantes()">Ativos</div>
+                            <div class="chip" onclick="filtroStatus='bloqueado'; atualizarChips(this); renderRestaurantes()">Bloqueados</div>
+                            <div class="chip" onclick="filtroStatus='inadimplente'; atualizarChips(this); renderRestaurantes()">Inadimplentes</div>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Restaurante</th>
+                                    <th>Plano</th>
+                                    <th>Assinatura</th>
+                                    <th>Pagamento</th>
+                                    <th>Validade</th>
+                                    <th>Sistema</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-restaurantes"></tbody>
+                        </table>
+                        <div id="rest-empty" class="empty-state" style="display:none;">
+                            <i class="fas fa-store-slash"></i>
+                            <p>Nenhum restaurante encontrado para este filtro.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="financeiro" class="section">
+                <div class="page-header">
+                    <h2>Pagamentos</h2>
+                    <p>Acompanhe o status financeiro de cada assinatura.</p>
+                </div>
+
+                <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));">
+                    <div class="kpi-card">
+                        <div class="kpi-icon green"><i class="fas fa-circle-check"></i></div>
+                        <div class="kpi-info"><span>Em Dia</span><strong id="fin-em-dia">0</strong></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon yellow"><i class="fas fa-clock"></i></div>
+                        <div class="kpi-info"><span>Vence em 7 dias</span><strong id="fin-aviso">0</strong></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon red"><i class="fas fa-xmark"></i></div>
+                        <div class="kpi-info"><span>Vencidas</span><strong id="fin-vencidas">0</strong></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon blue"><i class="fas fa-coins"></i></div>
+                        <div class="kpi-info"><span>MRR Total</span><strong id="fin-mrr">R$ 0</strong></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-file-invoice-dollar" style="color:var(--primary);"></i> Assinaturas</div>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Restaurante</th>
+                                    <th>Plano</th>
+                                    <th>Valor/mês</th>
+                                    <th>Assinatura</th>
+                                    <th>Validade</th>
+                                    <th>Status Pagamento</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-financeiro"></tbody>
+                        </table>
+                        <div id="fin-empty" class="empty-state" style="display:none;">
+                            <i class="fas fa-file-invoice"></i>
+                            <p>Nenhum registro financeiro ainda.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="configuracoes" class="section">
+                <div class="page-header">
+                    <h2>Configurações do Sistema</h2>
+                    <p>Definições globais de negócio: planos, pagamentos e WhatsApp Enterprise.</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-coins" style="color:var(--warning);"></i> Valores dos Planos</div>
+                    <p class="card-desc">Defina os valores oficiais usados no site de vendas e na cobrança das assinaturas.</p>
+                    <div class="grid-3">
+                        <div class="form-group">
+                            <label class="form-label">Plano Basic (R$/mês)</label>
+                            <input class="form-input" id="plano-basic" type="number" value="97">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Plano Pro (R$/mês)</label>
+                            <input class="form-input" id="plano-pro" type="number" value="197">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Plano Enterprise (R$/mês)</label>
+                            <input class="form-input" id="plano-enterprise" type="number" value="397">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="salvarPlanos()"><i class="fas fa-save"></i> Salvar valores</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-credit-card" style="color:#00b1ea;"></i> Integração Mercado Pago</div>
+                    <p class="card-desc">
+                        Cole aqui suas credenciais do Mercado Pago. Você encontra em
+                        <a href="https://www.mercadopago.com.br/developers/panel/app" target="_blank" style="color:var(--primary);">Painel de Desenvolvedores</a>.
+                    </p>
+                    <div id="mp-status" style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;"></div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Access Token (APP_USR-...)</label>
+                            <input class="form-input" id="mp-access-token" type="password" placeholder="APP_USR-..." autocomplete="off">
+                            <div class="form-hint">Nunca compartilhe este token.</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Public Key (APP_USR-...)</label>
+                            <input class="form-input" id="mp-public-key" placeholder="APP_USR-..." autocomplete="off">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="salvarConfigMP()"><i class="fas fa-save"></i> Salvar credenciais MP</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fab fa-whatsapp" style="color:#25d366;"></i> WhatsApp Enterprise</div>
+                    <p class="card-desc">
+                        Número do WhatsApp pessoal exibido para clientes do plano Enterprise. Use o formato internacional sem espaços ou traços (ex: 5511999999999).
+                    </p>
+                    <div id="enterprise-wpp-status" style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;"></div>
+                    <div class="form-group">
+                        <label class="form-label">Número WhatsApp (somente dígitos, com DDI)</label>
+                        <input class="form-input" id="enterprise-wpp" type="tel" placeholder="5511999999999" autocomplete="off" style="max-width:320px;">
+                        <div class="form-hint">Este número só é visível para restaurantes com plano Enterprise ativo.</div>
+                    </div>
+                    <button class="btn btn-primary" onclick="salvarConfigEnterprise()"><i class="fab fa-whatsapp"></i> Salvar número Enterprise</button>
+                </div>
+            </section>
+
+            <section id="credenciais" class="section">
+                <div class="page-header">
+                    <h2>Acesso Super Admin</h2>
+                    <p>Credencial suprema do painel, usada para autenticar quem pode gerenciar todo o sistema.</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-user-shield" style="color:var(--primary);"></i> Login e Senha do Super Admin</div>
+                    <p class="card-desc">Estas credenciais ficam salvas no backend. Se a senha ficar em branco, a senha atual é mantida.</p>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Nome de exibição</label>
+                            <input class="form-input" id="sa-nome" placeholder="Seu nome" value="Walter Junnys">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Login (e-mail)</label>
+                            <input class="form-input" id="sa-email-login" type="email" placeholder="walterjunnys@gmail.com">
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Nova senha</label>
+                            <input class="form-input" id="sa-senha" type="password" placeholder="Digite apenas para trocar">
+                            <div class="form-hint">Credencial atual padrão: walterjunnys@gmail.com</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="salvarCredenciais()"><i class="fas fa-save"></i> Salvar credenciais</button>
+                </div>
+            </section>
+
+            <section id="comunicacao" class="section">
+                <div class="page-header">
+                    <h2>E-mail e Comunicação</h2>
+                    <p>Tudo de envio automático de e-mail em um local separado para o painel ficar limpo e organizado.</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-paper-plane" style="color:#60a5fa;"></i> SMTP (Envio Automático de E-mail)</div>
+                    <p class="card-desc">
+                        Configure aqui para que, ao pagamento ser aprovado, o cliente receba automaticamente os links do Admin e do Cardápio no e-mail.
+                    </p>
+                    <p style="color:#0f172a;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:0.7rem 0.8rem;font-size:0.82rem;margin-bottom:0.9rem;">
+                        Dica rapida: use o preset do Gmail abaixo. Depois, cole apenas a senha de app do Google e clique em salvar.
+                    </p>
+                    <div class="action-bar" style="justify-content:flex-start;margin-bottom:0.75rem;">
+                        <button class="btn btn-secondary" onclick="aplicarPresetSmtpWalter()"><i class="fas fa-wand-magic-sparkles"></i> Preencher Gmail automaticamente</button>
+                    </div>
+                    <div class="grid-3">
+                        <div class="form-group">
+                            <label class="form-label">SMTP Host</label>
+                            <input class="form-input" id="smtp-host" placeholder="smtp.gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Porta</label>
+                            <input class="form-input" id="smtp-port" type="number" value="587" min="1" max="65535">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Usuário</label>
+                            <input class="form-input" id="smtp-user" placeholder="seuemail@gmail.com">
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Senha/App Password</label>
+                            <input class="form-input" id="smtp-pass" type="password" placeholder="Cole somente para atualizar">
+                            <div class="form-hint">Se deixar em branco, a senha atual permanece.</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Remetente (From)</label>
+                            <input class="form-input" id="smtp-from" type="email" placeholder="seuemail@gmail.com">
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <label class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+                            <input id="smtp-tls" type="checkbox" checked>
+                            <span class="form-label" style="margin:0;">Usar TLS (recomendado)</span>
+                        </label>
+                        <label class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+                            <input id="smtp-ssl" type="checkbox">
+                            <span class="form-label" style="margin:0;">Usar SSL</span>
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" onclick="salvarConfigSMTP()"><i class="fas fa-save"></i> Salvar SMTP</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class="fas fa-envelope-open-text" style="color:#60a5fa;"></i> E-mail de Acesso (Admin + Cardápio)</div>
+                    <p class="card-desc">
+                        Diagnóstico do SMTP e reenvio manual do e-mail após pagamento aprovado.
+                    </p>
+                    <div id="smtp-status" style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;"></div>
+                    <div class="grid-2" style="align-items:end;">
+                        <div class="form-group">
+                            <label class="form-label">pending_id do pagamento</label>
+                            <input class="form-input" id="email-pending-id" placeholder="Ex.: ZxY123...">
+                            <div class="form-hint">Use o pending_id retornado no checkout do cliente.</div>
+                        </div>
+                        <div class="action-bar" style="justify-content:flex-start;gap:0.6rem;">
+                            <button class="btn btn-secondary" onclick="carregarDiagnosticoEmail()"><i class="fas fa-stethoscope"></i> Diagnosticar SMTP</button>
+                            <button class="btn btn-primary" onclick="reenviarEmailPagamento()"><i class="fas fa-paper-plane"></i> Reenviar e-mail</button>
+                        </div>
+                    </div>
+                    <div id="email-reenvio-status" style="font-size:0.82rem;color:var(--text-muted);margin-top:0.5rem;"></div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="modal active" id="modal-login-super-admin">
+        <div class="modal-content" style="max-width:430px;">
+            <div class="modal-header">
+                <h2>Entrar no Super Admin</h2>
+            </div>
+            <div class="modal-body">
+                <p class="card-desc" style="margin-top:0;">
+                    Autenticação obrigatória para acesso total ao painel.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Login (e-mail)</label>
+                    <input class="form-input" id="login-super-admin-email" type="email" placeholder="walterjunnys@gmail.com" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Senha</label>
+                    <input class="form-input" id="login-super-admin-senha" type="password" placeholder="Digite sua senha" autocomplete="current-password">
+                </div>
+                <div id="login-super-admin-status" style="font-size:0.82rem;color:var(--text-muted);"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="autenticarSuperAdmin()"><i class="fas fa-lock-open"></i> Entrar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-cadastro">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-cadastro-titulo">Novo Restaurante</h2>
+                <button class="close-btn" onclick="fecharModalCadastro()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-index">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Nome do Restaurante *</label>
+                        <input class="form-input" id="f-nome" placeholder="Ex: Pizzaria do Zé">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Slug da URL *</label>
+                        <input class="form-input" id="f-slug" placeholder="pizzaria-do-ze">
+                        <div class="form-hint">URL pública: /cardapio/<strong>slug</strong></div>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Email do responsável *</label>
+                        <input class="form-input" id="f-email" type="email" placeholder="dono@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Senha inicial *</label>
+                        <input class="form-input" id="f-senha" type="password" placeholder="mínimo 4 caracteres">
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Telefone / WhatsApp</label>
+                        <input class="form-input" id="f-telefone" placeholder="(11) 99999-9999">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">CNPJ</label>
+                        <input class="form-input" id="f-cnpj" placeholder="XX.XXX.XXX/0001-XX">
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Token de Acesso *</label>
+                        <div style="display:flex;gap:0.5rem;">
+                            <input class="form-input" id="f-token" placeholder="token_seguro_123">
+                            <button class="btn btn-secondary" style="flex-shrink:0;padding:0.7rem;" onclick="gerarToken()" title="Gerar token automaticamente"><i class="fas fa-dice"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid-3">
+                    <div class="form-group">
+                        <label class="form-label">Plano</label>
+                        <select class="form-select" id="f-plano">
+                            <option value="basic">Basic — R$97/mês</option>
+                            <option value="pro">Pro — R$197/mês</option>
+                            <option value="enterprise">Enterprise — R$397/mês</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Vencimento da Fatura</label>
+                        <input class="form-input" id="f-vencimento" type="date">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status do Sistema</label>
+                        <select class="form-select" id="f-status">
+                            <option value="ativo">Ativo</option>
+                            <option value="bloqueado">Bloqueado</option>
+                            <option value="trial">Trial</option>
+                            <option value="cancelado">Cancelado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Observações internas</label>
+                    <textarea class="form-input" id="f-obs" rows="2" placeholder="Anotações sobre este cliente" style="resize:vertical;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalCadastro()">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarRestaurante()"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-confirma">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-body" style="padding:2rem 1.5rem;">
+                <div class="confirm-icon" id="confirma-icon"><i class="fas fa-ban"></i></div>
+                <div class="confirm-title" id="confirma-titulo">Bloquear restaurante?</div>
+                <div class="confirm-desc" id="confirma-desc">O restaurante perderá acesso ao sistema imediatamente.</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalConfirma()">Cancelar</button>
+                <button class="btn" id="confirma-btn" onclick="executarAcaoConfirmada()"><i class="fas fa-check"></i> Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-fatura">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h2>Renovar Fatura</h2>
+                <button class="close-btn" onclick="fecharModalFatura()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Nova validade da assinatura</label>
+                    <input class="form-input" id="nova-data-venc" type="date">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status de pagamento</label>
+                    <select class="form-select" id="novo-status-fat">
+                        <option value="em_dia">Em dia</option>
+                        <option value="aviso">Aguardando pagamento</option>
+                        <option value="vencida">Vencida</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalFatura()">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarFatura()"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-email-acesso">
+        <div class="modal-content" style="max-width:620px;">
+            <div class="modal-header">
+                <h2>Verificar E-mail e Links de Acesso</h2>
+                <button class="close-btn" onclick="fecharModalEmailAcesso()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="email-acesso-idx">
+                <div class="form-group">
+                    <label class="form-label">Cliente</label>
+                    <input class="form-input" id="email-acesso-nome" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">E-mail do responsável</label>
+                    <input class="form-input" id="email-acesso-email" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Link do Admin (privado)</label>
+                    <div style="display:flex;gap:0.5rem;">
+                        <input class="form-input" id="email-acesso-admin-url" readonly>
+                        <button class="btn btn-secondary" style="flex-shrink:0;" onclick="copiarCampo('email-acesso-admin-url')"><i class="fas fa-copy"></i></button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Link do Cardápio (público)</label>
+                    <div style="display:flex;gap:0.5rem;">
+                        <input class="form-input" id="email-acesso-cardapio-url" readonly>
+                        <button class="btn btn-secondary" style="flex-shrink:0;" onclick="copiarCampo('email-acesso-cardapio-url')"><i class="fas fa-copy"></i></button>
+                    </div>
+                </div>
+                <div id="email-acesso-status" style="font-size:0.82rem;color:var(--text-muted);"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalEmailAcesso()">Fechar</button>
+                <button class="btn btn-primary" onclick="enviarEmailAcessoSelecionado()"><i class="fas fa-paper-plane"></i> Enviar/Reenviar E-mail</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:99;display:none;">
+        <div id="toast-inner" style="background:#1e293b;color:#fff;padding:0.8rem 1.25rem;border-radius:0.75rem;font-size:0.875rem;font-weight:600;box-shadow:0 8px 24px rgba(15,23,42,0.2);display:flex;align-items:center;gap:0.6rem;min-width:240px;">
+            <i id="toast-icon" class="fas fa-check-circle" style="color:#10b981;"></i>
+            <span id="toast-msg"></span>
+        </div>
+    </div>
+
+    <script src="./api_config.js"></script>
+    <script>
+        const API_URL = window.resolveApiBase
+            ? window.resolveApiBase()
+            : window.location.origin.replace(/\/$/, '');
+
+        let secaoAtual = 'dashboard';
+        let filtroStatus = 'todos';
+        let acaoPendente = null;
+        let indiceAcao = null;
+        let indiceFaturaAtual = null;
+        let intervaloConversaoDias = 7;
+        let serieConversao30Dias = [];
+        let credenciaisSuperAdmin = null;
+        let painelInicializado = false;
+
+        const PLANOS_DEFAULT = { basic: 97, pro: 197, enterprise: 397 };
+
+        function obterBasesApiSuperAdmin() {
+            const bases = [];
+            const add = (base) => {
+                const norm = String(base || '').trim().replace(/\/$/, '');
+                if (norm && !bases.includes(norm)) bases.push(norm);
+            };
+
+            add('http://127.0.0.1:8000');
+            add('http://localhost:8000');
+            add(API_URL);
+            add(window.location.origin || '');
+            add('http://127.0.0.1:8010');
+            add('http://localhost:8010');
+
+            const host = window.location.hostname || '127.0.0.1';
+            const local = host === 'localhost' || host === '127.0.0.1';
+            if (local) {
+                add(`${window.location.protocol}//${host}:8010`);
+                add(`${window.location.protocol}//${host}:8000`);
+            }
+
+            return bases;
+        }
+
+        function credencialSupremaLocalValida(email, senha) {
+            const e = String(email || '').trim().toLowerCase();
+            const s = String(senha || '').trim();
+            return e === 'walterjunnys@gmail.com' && s === 'wj92486656';
+        }
+
+        async function postSuperAdminComFallback(path, payload) {
+            const bases = obterBasesApiSuperAdmin();
+            let ultimoErro = 'Não foi possível conectar à API.';
+
+            for (const base of bases) {
+                try {
+                    const res = await fetch(`${base}${path}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+
+                    let data = {};
+                    try { data = await res.json(); } catch (_) {}
+
+                    if (res.ok) {
+                        localStorage.setItem('api_base_url', base);
+                        return { res, data, base };
+                    }
+
+                    if (res.status === 405) {
+                        ultimoErro = 'API desta porta está desatualizada (405). Tentando outra...';
+                        continue;
+                    }
+
+                    ultimoErro = data?.detail || `Erro ${res.status}`;
+                } catch (erro) {
+                    ultimoErro = `Falha de conexão com a API (${base}). Verifique se o backend está online.`;
+                }
+            }
+
+            throw new Error(ultimoErro);
+        }
+
+        async function getSuperAdminComFallback(path) {
+            const bases = obterBasesApiSuperAdmin();
+            let ultimoErro = 'Não foi possível conectar à API.';
+
+            for (const base of bases) {
+                try {
+                    const res = await fetch(`${base}${path}`);
+                    let data = {};
+                    try { data = await res.json(); } catch (_) {}
+
+                    if (res.ok) {
+                        localStorage.setItem('api_base_url', base);
+                        return { res, data, base };
+                    }
+
+                    if (res.status === 404 || res.status === 405) {
+                        ultimoErro = `API ${base} não possui este endpoint ainda. Tentando outra...`;
+                        continue;
+                    }
+
+                    ultimoErro = data?.detail || `Erro ${res.status}`;
+                } catch (erro) {
+                    ultimoErro = `Falha de conexão com a API (${base}). Verifique se o backend está online.`;
+                }
+            }
+
+            throw new Error(ultimoErro);
+        }
+
+        function setText(id, valor) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(valor ?? '');
+        }
+
+        function getPlanos() {
+            return JSON.parse(localStorage.getItem('sa_planos') || JSON.stringify(PLANOS_DEFAULT));
+        }
+
+        function inferirPlanoPorValor(valorMensalidade) {
+            const valor = Number(valorMensalidade || 0);
+            if (valor >= 397) return 'enterprise';
+            if (valor >= 197) return 'pro';
+            return 'basic';
+        }
+
+        function normalizarRestauranteApi(rest) {
+            return {
+                id_backend: rest.id,
+                nome: rest.nome_unidade || '',
+                slug: rest.slug || '',
+                token: rest.token_acesso || '',
+                admin_url: rest.admin_url || '',
+                cardapio_url: rest.cardapio_url || '',
+                email: rest.email_admin || '',
+                telefone: '',
+                cnpj: '',
+                plano: rest.plano || inferirPlanoPorValor(rest.valor_mensalidade),
+                valor_mensalidade: Number(rest.valor_mensalidade || 0),
+                vencimento: rest.validade_assinatura || '',
+                status: (rest.status_assinatura || '').toLowerCase() === 'ativo' ? 'ativo' : 'bloqueado',
+                obs: '',
+                criado_em: rest.data_assinatura || new Date().toISOString()
+            };
+        }
+
+        async function sincronizarComBackend() {
+            try {
+                const res = await fetch(`${API_URL}/api/super-admin/restaurantes`);
+                if (!res.ok) throw new Error('Falha ao carregar restaurantes');
+                const listaApi = await res.json();
+                const listaNormalizada = Array.isArray(listaApi) ? listaApi.map(normalizarRestauranteApi) : [];
+                salvarRestaurantes(listaNormalizada);
+            } catch (erro) {
+                toast('Sem conexão com API. Exibindo dados locais.', 'aviso');
+            }
+        }
+
+        function getRestaurantes() {
+            const lista = JSON.parse(localStorage.getItem('sa_restaurantes') || '[]');
+            return removerClientesFake(lista);
+        }
+
+        function salvarRestaurantes(lista) {
+            localStorage.setItem('sa_restaurantes', JSON.stringify(removerClientesFake(lista)));
+        }
+
+        function removerClientesFake(lista) {
+            const arr = Array.isArray(lista) ? lista : [];
+            return arr.filter((r) => {
+                const slug = String(r?.slug || '').trim().toLowerCase();
+                const nome = String(r?.nome || '').trim().toLowerCase();
+                return !(slug === 'conta-dono' && (nome === 'conta do dono' || nome === 'conta demo'));
+            });
+        }
+
+        function toggleMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            const vaiAbrir = !sidebar.classList.contains('open');
+            sidebar.classList.toggle('open', vaiAbrir);
+            overlay.classList.toggle('active', vaiAbrir);
+            document.body.classList.toggle('menu-open', vaiAbrir);
+        }
+
+        function fecharMenu() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('overlay').classList.remove('active');
+            document.body.classList.remove('menu-open');
+        }
+
+        function mudarSecao(id) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+
+            const navAtual = document.querySelector(`.nav-item[data-secao="${id}"]`);
+            if (navAtual) navAtual.classList.add('active');
+
+            secaoAtual = id;
+            fecharMenu();
+
+            if (id === 'dashboard') renderDashboard();
+            if (id === 'restaurantes') renderRestaurantes();
+            if (id === 'financeiro') renderFinanceiro();
+        }
+
+        function atualizarChips(el) {
+            el.closest('.filter-bar').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function toast(msg, tipo = 'ok') {
+            const t = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            document.getElementById('toast-msg').textContent = msg;
+
+            icon.className = tipo === 'ok'
+                ? 'fas fa-check-circle'
+                : tipo === 'erro'
+                    ? 'fas fa-xmark-circle'
+                    : 'fas fa-triangle-exclamation';
+
+            icon.style.color = tipo === 'ok'
+                ? '#10b981'
+                : tipo === 'erro'
+                    ? '#ef4444'
+                    : '#f59e0b';
+
+            t.style.display = 'block';
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => t.style.display = 'none', 3200);
+        }
+
+        function statusPagamento(rest) {
+            if (!rest.vencimento) return 'sem_data';
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            const venc = new Date(rest.vencimento + 'T00:00:00');
+            const diff = Math.round((venc - hoje) / 86400000);
+            if (diff < 0) return 'vencida';
+            if (diff <= 7) return 'aviso';
+            return 'em_dia';
+        }
+
+        function badgePagto(rest) {
+            const sp = statusPagamento(rest);
+            if (sp === 'vencida') {
+                return '<span class="badge badge-vencida"><i class="fas fa-circle-xmark"></i> Vencida</span>';
+            }
+            if (sp === 'aviso') {
+                const diff = Math.round((new Date(rest.vencimento + 'T00:00:00') - new Date()) / 86400000);
+                return `<span class="badge badge-aviso"><i class="fas fa-clock"></i> Vence em ${diff}d</span>`;
+            }
+            if (sp === 'em_dia') {
+                return '<span class="badge badge-em-dia"><i class="fas fa-circle-check"></i> Em dia</span>';
+            }
+            return '<span class="badge" style="background:#f1f5f9;color:#94a3b8;"><i class="fas fa-calendar"></i> Sem data</span>';
+        }
+
+        function badgeSistema(rest) {
+            if (rest.status === 'bloqueado') {
+                return '<span class="badge badge-bloqueado"><i class="fas fa-lock"></i> Bloqueado</span>';
+            }
+            if (rest.status === 'trial') {
+                return '<span class="badge badge-trial"><i class="fas fa-hourglass-half"></i> Trial</span>';
+            }
+            if (rest.status === 'cancelado') {
+                return '<span class="badge badge-cancelado"><i class="fas fa-circle-minus"></i> Cancelado</span>';
+            }
+            return '<span class="badge badge-ativo"><i class="fas fa-circle-check"></i> Ativo</span>';
+        }
+
+        function badgePlano(plano) {
+            if (plano === 'pro') return '<span class="plan-pro">PRO</span>';
+            if (plano === 'enterprise') return '<span class="plan-enterprise">ENTERPRISE</span>';
+            return '<span class="plan-basic">BASIC</span>';
+        }
+
+        function valorPlano(plano) {
+            return getPlanos()[plano] || 0;
+        }
+
+        function eInadimplente(rest) {
+            return statusPagamento(rest) === 'vencida' && rest.status !== 'cancelado';
+        }
+
+        function mapearEventoConversao(evento) {
+            const mapa = {
+                page_view: 'Visita na página',
+                cta_assinar: 'Click em assinar',
+                modal_aberto: 'Modal de cadastro aberto',
+                cadastro_submit: 'Cadastro enviado',
+                cadastro_sucesso: 'Cadastro concluído',
+                cadastro_erro: 'Erro no cadastro',
+                planos_carregados: 'Planos carregados'
+            };
+            return mapa[evento] || evento;
+        }
+
+        function alterarIntervaloConversao(dias) {
+            intervaloConversaoDias = dias === 30 ? 30 : 7;
+            document.getElementById('conv-range-7').classList.toggle('active', intervaloConversaoDias === 7);
+            document.getElementById('conv-range-30').classList.toggle('active', intervaloConversaoDias === 30);
+            renderSerieConversao();
+        }
+
+        function renderSerieConversao() {
+            const barsEl = document.getElementById('conv-bars');
+            const emptyEl = document.getElementById('conv-serie-empty');
+            if (!barsEl || !emptyEl) return;
+
+            const serie = Array.isArray(serieConversao30Dias) ? serieConversao30Dias.slice(-intervaloConversaoDias) : [];
+            if (!serie.length) {
+                barsEl.innerHTML = '';
+                emptyEl.style.display = 'block';
+                return;
+            }
+
+            const maxValor = Math.max(1, ...serie.map(item => Math.max(Number(item.visitas || 0), Number(item.sucessos || 0))));
+
+            barsEl.innerHTML = serie.map((item) => {
+                const visitas = Number(item.visitas || 0);
+                const sucessos = Number(item.sucessos || 0);
+                const hVisitas = Math.max(3, Math.round((visitas / maxValor) * 100));
+                const hSucessos = Math.max(3, Math.round((sucessos / maxValor) * 100));
+                const dt = item.data ? new Date(`${item.data}T00:00:00`) : null;
+                const label = dt && !Number.isNaN(dt.getTime())
+                    ? dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                    : '—';
+                const taxa = Number(item.taxa_conversao_percentual || 0).toFixed(2);
+
+                return `<div class="conv-day" title="${label} · Visitas: ${visitas} · Sucessos: ${sucessos} · Taxa: ${taxa}%">
+                    <div class="conv-bars-stack">
+                        <div class="conv-bar visitas" style="height:${hVisitas}%"></div>
+                        <div class="conv-bar sucessos" style="height:${hSucessos}%"></div>
+                    </div>
+                    <span class="conv-day-label">${label}</span>
+                </div>`;
+            }).join('');
+
+            emptyEl.style.display = 'none';
+        }
+
+        async function renderAnalyticsConversao() {
+            try {
+                const res = await fetch(`${API_URL}/api/super-admin/analytics/conversao`);
+                if (!res.ok) throw new Error('Falha ao carregar analytics');
+                const data = await res.json();
+                const resumo = data.resumo || {};
+                const eventos = data.ultimos_eventos || [];
+                serieConversao30Dias = data.serie_diaria_30_dias || [];
+
+                setText('conv-visitas', resumo.visitas ?? 0);
+                setText('conv-clicks', resumo.click_assinar ?? 0);
+                setText('conv-envios', resumo.cadastros_enviados ?? 0);
+                setText('conv-sucesso', resumo.cadastros_sucesso ?? 0);
+                setText('conv-taxa', `${Number(resumo.taxa_conversao_percentual || 0).toFixed(2)}%`);
+                renderSerieConversao();
+
+                const tbody = document.getElementById('conv-eventos-body');
+                const empty = document.getElementById('conv-eventos-empty');
+
+                if (!eventos.length) {
+                    tbody.innerHTML = '';
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                empty.style.display = 'none';
+                tbody.innerHTML = eventos.map((ev) => {
+                    const dataFmt = ev.created_at ? new Date(ev.created_at).toLocaleString('pt-BR') : '—';
+                    return `<tr>
+                        <td>${dataFmt}</td>
+                        <td>${mapearEventoConversao(ev.evento)}</td>
+                        <td>${(ev.plano || '—').toUpperCase()}</td>
+                        <td>${ev.origem || '—'}</td>
+                        <td style="font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:0.75rem; color:#64748b;">${ev.sessao_id || '—'}</td>
+                    </tr>`;
+                }).join('');
+            } catch (_) {
+                setText('conv-visitas', '0');
+                setText('conv-clicks', '0');
+                setText('conv-envios', '0');
+                setText('conv-sucesso', '0');
+                setText('conv-taxa', '0%');
+                serieConversao30Dias = [];
+                renderSerieConversao();
+                document.getElementById('conv-eventos-body').innerHTML = '';
+                document.getElementById('conv-eventos-empty').style.display = 'block';
+            }
+        }
+
+        async function renderAlertasOperacionais(lista) {
+            const box = document.getElementById('dash-alertas-operacionais');
+            if (!box) return;
+
+            const alertas = [];
+            const cred = credenciaisSuperAdmin || {};
+            if (!cred.email_login) {
+                alertas.push({
+                    icone: 'fa-user-lock',
+                    cor: 'var(--danger)',
+                    titulo: 'Login do Super Admin não carregado',
+                    detalhe: 'Abra Acesso Super Admin e salve as credenciais principais.'
+                });
+            }
+
+            try {
+                const { data } = await getSuperAdminComFallback('/api/super-admin/diagnostico-email');
+                if (!data.smtp_configurado) {
+                    alertas.push({
+                        icone: 'fa-envelope-circle-xmark',
+                        cor: 'var(--danger)',
+                        titulo: 'SMTP incompleto',
+                        detalhe: 'Sem SMTP válido, o cliente não recebe e-mail automático após pagamento.'
+                    });
+                }
+            } catch (_) {
+                alertas.push({
+                    icone: 'fa-plug-circle-xmark',
+                    cor: 'var(--warning)',
+                    titulo: 'Sem diagnóstico SMTP agora',
+                    detalhe: 'Não foi possível validar envio de e-mail neste momento.'
+                });
+            }
+
+            const fakeCount = (Array.isArray(lista) ? lista : []).filter((r) => String(r?.slug || '').trim().toLowerCase() === 'conta-dono').length;
+            if (fakeCount > 0) {
+                alertas.push({
+                    icone: 'fa-user-minus',
+                    cor: 'var(--warning)',
+                    titulo: `${fakeCount} cliente(s) de teste detectado(s)`,
+                    detalhe: 'Revisar e excluir cadastros de demonstração para manter a base limpa.'
+                });
+            }
+
+            if (!alertas.length) {
+                box.innerHTML = '<div class="empty-state"><i class="fas fa-shield-check" style="color:var(--success);"></i><p>Sem alertas operacionais no momento.</p></div>';
+                return;
+            }
+
+            box.innerHTML = alertas.map((a) => `<div class="operational-alert">
+                <i class="fas ${a.icone}" style="color:${a.cor};"></i>
+                <div>
+                    <strong>${a.titulo}</strong>
+                    <span>${a.detalhe}</span>
+                </div>
+            </div>`).join('');
+        }
+
+        function renderDashboard() {
+            const lista = getRestaurantes();
+
+            setText('kpi-total', lista.length);
+            setText('kpi-ativas', lista.filter(r => r.status === 'ativo').length);
+            setText('kpi-bloqueadas', lista.filter(r => r.status === 'bloqueado').length);
+            setText('kpi-inadimplentes', lista.filter(eInadimplente).length);
+
+            const mrr = lista
+                .filter(r => r.status === 'ativo')
+                .reduce((s, r) => s + valorPlano(r.plano || 'basic'), 0);
+
+            setText('kpi-mrr', `R$ ${mrr.toLocaleString('pt-BR')}`);
+
+            const alertas = lista
+                .filter(r => ['vencida', 'aviso'].includes(statusPagamento(r)))
+                .sort((a, b) => (a.vencimento || '') > (b.vencimento || '') ? 1 : -1);
+
+            const divAlerta = document.getElementById('dash-alertas');
+
+            if (alertas.length === 0) {
+                divAlerta.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle" style="color:var(--success);"></i><p>Nenhum vencimento próximo.</p></div>';
+            } else {
+                divAlerta.innerHTML = alertas.map(r => {
+                    const sp = statusPagamento(r);
+                    const cor = sp === 'vencida' ? 'var(--danger)' : 'var(--warning)';
+                    const bg = sp === 'vencida' ? '#fef2f2' : '#fffbeb';
+                    const diff = r.vencimento ? Math.round((new Date(r.vencimento + 'T00:00:00') - new Date()) / 86400000) : null;
+                    const msg = sp === 'vencida' ? `Fatura vencida há ${Math.abs(diff)} dia(s)` : `Vence em ${diff} dia(s)`;
+                    const i = lista.indexOf(r);
+
+                    return `<div style="display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.65rem;background:${bg};margin-bottom:0.5rem;flex-wrap:wrap;">
+                        <i class="fas ${sp === 'vencida' ? 'fa-ban' : 'fa-clock'}" style="color:${cor};font-size:1.1rem;flex-shrink:0;"></i>
+                        <div style="flex:1;min-width:140px;">
+                            <strong style="color:#0f172a;">${r.nome}</strong>
+                            <div style="font-size:0.78rem;color:#64748b;">${msg} · Plano ${(r.plano || 'basic').toUpperCase()}</div>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <button class="btn btn-sm btn-secondary" onclick="abrirModalFatura(${i})"><i class="fas fa-file-invoice"></i> Renovar</button>
+                            ${r.status === 'ativo'
+                                ? `<button class="btn btn-sm btn-danger" onclick="confirmarAcao('bloquear',${i})"><i class="fas fa-ban"></i> Bloquear</button>`
+                                : `<button class="btn btn-sm btn-success" onclick="confirmarAcao('desbloquear',${i})"><i class="fas fa-unlock"></i> Liberar</button>`}
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            const tbody = document.getElementById('dash-tabela');
+            const dashEmpty = document.getElementById('dash-empty');
+
+            if (lista.length === 0) {
+                tbody.innerHTML = '';
+                dashEmpty.style.display = 'block';
+                return;
+            }
+
+            dashEmpty.style.display = 'none';
+            const recentes = [...lista].reverse().slice(0, 6);
+
+            tbody.innerHTML = recentes.map(r => {
+                const dataFmt = r.vencimento ? new Date(r.vencimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+                return `<tr>
+                    <td><div class="rest-name">${r.nome}</div><div class="rest-slug">/${r.slug}</div></td>
+                    <td>${badgePlano(r.plano || 'basic')}</td>
+                    <td>${badgeSistema(r)}</td>
+                    <td>${dataFmt}</td>
+                    <td><button class="btn btn-sm btn-secondary" onclick="abrirAdminRestaurante('${r.slug}','${r.token}')"><i class="fas fa-external-link-alt"></i> Abrir</button></td>
+                </tr>`;
+            }).join('');
+
+            renderAnalyticsConversao();
+            renderAlertasOperacionais(lista);
+        }
+
+        function renderRestaurantes() {
+            const lista = getRestaurantes();
+            const busca = (document.getElementById('busca-rest')?.value || '').toLowerCase();
+            const tbody = document.getElementById('tabela-restaurantes');
+            const empt = document.getElementById('rest-empty');
+
+            const filtrados = lista.filter(r => {
+                const okBusca = !busca
+                    || r.nome.toLowerCase().includes(busca)
+                    || r.slug.toLowerCase().includes(busca)
+                    || (r.email || '').toLowerCase().includes(busca);
+
+                const okStatus = filtroStatus === 'todos'
+                    || (filtroStatus === 'ativo' && r.status === 'ativo')
+                    || (filtroStatus === 'bloqueado' && r.status === 'bloqueado')
+                    || (filtroStatus === 'inadimplente' && eInadimplente(r));
+
+                return okBusca && okStatus;
+            });
+
+            if (filtrados.length === 0) {
+                tbody.innerHTML = '';
+                empt.style.display = 'block';
+                return;
+            }
+
+            empt.style.display = 'none';
+
+            tbody.innerHTML = filtrados.map(r => {
+                const i = lista.indexOf(r);
+                const bloq = r.status === 'bloqueado';
+                const dataFmt = r.vencimento ? new Date(r.vencimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+
+                return `<tr>
+                    <td>
+                        <div class="rest-name">${r.nome}</div>
+                        <div class="rest-slug">/${r.slug}</div>
+                        <div class="rest-email">${r.email || ''}</div>
+                    </td>
+                    <td>${badgePlano(r.plano || 'basic')}<br><small style="color:#94a3b8;font-size:0.7rem;">R$ ${valorPlano(r.plano || 'basic')}/mês</small></td>
+                    <td>${badgePagto(r)}</td>
+                    <td>${dataFmt}</td>
+                    <td>${badgeSistema(r)}</td>
+                    <td>
+                        <div class="action-group">
+                            <button class="btn btn-icon btn-secondary" onclick="abrirAdminRestaurante('${r.slug}','${r.token}')" title="Abrir painel admin"><i class="fas fa-external-link-alt"></i></button>
+                            <button class="btn btn-icon btn-secondary" onclick="abrirCardapioRestaurante(${i})" title="Abrir cardápio público"><i class="fas fa-utensils"></i></button>
+                            <button class="btn btn-icon btn-secondary" onclick="abrirModalEmailAcesso(${i})" title="Verificar e enviar links por e-mail"><i class="fas fa-envelope"></i></button>
+                            <button class="btn btn-icon btn-secondary" onclick="abrirModalEditar(${i})" title="Editar"><i class="fas fa-pen"></i></button>
+                            <button class="btn btn-icon btn-secondary" onclick="abrirModalFatura(${i})" title="Renovar fatura"><i class="fas fa-file-invoice-dollar"></i></button>
+                            ${bloq
+                                ? `<button class="btn btn-icon btn-success" onclick="confirmarAcao('desbloquear',${i})" title="Desbloquear"><i class="fas fa-unlock"></i></button>`
+                                : `<button class="btn btn-icon btn-danger" onclick="confirmarAcao('bloquear',${i})" title="Bloquear"><i class="fas fa-ban"></i></button>`}
+                            <button class="btn btn-icon btn-danger" onclick="confirmarAcao('excluir',${i})" title="Excluir"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderFinanceiro() {
+            const lista = getRestaurantes();
+
+            document.getElementById('fin-em-dia').textContent = lista.filter(r => statusPagamento(r) === 'em_dia').length;
+            document.getElementById('fin-aviso').textContent = lista.filter(r => statusPagamento(r) === 'aviso').length;
+            document.getElementById('fin-vencidas').textContent = lista.filter(r => statusPagamento(r) === 'vencida').length;
+
+            const mrr = lista
+                .filter(r => r.status === 'ativo')
+                .reduce((s, r) => s + valorPlano(r.plano || 'basic'), 0);
+
+            document.getElementById('fin-mrr').textContent = `R$ ${mrr.toLocaleString('pt-BR')}`;
+
+            const tbody = document.getElementById('tabela-financeiro');
+            const empt = document.getElementById('fin-empty');
+
+            if (lista.length === 0) {
+                tbody.innerHTML = '';
+                empt.style.display = 'block';
+                return;
+            }
+
+            empt.style.display = 'none';
+
+            tbody.innerHTML = lista.map((r, i) => {
+                const dataFmt = r.vencimento ? new Date(r.vencimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+                return `<tr>
+                    <td><div class="rest-name">${r.nome}</div><div class="rest-slug">/${r.slug}</div></td>
+                    <td>${badgePlano(r.plano || 'basic')}</td>
+                    <td style="font-weight:700;color:#059669;">R$ ${valorPlano(r.plano || 'basic').toLocaleString('pt-BR')}</td>
+                    <td>${dataFmt}</td>
+                    <td>${badgePagto(r)}</td>
+                    <td>
+                        <div class="action-group">
+                            <button class="btn btn-sm btn-secondary" onclick="abrirModalFatura(${i})"><i class="fas fa-sync"></i> Renovar</button>
+                            ${r.status === 'bloqueado'
+                                ? `<button class="btn btn-sm btn-success" onclick="confirmarAcao('desbloquear',${i})"><i class="fas fa-unlock"></i> Liberar</button>`
+                                : `<button class="btn btn-sm btn-danger" onclick="confirmarAcao('bloquear',${i})"><i class="fas fa-ban"></i> Bloquear</button>`}
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function abrirModalCadastro() {
+            document.getElementById('modal-cadastro-titulo').textContent = 'Novo Restaurante';
+            document.getElementById('edit-index').value = '';
+            ['f-nome', 'f-slug', 'f-email', 'f-senha', 'f-telefone', 'f-cnpj', 'f-token', 'f-obs'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            document.getElementById('f-plano').value = 'basic';
+            document.getElementById('f-status').value = 'ativo';
+            const d = new Date();
+            d.setDate(d.getDate() + 30);
+            document.getElementById('f-vencimento').value = d.toISOString().split('T')[0];
+            document.getElementById('modal-cadastro').classList.add('active');
+        }
+
+        function abrirCardapioRestaurante(i) {
+            const r = getRestaurantes()[i];
+            if (!r) return;
+            const url = r.cardapio_url || `${window.location.origin}/index.html?slug=${encodeURIComponent(r.slug)}`;
+            window.open(url, '_blank');
+        }
+
+        function copiarCampo(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.select();
+            el.setSelectionRange(0, 99999);
+            document.execCommand('copy');
+            toast('Link copiado.');
+        }
+
+        function abrirModalEmailAcesso(i) {
+            const r = getRestaurantes()[i];
+            if (!r) return;
+            const adminUrl = r.admin_url || `${window.location.origin}/admin.html?email=${encodeURIComponent(r.email || '')}&slug=${encodeURIComponent(r.slug || '')}`;
+            const cardapioUrl = r.cardapio_url || `${window.location.origin}/index.html?slug=${encodeURIComponent(r.slug || '')}`;
+
+            document.getElementById('email-acesso-idx').value = String(i);
+            document.getElementById('email-acesso-nome').value = r.nome || '';
+            document.getElementById('email-acesso-email').value = r.email || '';
+            document.getElementById('email-acesso-admin-url').value = adminUrl;
+            document.getElementById('email-acesso-cardapio-url').value = cardapioUrl;
+            const status = document.getElementById('email-acesso-status');
+            if (status) status.innerHTML = 'Confira os dados e clique em <strong>Enviar/Reenviar E-mail</strong>.';
+            document.getElementById('modal-email-acesso').classList.add('active');
+        }
+
+        function fecharModalEmailAcesso() {
+            document.getElementById('modal-email-acesso').classList.remove('active');
+        }
+
+        async function enviarEmailAcessoSelecionado() {
+            const idx = Number(document.getElementById('email-acesso-idx').value || -1);
+            const r = getRestaurantes()[idx];
+            if (!r || !r.id_backend) {
+                toast('Cliente inválido para envio.', 'erro');
+                return;
+            }
+            const status = document.getElementById('email-acesso-status');
+            if (status) status.innerHTML = '<span style="color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Enviando e-mail...</span>';
+
+            try {
+                const { data } = await postSuperAdminComFallback(`/api/super-admin/restaurantes/${r.id_backend}/reenviar-email-acesso`, {});
+
+                if (status) {
+                    status.innerHTML = `<span style="color:#22c55e;"><i class="fas fa-check-circle"></i> E-mail enviado para <strong>${data.email || r.email || '-'}</strong>.</span>`;
+                }
+                toast('E-mail de acesso enviado com sucesso.');
+                await sincronizarComBackend();
+                if (secaoAtual === 'restaurantes') renderRestaurantes();
+            } catch (err) {
+                if (status) {
+                    status.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-triangle-exclamation"></i> ${err.message || 'Erro ao enviar e-mail.'}</span>`;
+                }
+                toast(err.message || 'Erro ao enviar e-mail.', 'erro');
+            }
+        }
+
+        function abrirModalEditar(i) {
+            const r = getRestaurantes()[i];
+            document.getElementById('modal-cadastro-titulo').textContent = 'Editar Restaurante';
+            document.getElementById('edit-index').value = i;
+            document.getElementById('f-nome').value = r.nome || '';
+            document.getElementById('f-slug').value = r.slug || '';
+            document.getElementById('f-email').value = r.email || '';
+            document.getElementById('f-senha').value = '';
+            document.getElementById('f-telefone').value = r.telefone || '';
+            document.getElementById('f-cnpj').value = r.cnpj || '';
+            document.getElementById('f-token').value = r.token || '';
+            document.getElementById('f-plano').value = r.plano || 'basic';
+            document.getElementById('f-vencimento').value = r.vencimento || '';
+            document.getElementById('f-status').value = r.status || 'ativo';
+            document.getElementById('f-obs').value = r.obs || '';
+            document.getElementById('modal-cadastro').classList.add('active');
+        }
+
+        function fecharModalCadastro() {
+            document.getElementById('modal-cadastro').classList.remove('active');
+        }
+
+        async function salvarRestaurante() {
+            const nome = document.getElementById('f-nome').value.trim();
+            const slug = document.getElementById('f-slug').value.trim().toLowerCase().replace(/\s+/g, '-');
+            const token = document.getElementById('f-token').value.trim();
+            const senha = document.getElementById('f-senha').value.trim();
+            const plano = document.getElementById('f-plano').value;
+            const email = document.getElementById('f-email').value.trim();
+            const vencimento = document.getElementById('f-vencimento').value;
+            const status = document.getElementById('f-status').value;
+
+            const valorMap = { basic: 97, pro: 197, enterprise: 397 };
+            const valorMensalidade = valorMap[plano] || 97;
+
+            if (!nome || !slug || !token) {
+                toast('Preencha Nome, Slug e Token.', 'erro');
+                return;
+            }
+
+            if (!email) {
+                toast('Preencha o e-mail do responsável.', 'erro');
+                return;
+            }
+
+            const lista = getRestaurantes();
+            const idx = document.getElementById('edit-index').value;
+
+            try {
+                if (idx !== '') {
+                    const rAtual = lista[parseInt(idx)];
+                    const res = await fetch(`${API_URL}/api/super-admin/restaurantes/${rAtual.id_backend}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            nome_unidade: nome,
+                            slug,
+                            email_admin: email,
+                            token_acesso: token,
+                            plano,
+                            valor_mensalidade: valorMensalidade,
+                            validade_assinatura: vencimento || null,
+                            status_assinatura: status === 'ativo' ? 'Ativo' : 'Inativo'
+                        })
+                    });
+                    if (!res.ok) {
+                        const erro = await res.json().catch(() => ({}));
+                        throw new Error(erro.detail || 'Falha ao atualizar restaurante');
+                    }
+                    toast('Restaurante atualizado.');
+                } else {
+                    if (!senha || senha.length < 4) {
+                        toast('Informe uma senha inicial com pelo menos 4 caracteres.', 'erro');
+                        return;
+                    }
+                    const res = await fetch(`${API_URL}/api/super-admin/cadastrar-restaurante`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            nome_unidade: nome,
+                            slug,
+                            email_admin: email,
+                            senha_inicial: senha,
+                            plano,
+                            valor_mensalidade: valorMensalidade,
+                            token_acesso: token,
+                            validade_assinatura: vencimento || null,
+                            status_assinatura: status === 'ativo' ? 'Ativo' : 'Inativo'
+                        })
+                    });
+                    if (!res.ok) {
+                        const erro = await res.json().catch(() => ({}));
+                        throw new Error(erro.detail || 'Falha ao cadastrar restaurante');
+                    }
+                    toast('Restaurante cadastrado.');
+                }
+            } catch (erro) {
+                toast(erro.message || 'Erro ao salvar restaurante.', 'erro');
+                return;
+            }
+
+            await sincronizarComBackend();
+            fecharModalCadastro();
+            renderDashboard();
+            if (secaoAtual === 'restaurantes') renderRestaurantes();
+            if (secaoAtual === 'financeiro') renderFinanceiro();
+        }
+
+        function gerarToken() {
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            const slug = document.getElementById('f-slug').value.trim().toLowerCase().replace(/[^a-z0-9]/g, '-') || 'rest';
+            const rand = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+            document.getElementById('f-token').value = `${slug}_${rand}`;
+        }
+
+        function confirmarAcao(acao, i) {
+            acaoPendente = acao;
+            indiceAcao = i;
+            const r = getRestaurantes()[i];
+            const icon = document.getElementById('confirma-icon');
+            const btn = document.getElementById('confirma-btn');
+
+            if (acao === 'bloquear') {
+                icon.className = 'confirm-icon danger';
+                icon.innerHTML = '<i class="fas fa-ban"></i>';
+                document.getElementById('confirma-titulo').textContent = `Bloquear "${r.nome}"?`;
+                document.getElementById('confirma-desc').textContent = 'O restaurante perderá acesso ao sistema imediatamente. Você pode desbloquear a qualquer momento.';
+                btn.className = 'btn btn-danger';
+                btn.innerHTML = '<i class="fas fa-ban"></i> Bloquear';
+            } else if (acao === 'desbloquear') {
+                icon.className = 'confirm-icon success';
+                icon.innerHTML = '<i class="fas fa-unlock"></i>';
+                document.getElementById('confirma-titulo').textContent = `Desbloquear "${r.nome}"?`;
+                document.getElementById('confirma-desc').textContent = 'O restaurante terá acesso total restaurado.';
+                btn.className = 'btn btn-success';
+                btn.innerHTML = '<i class="fas fa-unlock"></i> Desbloquear';
+            } else {
+                icon.className = 'confirm-icon danger';
+                icon.innerHTML = '<i class="fas fa-trash"></i>';
+                document.getElementById('confirma-titulo').textContent = `Excluir "${r.nome}"?`;
+                document.getElementById('confirma-desc').textContent = 'Ação irreversível. Todos os dados serão removidos do sistema.';
+                btn.className = 'btn btn-danger';
+                btn.innerHTML = '<i class="fas fa-trash"></i> Excluir';
+            }
+
+            document.getElementById('modal-confirma').classList.add('active');
+        }
+
+        function fecharModalConfirma() {
+            document.getElementById('modal-confirma').classList.remove('active');
+            acaoPendente = null;
+            indiceAcao = null;
+        }
+
+        async function executarAcaoConfirmada() {
+            const lista = getRestaurantes();
+            const restaurante = lista[indiceAcao];
+
+            if (!restaurante) {
+                fecharModalConfirma();
+                return;
+            }
+
+            try {
+                if (acaoPendente === 'bloquear' || acaoPendente === 'desbloquear') {
+                    const status = acaoPendente === 'bloquear' ? 'Inativo' : 'Ativo';
+                    const res = await fetch(`${API_URL}/api/super-admin/restaurantes/${restaurante.id_backend}/assinatura?status=${status}`, {
+                        method: 'PATCH'
+                    });
+                    if (!res.ok) throw new Error('Falha ao atualizar assinatura');
+                    toast(acaoPendente === 'bloquear'
+                        ? `"${restaurante.nome}" bloqueado.`
+                        : `"${restaurante.nome}" desbloqueado.`, acaoPendente === 'bloquear' ? 'aviso' : 'ok');
+                } else {
+                    const res = await fetch(`${API_URL}/api/super-admin/restaurantes/${restaurante.id_backend}`, {
+                        method: 'DELETE'
+                    });
+                    if (!res.ok) throw new Error('Falha ao excluir restaurante');
+                    toast(`"${restaurante.nome}" excluído.`, 'aviso');
+                }
+            } catch (erro) {
+                toast(erro.message || 'Erro ao executar ação.', 'erro');
+                return;
+            }
+
+            await sincronizarComBackend();
+            fecharModalConfirma();
+            renderDashboard();
+            if (secaoAtual === 'restaurantes') renderRestaurantes();
+            if (secaoAtual === 'financeiro') renderFinanceiro();
+        }
+
+        function abrirModalFatura(i) {
+            indiceFaturaAtual = i;
+            const r = getRestaurantes()[i];
+            let prox = new Date();
+
+            if (r.vencimento) {
+                prox = new Date(r.vencimento + 'T00:00:00');
+                prox.setMonth(prox.getMonth() + 1);
+            } else {
+                prox.setDate(prox.getDate() + 30);
+            }
+
+            document.getElementById('nova-data-venc').value = prox.toISOString().split('T')[0];
+            document.getElementById('novo-status-fat').value = 'em_dia';
+            document.getElementById('modal-fatura').classList.add('active');
+        }
+
+        function fecharModalFatura() {
+            document.getElementById('modal-fatura').classList.remove('active');
+        }
+
+        async function salvarFatura() {
+            const lista = getRestaurantes();
+            const restaurante = lista[indiceFaturaAtual];
+            const novaData = document.getElementById('nova-data-venc').value;
+            if (!restaurante || !novaData) {
+                toast('Selecione uma data válida.', 'erro');
+                return;
+            }
+
+            try {
+                const resValidade = await fetch(`${API_URL}/api/super-admin/restaurantes/${restaurante.id_backend}/validade`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nova_validade_assinatura: novaData })
+                });
+                if (!resValidade.ok) throw new Error('Falha ao atualizar validade');
+
+                if (document.getElementById('novo-status-fat').value === 'em_dia') {
+                    await fetch(`${API_URL}/api/super-admin/restaurantes/${restaurante.id_backend}/assinatura?status=Ativo`, {
+                        method: 'PATCH'
+                    });
+                }
+            } catch (erro) {
+                toast(erro.message || 'Erro ao atualizar fatura.', 'erro');
+                return;
+            }
+
+            await sincronizarComBackend();
+            fecharModalFatura();
+            toast('Fatura atualizada.');
+            renderDashboard();
+            if (secaoAtual === 'restaurantes') renderRestaurantes();
+            if (secaoAtual === 'financeiro') renderFinanceiro();
+        }
+
+        function abrirAdminRestaurante(slug, token) {
+            window.open(`admin.html?slug=${slug}&token=${encodeURIComponent(token)}`, '_blank');
+        }
+
+        async function salvarCredenciais() {
+            const nome = (document.getElementById('sa-nome').value || '').trim();
+            const email = (document.getElementById('sa-email-login').value || '').trim().toLowerCase();
+            const senha = (document.getElementById('sa-senha').value || '').trim();
+
+            if (!nome || !email) {
+                toast('Preencha nome e login do Super Admin.', 'erro');
+                return;
+            }
+
+            try {
+                const payload = { nome_exibicao: nome, email_login: email, senha: senha || null };
+                const { data } = await postSuperAdminComFallback('/api/super-admin/credenciais', payload);
+                credenciaisSuperAdmin = {
+                    nome_exibicao: data.nome_exibicao || nome,
+                    email_login: data.email_login || email,
+                };
+
+                document.getElementById('header-user-name').textContent = credenciaisSuperAdmin.nome_exibicao || 'Super Admin';
+                document.getElementById('avatar-initials').textContent = (credenciaisSuperAdmin.nome_exibicao || 'SA')
+                    .split(' ')
+                    .map(w => w[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase();
+
+                localStorage.setItem('sa_nome', credenciaisSuperAdmin.nome_exibicao || 'Super Admin');
+                if (senha) document.getElementById('sa-senha').value = '';
+                toast('Credenciais do Super Admin salvas no sistema.');
+                renderAlertasOperacionais(getRestaurantes());
+            } catch (err) {
+                toast(err.message || 'Erro ao salvar credenciais.', 'erro');
+            }
+        }
+
+        async function salvarPlanos() {
+            const payload = {
+                basic: parseFloat(document.getElementById('plano-basic').value) || 97,
+                pro: parseFloat(document.getElementById('plano-pro').value) || 197,
+                enterprise: parseFloat(document.getElementById('plano-enterprise').value) || 397
+            };
+
+            try {
+                const { data } = await postSuperAdminComFallback('/api/super-admin/planos', payload);
+
+                const planos = data.planos || payload;
+                localStorage.setItem('sa_planos', JSON.stringify(planos));
+                localStorage.setItem('sa_planos_updated_at', String(Date.now()));
+                document.getElementById('plano-basic').value = Number(planos.basic || payload.basic);
+                document.getElementById('plano-pro').value = Number(planos.pro || payload.pro);
+                document.getElementById('plano-enterprise').value = Number(planos.enterprise || payload.enterprise);
+                toast('Valores salvos e publicados na página de vendas.');
+                renderDashboard();
+            } catch (err) {
+                toast(err.message || 'Não foi possível salvar os valores.', 'erro');
+            }
+        }
+
+        async function carregarConfigMP() {
+            try {
+                const res = await fetch(`${API_URL}/api/super-admin/config-mp`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const statusEl = document.getElementById('mp-status');
+                if (statusEl) {
+                    if (data.access_token_configurado) {
+                        statusEl.innerHTML = `<span style="color:#22c55e;"><i class="fas fa-check-circle"></i> Integração ativa</span>${data.usando_default ? ' <small>(usando credencial padrão)</small>' : ` • Token: <code>${data.access_token_preview}</code>`}`;
+                    } else {
+                        statusEl.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> Sem credencial configurada</span>';
+                    }
+                }
+            } catch (_) {}
+        }
+
+        async function salvarConfigMP() {
+            const token = (document.getElementById('mp-access-token').value || '').trim();
+            const key   = (document.getElementById('mp-public-key').value || '').trim();
+            if (!token || !key) { toast('Preencha o Access Token e a Public Key.', 'error'); return; }
+            if (!token.startsWith('APP_USR-') || !key.startsWith('APP_USR-')) {
+                toast('Credenciais inválidas. Devem começar com APP_USR-.', 'error');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_URL}/api/super-admin/config-mp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ access_token: token, public_key: key }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Erro');
+                toast('Credenciais Mercado Pago salvas!');
+                document.getElementById('mp-access-token').value = '';
+                document.getElementById('mp-public-key').value = '';
+                await carregarConfigMP();
+            } catch (err) {
+                toast(err.message || 'Erro ao salvar.', 'error');
+            }
+        }
+
+        async function carregarConfigEnterprise() {
+            try {
+                const { data } = await getSuperAdminComFallback('/api/super-admin/config-enterprise');
+                const numEl = document.getElementById('enterprise-wpp');
+                const statusEl = document.getElementById('enterprise-wpp-status');
+                if (data.wpp_enterprise) {
+                    if (numEl) numEl.value = data.wpp_enterprise;
+                    if (statusEl) statusEl.innerHTML = `<span style="color:#22c55e;"><i class="fab fa-whatsapp"></i> Número configurado: <strong>${data.wpp_enterprise}</strong></span>`;
+                } else {
+                    if (statusEl) statusEl.innerHTML = '<span style="color:var(--warning);"><i class="fas fa-exclamation-triangle"></i> Nenhum número configurado — clientes Enterprise não verão o botão de suporte.</span>';
+                }
+            } catch (_) {}
+        }
+
+        async function salvarConfigEnterprise() {
+            const num = (document.getElementById('enterprise-wpp').value || '').trim().replace(/\D/g, '');
+            if (!num || num.length < 10) { toast('Informe um número válido com DDI (mín. 10 dígitos).', 'erro'); return; }
+            try {
+                const { data } = await postSuperAdminComFallback('/api/super-admin/config-enterprise', { wpp_enterprise: num });
+                toast('Número WhatsApp Enterprise salvo!');
+                await carregarConfigEnterprise();
+            } catch (err) {
+                toast(err.message || 'Erro ao salvar.', 'erro');
+            }
+        }
+
+        async function carregarConfigSMTP() {
+            try {
+                const { data } = await getSuperAdminComFallback('/api/super-admin/config-smtp');
+                document.getElementById('smtp-host').value = data.host || 'smtp.gmail.com';
+                document.getElementById('smtp-port').value = Number(data.port || 587);
+                document.getElementById('smtp-user').value = data.user || 'walterjunnys@gmail.com';
+                document.getElementById('smtp-from').value = data.from || 'walterjunnys@gmail.com';
+                document.getElementById('smtp-tls').checked = !!data.tls;
+                document.getElementById('smtp-ssl').checked = !!data.ssl;
+                const passEl = document.getElementById('smtp-pass');
+                if (passEl) passEl.placeholder = data.password_configured ? 'Senha já configurada (preencha para trocar)' : 'Cole a senha/app password';
+            } catch (_) {}
+        }
+
+        function aplicarPresetSmtpWalter() {
+            document.getElementById('smtp-host').value = 'smtp.gmail.com';
+            document.getElementById('smtp-port').value = 587;
+            document.getElementById('smtp-user').value = 'walterjunnys@gmail.com';
+            document.getElementById('smtp-from').value = 'walterjunnys@gmail.com';
+            document.getElementById('smtp-tls').checked = true;
+            document.getElementById('smtp-ssl').checked = false;
+            const passEl = document.getElementById('smtp-pass');
+            if (passEl && !passEl.value) {
+                passEl.focus();
+            }
+            toast('Campos SMTP preenchidos. Agora cole a senha de app do Gmail e salve.');
+        }
+
+        async function salvarConfigSMTP() {
+            const payload = {
+                host: (document.getElementById('smtp-host').value || '').trim(),
+                port: Number(document.getElementById('smtp-port').value || 587),
+                user: (document.getElementById('smtp-user').value || '').trim(),
+                password: (document.getElementById('smtp-pass').value || '').trim(),
+                from_email: (document.getElementById('smtp-from').value || '').trim(),
+                tls: !!document.getElementById('smtp-tls').checked,
+                ssl: !!document.getElementById('smtp-ssl').checked,
+            };
+
+            if (!payload.from_email) {
+                payload.from_email = payload.user || (credenciaisSuperAdmin?.email_login || 'walterjunnys@gmail.com');
+            }
+
+            if (!payload.host) {
+                toast('Preencha SMTP Host.', 'erro');
+                return;
+            }
+
+            try {
+                await postSuperAdminComFallback('/api/super-admin/config-smtp', payload);
+                toast('SMTP salvo com sucesso! O envio automático de e-mail já está ativo.');
+                document.getElementById('smtp-pass').value = '';
+                await carregarConfigSMTP();
+                await carregarDiagnosticoEmail();
+            } catch (err) {
+                toast(err.message || 'Erro ao salvar SMTP.', 'erro');
+            }
+        }
+
+        async function carregarDiagnosticoEmail() {
+            try {
+                const { data } = await getSuperAdminComFallback('/api/super-admin/diagnostico-email');
+                const box = document.getElementById('smtp-status');
+                if (!box) return;
+
+                if (data.smtp_configurado) {
+                    box.innerHTML = `<span style="color:#22c55e;"><i class="fas fa-check-circle"></i> SMTP configurado</span> • ${data.host}:${data.porta} • From: <strong>${data.from || '-'}</strong>`;
+                } else {
+                    box.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> SMTP não configurado</span> — configure SMTP_HOST, SMTP_USER, SMTP_PASS e SMTP_FROM no deploy.';
+                }
+            } catch (_) {}
+        }
+
+        async function reenviarEmailPagamento() {
+            const pendingId = (document.getElementById('email-pending-id').value || '').trim();
+            if (!pendingId) {
+                toast('Informe o pending_id do pagamento aprovado.', 'erro');
+                return;
+            }
+            try {
+                const { data } = await postSuperAdminComFallback(`/api/super-admin/pagamentos/${encodeURIComponent(pendingId)}/reenviar-email-acesso`, {});
+                toast(data.detail || 'E-mail reenviado com sucesso!');
+                const result = document.getElementById('email-reenvio-status');
+                if (result) {
+                    result.innerHTML = `<span style="color:#22c55e;"><i class="fas fa-paper-plane"></i> Enviado para ${data.email || '-'}</span>`;
+                }
+            } catch (err) {
+                toast(err.message || 'Erro ao reenviar e-mail.', 'erro');
+                const result = document.getElementById('email-reenvio-status');
+                if (result) {
+                    result.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-triangle-exclamation"></i> ${err.message || 'Falha no envio'}</span>`;
+                }
+            }
+        }
+
+        async function carregarCredenciaisSuperAdmin() {
+            try {
+                const { data } = await getSuperAdminComFallback('/api/super-admin/credenciais');
+                credenciaisSuperAdmin = {
+                    nome_exibicao: data.nome_exibicao || 'Super Admin',
+                    email_login: data.email_login || 'walterjunnys@gmail.com',
+                };
+            } catch (_) {
+                credenciaisSuperAdmin = {
+                    nome_exibicao: localStorage.getItem('sa_nome') || 'Super Admin',
+                    email_login: 'walterjunnys@gmail.com',
+                };
+            }
+
+            const nome = credenciaisSuperAdmin.nome_exibicao || 'Super Admin';
+            const email = credenciaisSuperAdmin.email_login || 'walterjunnys@gmail.com';
+
+            document.getElementById('sa-nome').value = nome;
+            document.getElementById('sa-email-login').value = email;
+            document.getElementById('header-user-name').textContent = nome;
+            document.getElementById('avatar-initials').textContent = nome
+                .split(' ')
+                .map(w => w[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase();
+
+            const loginInput = document.getElementById('login-super-admin-email');
+            if (loginInput) loginInput.value = email;
+        }
+
+        async function autenticarSuperAdmin() {
+            const email = (document.getElementById('login-super-admin-email').value || '').trim().toLowerCase();
+            const senha = (document.getElementById('login-super-admin-senha').value || '').trim();
+            const statusEl = document.getElementById('login-super-admin-status');
+
+            if (!email || !senha) {
+                if (statusEl) statusEl.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-triangle-exclamation"></i> Informe login e senha.</span>';
+                return false;
+            }
+
+            if (statusEl) statusEl.innerHTML = '<span style="color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Validando credenciais...</span>';
+
+            try {
+                const { data } = await postSuperAdminComFallback('/api/super-admin/auth/login', { email_login: email, senha });
+                credenciaisSuperAdmin = {
+                    nome_exibicao: data.nome_exibicao || credenciaisSuperAdmin?.nome_exibicao || 'Super Admin',
+                    email_login: data.email_login || email,
+                };
+                sessionStorage.setItem('sa_auth_ok', '1');
+                document.getElementById('modal-login-super-admin').classList.remove('active');
+                if (statusEl) statusEl.innerHTML = '';
+                document.getElementById('header-user-name').textContent = credenciaisSuperAdmin.nome_exibicao;
+                await inicializarPainelDepoisLogin();
+                return true;
+            } catch (err) {
+                if (credencialSupremaLocalValida(email, senha)) {
+                    credenciaisSuperAdmin = {
+                        nome_exibicao: credenciaisSuperAdmin?.nome_exibicao || 'Super Admin',
+                        email_login: email,
+                    };
+                    sessionStorage.setItem('sa_auth_ok', '1');
+                    document.getElementById('modal-login-super-admin').classList.remove('active');
+                    if (statusEl) {
+                        statusEl.innerHTML = '<span style="color:var(--warning);"><i class="fas fa-circle-exclamation"></i> Login local liberado. API de autenticação indisponível no momento.</span>';
+                    }
+                    await inicializarPainelDepoisLogin();
+                    return true;
+                }
+
+                if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-circle-xmark"></i> ${err.message || 'Credencial inválida.'}</span>`;
+                return false;
+            }
+        }
+
+        async function exigirLoginSuperAdmin() {
+            const modal = document.getElementById('modal-login-super-admin');
+            if (!modal) return true;
+
+            if (sessionStorage.getItem('sa_auth_ok') === '1') {
+                modal.classList.remove('active');
+                return true;
+            }
+
+            modal.classList.add('active');
+            const senhaEl = document.getElementById('login-super-admin-senha');
+            if (senhaEl) senhaEl.addEventListener('keydown', async (ev) => {
+                if (ev.key === 'Enter') {
+                    ev.preventDefault();
+                    await autenticarSuperAdmin();
+                }
+            });
+            return false;
+        }
+
+        async function inicializarPainelDepoisLogin() {
+            if (painelInicializado) return;
+            painelInicializado = true;
+
+            try {
+                const resPlanos = await fetch(`${API_URL}/api/super-admin/planos`);
+                if (resPlanos.ok) {
+                    const dataPlanos = await resPlanos.json();
+                    const mapa = dataPlanos.planos || {};
+                    if (mapa.basic && mapa.pro && mapa.enterprise) {
+                        localStorage.setItem('sa_planos', JSON.stringify(mapa));
+                    }
+                }
+            } catch (_) {}
+
+            const planos = getPlanos();
+            document.getElementById('plano-basic').value = planos.basic;
+            document.getElementById('plano-pro').value = planos.pro;
+            document.getElementById('plano-enterprise').value = planos.enterprise;
+
+            await sincronizarComBackend();
+            await carregarConfigMP();
+            await carregarConfigEnterprise();
+            await carregarConfigSMTP();
+            await carregarDiagnosticoEmail();
+            renderDashboard();
+        }
+
+        function logout() {
+            if (confirm('Sair do Super Admin?')) {
+                sessionStorage.removeItem('sa_auth_ok');
+                window.location.href = 'index.html';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') fecharMenu();
+            });
+
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 768) {
+                    fecharMenu();
+                }
+            });
+
+            document.getElementById('f-nome')?.addEventListener('input', function() {
+                if (document.getElementById('edit-index').value !== '') return;
+                document.getElementById('f-slug').value = this.value
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .replace(/-+/g, '-')
+                    .slice(0, 40);
+            });
+
+            await carregarCredenciaisSuperAdmin();
+            const jaAutenticado = await exigirLoginSuperAdmin();
+            if (!jaAutenticado) {
+                return;
+            }
+            await inicializarPainelDepoisLogin();
+        });
+    </script>
+</body>
+</html>

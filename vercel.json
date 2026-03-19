@@ -1,0 +1,18 @@
+{
+  "cleanUrls": false,
+  "rewrites": [
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/entregador", "destination": "/entregador.html" },
+    { "source": "/super-admin", "destination": "/super_admin.html" },
+    { "source": "/site-vendas", "destination": "/site_vendas.html" },
+    { "source": "/rastreio-entrega", "destination": "/rastreio_entrega.html" }
+  ],
+  "headers": [
+    {
+      "source": "/sw-entregador.js",
+      "headers": [
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    }
+  ]
+}
