@@ -10,11 +10,11 @@
     }
   ],
   "routes": [
-    { "src": "/admin", "dest": "/admin.html" },
-    { "src": "/entregador", "dest": "/entregador.html" },
-    { "src": "/super-admin", "dest": "/super_admin.html" },
-    { "src": "/site-vendas", "dest": "/site_vendas.html" },
-    { "src": "/rastreio-entrega", "dest": "/rastreio_entrega.html" },
+    { "src": "/admin", "dest": "admin.html" },
+    { "src": "/entregador", "dest": "entregador.html" },
+    { "src": "/super-admin", "dest": "super_admin.html" },
+    { "src": "/site-vendas", "dest": "site_vendas.html" },
+    { "src": "/rastreio-entrega", "dest": "rastreio_entrega.html" },
     { "src": "/api/(.*)", "dest": "main.py" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
