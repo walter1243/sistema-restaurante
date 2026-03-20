@@ -41,13 +41,18 @@ from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./restaurante.db")
+SQLITE_LOCAL_DATABASE_URL = "sqlite:///./restaurante.db"
+SQLITE_VERCEL_DATABASE_URL = "sqlite:////tmp/banco.db"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    SQLITE_VERCEL_DATABASE_URL if os.getenv("VERCEL") == "1" else SQLITE_LOCAL_DATABASE_URL,
+)
 
 
 def normalizar_database_url(url: str) -> str:
     valor = (url or "").strip()
     if not valor:
-        return "sqlite:///./restaurante.db"
+        return SQLITE_VERCEL_DATABASE_URL if os.getenv("VERCEL") == "1" else SQLITE_LOCAL_DATABASE_URL
 
     eh_postgres = valor.startswith("postgres://") or valor.startswith("postgresql://")
     if not eh_postgres:
