@@ -1,6 +1,5 @@
 (function () {
-    const DEFAULT_LOCAL_API_URL = 'http://127.0.0.1:8000';
-    const DEFAULT_PROD_API_URL = String(window.__APP_RENDER_API_URL__ || '').trim();
+    const DEFAULT_API_URL = String(window.__APP_RENDER_API_URL__ || 'https://sistema-restaurante-sigma.vercel.app').trim();
     const CENTRAL_GOOGLE_MAPS_API_KEY = 'AIzaSyAzgtn7z086Idrvw6R_-zHI8vwOkkSTN4A';
 
     function normalizeGoogleMapsApiKey(value) {
@@ -54,17 +53,15 @@
         const storageKey = settings.storageKey || 'api_base_url';
         const protocol = String(window.location.protocol || '').toLowerCase();
         const runningFromFile = protocol === 'file:';
-        const safeOrigin = runningFromFile ? DEFAULT_LOCAL_API_URL : window.location.origin;
-        const currentOrigin = String(safeOrigin || DEFAULT_LOCAL_API_URL).replace(/\/$/, '');
+        const safeOrigin = runningFromFile ? DEFAULT_API_URL : window.location.origin;
+        const currentOrigin = String(safeOrigin || DEFAULT_API_URL).replace(/\/$/, '');
         const currentHost = window.location.hostname || '';
         const currentIsLocal = runningFromFile || isPrivateNetworkHost(currentHost);
 
         const fromWindow = String(window.__APP_API_URL__ || window.APP_API_URL || '').trim();
         const fromMeta = String(document.querySelector('meta[name="app-api-url"]')?.content || '').trim();
         const fromQuery = String(new URLSearchParams(window.location.search).get('api') || '').trim();
-        const fromDefault = currentIsLocal
-            ? String(DEFAULT_LOCAL_API_URL || '').trim()
-            : String(DEFAULT_PROD_API_URL || '').trim();
+        const fromDefault = String(DEFAULT_API_URL || '').trim();
 
         const explicit = fromWindow || fromMeta || fromQuery || fromDefault;
         if (explicit) {
@@ -82,7 +79,7 @@
             }
         }
 
-        const fallbackOrigin = normalizeApiBase(DEFAULT_LOCAL_API_URL, currentOrigin, currentIsLocal) || currentOrigin;
+        const fallbackOrigin = normalizeApiBase(DEFAULT_API_URL, currentOrigin, currentIsLocal) || currentOrigin;
         localStorage.setItem(storageKey, fallbackOrigin);
         return fallbackOrigin;
     }

@@ -1641,13 +1641,11 @@
                 const norm = String(base || '').trim().replace(/\/$/, '');
                 if (norm && !bases.includes(norm)) bases.push(norm);
             };
+            const origemVercel = 'https://sistema-restaurante-sigma.vercel.app';
 
-            add('http://127.0.0.1:8000');
-            add('http://localhost:8000');
+            add(origemVercel);
             add(API_URL);
             add(window.location.origin || '');
-            add('http://127.0.0.1:8010');
-            add('http://localhost:8010');
 
             const host = window.location.hostname || '127.0.0.1';
             const local = host === 'localhost' || host === '127.0.0.1';

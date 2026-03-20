@@ -934,6 +934,7 @@ function obterBasesApiEntregador() {
     const resolved = window.resolveApiBase ? window.resolveApiBase() : window.location.origin;
     const salvoApiBase = localStorage.getItem('api_base_url') || '';
     const vinculoApi = String(vinculoAtivo.api_base_url || '').trim();
+    const origemVercel = 'https://sistema-restaurante-sigma.vercel.app';
     const host = window.location.hostname || '127.0.0.1';
     const ambienteLocal = host === 'localhost' || host === '127.0.0.1';
 
@@ -943,6 +944,7 @@ function obterBasesApiEntregador() {
         salvoApiBase,
         vinculoApi,
         resolved,
+        origemVercel,
         window.location.origin
     ];
 
@@ -950,8 +952,8 @@ function obterBasesApiEntregador() {
         bases.push(
             'http://127.0.0.1:8080',
             'http://localhost:8080',
-            'http://127.0.0.1:8000',
-            'http://localhost:8000',
+            origemVercel,
+            origemVercel,
             'http://127.0.0.1:8012',
             'http://localhost:8012',
             'http://127.0.0.1:8010',

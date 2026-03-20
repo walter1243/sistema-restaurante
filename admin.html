@@ -1537,8 +1537,10 @@
                 if (!normalizada) return;
                 if (!bases.includes(normalizada)) bases.push(normalizada);
             };
+            const origemVercel = 'https://sistema-restaurante-sigma.vercel.app';
 
             add(API_URL);
+            add(origemVercel);
             const origem = (window.location.origin || '').replace(/\/$/, '');
             add(origem);
 
@@ -1559,11 +1561,11 @@
                 add(`${protocolo}//localhost:8080`);
                 add(`${protocolo}//localhost:8012`);
                 add(`${protocolo}//localhost:8010`);
-                add(`${protocolo}//localhost:8000`);
+                add(origemVercel);
                 add(`${protocolo}//127.0.0.1:8080`);
                 add(`${protocolo}//127.0.0.1:8012`);
                 add(`${protocolo}//127.0.0.1:8010`);
-                add(`${protocolo}//127.0.0.1:8000`);
+                add(origemVercel);
             }
 
             return bases;
