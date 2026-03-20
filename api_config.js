@@ -1,6 +1,6 @@
 (function () {
     const DEFAULT_LOCAL_API_URL = 'http://127.0.0.1:8000';
-    const DEFAULT_PROD_API_URL = String(window.__APP_RENDER_API_URL__ || 'https://seu-backend.onrender.com').trim();
+    const DEFAULT_PROD_API_URL = String(window.__APP_RENDER_API_URL__ || '').trim();
     const CENTRAL_GOOGLE_MAPS_API_KEY = 'AIzaSyAzgtn7z086Idrvw6R_-zHI8vwOkkSTN4A';
 
     function normalizeGoogleMapsApiKey(value) {
@@ -82,7 +82,7 @@
             }
         }
 
-        const fallbackOrigin = normalizeApiBase(DEFAULT_LOCAL_API_URL, currentOrigin, true) || currentOrigin;
+        const fallbackOrigin = normalizeApiBase(DEFAULT_LOCAL_API_URL, currentOrigin, currentIsLocal) || currentOrigin;
         localStorage.setItem(storageKey, fallbackOrigin);
         return fallbackOrigin;
     }
