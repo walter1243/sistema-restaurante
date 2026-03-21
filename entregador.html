@@ -1641,15 +1641,47 @@ async function solicitarCodigoCadastroEntregador() {
     setContaFeedback('Gerando código de cadastro...');
 
     try {
-        const res = await fetchComTimeout(`${API_URL}/api/public/entregadores/solicitar-codigo`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ restaurante, telefone })
-        }, 12000);
+        const basesCompativeis = await obterBasesCompativeisEntregador('/api/public/entregadores/solicitar-codigo', 'post');
+        const apiAtiva = await descobrirApiAtivaEntregador();
+        const bases = basesCompativeis.length
+            ? basesCompativeis
+            : Array.from(new Set([apiAtiva, ...(API_BASES || [])].filter(Boolean)));
 
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            throw new Error(typeof data?.detail === 'string' ? data.detail : 'Não foi possível gerar o código.');
+        let data = null;
+        let ultimoErro = 'Não foi possível gerar o código.';
+
+        for (const base of bases) {
+            if (!base || /:8022$/.test(base)) continue;
+            try {
+                const res = await fetchComTimeout(`${base}/api/public/entregadores/solicitar-codigo`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ restaurante, telefone })
+                }, 12000);
+
+                const payload = await res.json().catch(() => ({}));
+
+                if (res.ok) {
+                    API_URL = normalizarBaseApi(base) || API_URL;
+                    localStorage.setItem('api_base_url', API_URL);
+                    data = payload;
+                    break;
+                }
+
+                if (res.status === 404 || res.status === 405) {
+                    ultimoErro = traduzirErroApi(payload?.detail, res.status);
+                    continue;
+                }
+
+                ultimoErro = traduzirErroApi(payload?.detail, res.status);
+                break;
+            } catch (_) {
+                ultimoErro = 'Falha de conexão com a API.';
+            }
+        }
+
+        if (!data) {
+            throw new Error(ultimoErro);
         }
 
         const codigo = String(data?.codigo_copia || '').replace(/\D/g, '').slice(0, 5);
@@ -1665,7 +1697,12 @@ async function solicitarCodigoCadastroEntregador() {
         if (data?.codigo_enviado_whatsapp) {
             setContaFeedback('Código enviado por WhatsApp. Cole no campo para concluir o cadastro.', false);
         } else {
-            setContaFeedback('Código gerado. Copie e cole no campo de verificação para concluir o cadastro.', false);
+            const motivo = String(data?.whatsapp_envio?.erro || data?.whatsapp_envio?.motivo || '').trim();
+            if (motivo) {
+                setContaFeedback(`Código gerado. WhatsApp não enviou (${motivo}). Copie e cole o código para concluir.`, false);
+            } else {
+                setContaFeedback('Código gerado. Copie e cole no campo de verificação para concluir o cadastro.', false);
+            }
         }
     } catch (erro) {
         setContaFeedback(erro.message || 'Falha ao solicitar código.', true);

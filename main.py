@@ -5267,6 +5267,7 @@ def solicitar_codigo_entregador_publico(
         "restaurante_nome": restaurante.nome_unidade,
         "telefone": telefone,
         "codigo_enviado_whatsapp": bool(envio.get("ok")),
+        "whatsapp_envio": envio,
         "codigo_copia": codigo,
         "expira_em": expira_em.isoformat(),
     }
