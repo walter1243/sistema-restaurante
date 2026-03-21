@@ -52,7 +52,10 @@ SQLITE_VERCEL_DATABASE_URL = "sqlite:////tmp/banco.db"
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not SQLALCHEMY_DATABASE_URL:
-    SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+    if os.getenv("VERCEL") == "1":
+        SQLALCHEMY_DATABASE_URL = SQLITE_VERCEL_DATABASE_URL
+    else:
+        SQLALCHEMY_DATABASE_URL = SQLITE_LOCAL_DATABASE_URL
 
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)

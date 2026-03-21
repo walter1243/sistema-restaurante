@@ -687,6 +687,8 @@
 
         function obterBasesApiCandidatas() {
             const candidatos = [];
+            const hostAtual = String(window.location.hostname || '').toLowerCase();
+            const rodandoNoVercel = hostAtual.endsWith('.vercel.app');
             const adiciona = (base) => {
                 const normalizada = (base || '').trim().replace(/\/$/, '');
                 if (normalizada && !candidatos.includes(normalizada)) candidatos.push(normalizada);
@@ -696,7 +698,9 @@
             adiciona(q.get('api') || '');
             adiciona(localStorage.getItem('api_base_url') || '');
             adiciona(window.resolveApiBase ? window.resolveApiBase() : '');
-            adiciona(window.location.origin || '');
+            if (!rodandoNoVercel) {
+                adiciona(window.location.origin || '');
+            }
 
             const host = window.location.hostname || '127.0.0.1';
             const local = host === 'localhost' || host === '127.0.0.1';
