@@ -1,5 +1,6 @@
 (function () {
     const RENDER_PRIMARY_API_URL = 'https://sistema-restaurante-api.onrender.com';
+    const RESTAURANT_SLUG = 'solar';
     const host = String(window.location.hostname || '').toLowerCase();
     const runningOnVercel = host.endsWith('.vercel.app');
     const DEFAULT_API_URL = String(
@@ -95,6 +96,18 @@
         window.APP_GOOGLE_MAPS_API_KEY,
         CENTRAL_GOOGLE_MAPS_API_KEY
     );
+    window.__RESTAURANT_SLUG__ = String(
+        window.__RESTAURANT_SLUG__
+        || window.APP_RESTAURANT_SLUG
+        || RESTAURANT_SLUG
+    ).trim().toLowerCase();
+    window.getDefaultRestaurantSlug = function (...candidates) {
+        for (const candidate of [...candidates, window.__RESTAURANT_SLUG__, RESTAURANT_SLUG]) {
+            const slug = String(candidate || '').trim().toLowerCase();
+            if (slug) return slug;
+        }
+        return '';
+    };
     window.getGoogleMapsApiKey = function (...candidates) {
         return resolveGoogleMapsApiKey(...candidates, window.__GOOGLE_MAPS_API_KEY__, CENTRAL_GOOGLE_MAPS_API_KEY);
     };

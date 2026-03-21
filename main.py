@@ -32,6 +32,10 @@ SUPER_ADMIN_SENHA_DEFAULT = (os.getenv("SUPER_ADMIN_SENHA") or "wj92486656").str
 
 DEMO_RESTAURANTE_NOME = (os.getenv("DEMO_RESTAURANTE_NOME") or "Conta Demo").strip()
 DEMO_RESTAURANTE_SLUG = (os.getenv("DEMO_RESTAURANTE_SLUG") or "conta-dono").strip().lower()
+DEFAULT_RESTAURANTE_NOME = (os.getenv("DEFAULT_RESTAURANTE_NOME") or "Solar").strip()
+DEFAULT_RESTAURANTE_SLUG = (os.getenv("DEFAULT_RESTAURANTE_SLUG") or "solar").strip().lower()
+DEFAULT_RESTAURANTE_EMAIL = (os.getenv("DEFAULT_RESTAURANTE_EMAIL") or "solar@restaurante.local").strip().lower()
+DEFAULT_RESTAURANTE_SENHA = (os.getenv("DEFAULT_RESTAURANTE_SENHA") or "solar1234").strip()
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.staticfiles import StaticFiles
@@ -2198,6 +2202,57 @@ def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
     return novo
 
 
+def garantir_restaurante_slug_padrao(db: Session) -> Restaurante:
+    slug_alvo = (DEFAULT_RESTAURANTE_SLUG or "solar").strip().lower()
+    if not slug_alvo:
+        slug_alvo = "solar"
+
+    restaurante = db.query(Restaurante).filter(Restaurante.slug == slug_alvo).first()
+    if restaurante:
+        alterado = False
+        if not (restaurante.token_acesso or "").strip():
+            restaurante.token_acesso = secrets.token_urlsafe(24)
+            alterado = True
+        if (restaurante.status_assinatura or "") != "Ativo":
+            restaurante.status_assinatura = "Ativo"
+            alterado = True
+        if not restaurante.validade_assinatura or restaurante.validade_assinatura < date.today():
+            restaurante.validade_assinatura = date.today() + timedelta(days=3650)
+            alterado = True
+        if alterado:
+            db.commit()
+            db.refresh(restaurante)
+        return restaurante
+
+    email_base = (DEFAULT_RESTAURANTE_EMAIL or f"{slug_alvo}@restaurante.local").strip().lower()
+    email = email_base
+    sufixo_email = 1
+    while db.query(Restaurante).filter(Restaurante.email_admin == email).first():
+        sufixo_email += 1
+        if "@" in email_base:
+            local, dominio = email_base.split("@", 1)
+            email = f"{local}+{sufixo_email}@{dominio}"
+        else:
+            email = f"{email_base}+{sufixo_email}@restaurante.local"
+
+    novo = Restaurante(
+        restaurante_id=str(uuid.uuid4()),
+        nome_unidade=DEFAULT_RESTAURANTE_NOME or "Solar",
+        slug=slug_alvo,
+        email_admin=email,
+        senha_hash=DEFAULT_RESTAURANTE_SENHA or "solar1234",
+        status_assinatura="Ativo",
+        data_assinatura=date.today(),
+        validade_assinatura=date.today() + timedelta(days=3650),
+        token_acesso=secrets.token_urlsafe(24),
+        valor_mensalidade=Decimal("0.00"),
+    )
+    db.add(novo)
+    db.commit()
+    db.refresh(novo)
+    return novo
+
+
 def garantir_config_smtp_padrao(db: Session) -> None:
     """Preenche config SMTP basica para Gmail quando ainda nao houver configuracao salva."""
     valores_padrao = {
@@ -2388,6 +2443,7 @@ def startup_event():
         remover_restaurantes_fake(db)
         garantir_credenciais_super_admin(db)
         garantir_restaurante_admin_padrao(db)
+        garantir_restaurante_slug_padrao(db)
         garantir_config_smtp_padrao(db)
     finally:
         db.close()

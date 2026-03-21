@@ -553,6 +553,11 @@
 
         async function resolverSlugPrincipalSemParametro(forcarBuscaRemota = false) {
             const vinculoLocal = lerVinculoRestauranteAtivo();
+            const slugConfig = String(
+                window.getDefaultRestaurantSlug
+                    ? window.getDefaultRestaurantSlug()
+                    : (window.__RESTAURANT_SLUG__ || '')
+            ).trim().toLowerCase();
             const slugLocal = String(vinculoLocal.slug || '').trim();
             if (!forcarBuscaRemota && slugLocal) return slugLocal;
 
@@ -588,7 +593,7 @@
                 }
             }
 
-            return '';
+            return slugConfig;
         }
 
         function lerVinculoRestauranteAtivo() {
@@ -608,9 +613,14 @@
         const vinculoRestauranteAtivo = lerVinculoRestauranteAtivo();
         const slugVinculado = String(vinculoRestauranteAtivo.slug || '').trim();
         const slugViaLinkVinculado = extrairSlugDeUrl(vinculoRestauranteAtivo.cardapio_url || '');
+        const slugPadraoConfig = String(
+            window.getDefaultRestaurantSlug
+                ? window.getDefaultRestaurantSlug()
+                : (window.__RESTAURANT_SLUG__ || '')
+        ).trim().toLowerCase();
 
         let app = {
-            slug: slugQuery || slugPath || slugSalvoPublico || slugSalvoAdmin || slugVinculado || slugViaLinkVinculado,
+            slug: slugQuery || slugPath || slugSalvoPublico || slugSalvoAdmin || slugVinculado || slugViaLinkVinculado || slugPadraoConfig,
             mesa: new URLSearchParams(window.location.search).get('mesa') || '1',
             token: new URLSearchParams(window.location.search).get('token') || '',
             preview: new URLSearchParams(window.location.search).get('preview') === '1',
