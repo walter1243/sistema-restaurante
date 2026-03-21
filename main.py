@@ -2247,6 +2247,10 @@ def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
         if not (restaurante.token_acesso or "").strip():
             restaurante.token_acesso = secrets.token_urlsafe(32)
             alterado = True
+        if obter_plan_type_restaurante(restaurante) != "premium":
+            restaurante.plan_type = "premium"
+            restaurante.plano = "enterprise"
+            alterado = True
         if alterado:
             db.commit()
             db.refresh(restaurante)
@@ -2270,6 +2274,8 @@ def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
         validade_assinatura=date.today() + timedelta(days=3650),
         token_acesso=secrets.token_urlsafe(24),
         valor_mensalidade=Decimal("0.00"),
+        plan_type="premium",
+        plano="enterprise",
     )
     db.add(novo)
     db.commit()
