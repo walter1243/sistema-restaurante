@@ -32,10 +32,11 @@ SUPER_ADMIN_SENHA_DEFAULT = (os.getenv("SUPER_ADMIN_SENHA") or "wj92486656").str
 
 DEMO_RESTAURANTE_NOME = (os.getenv("DEMO_RESTAURANTE_NOME") or "Conta Demo").strip()
 DEMO_RESTAURANTE_SLUG = (os.getenv("DEMO_RESTAURANTE_SLUG") or "conta-dono").strip().lower()
-DEFAULT_RESTAURANTE_NOME = (os.getenv("DEFAULT_RESTAURANTE_NOME") or "Solar").strip()
+DEFAULT_RESTAURANTE_NOME = (os.getenv("DEFAULT_RESTAURANTE_NOME") or "Solar Supermercado").strip()
 DEFAULT_RESTAURANTE_SLUG = (os.getenv("DEFAULT_RESTAURANTE_SLUG") or "solar").strip().lower()
 DEFAULT_RESTAURANTE_EMAIL = (os.getenv("DEFAULT_RESTAURANTE_EMAIL") or "solar@restaurante.local").strip().lower()
 DEFAULT_RESTAURANTE_SENHA = (os.getenv("DEFAULT_RESTAURANTE_SENHA") or "solar1234").strip()
+DEFAULT_RESTAURANTE_PLAN_TYPE = (os.getenv("DEFAULT_RESTAURANTE_PLAN_TYPE") or "standard").strip().lower()
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.staticfiles import StaticFiles
@@ -52,6 +53,8 @@ SQLITE_VERCEL_DATABASE_URL = "sqlite:////tmp/banco.db"
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not SQLALCHEMY_DATABASE_URL:
+    if os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"):
+        raise RuntimeError("DATABASE_URL não configurada no ambiente Render.")
     if os.getenv("VERCEL") == "1":
         SQLALCHEMY_DATABASE_URL = SQLITE_VERCEL_DATABASE_URL
     else:
@@ -92,6 +95,25 @@ if ambiente_producao() and DATABASE_URL.startswith("sqlite"):
         "[WARN] DATABASE_URL de produção não configurada para PostgreSQL. "
         "Usando SQLite fallback; isso pode causar instabilidade/persistência temporária."
     )
+
+
+def obter_origens_cors() -> list[str]:
+    bruto = (os.getenv("CORS_ALLOWED_ORIGINS") or "").strip()
+    if bruto:
+        return [origem.strip().rstrip("/") for origem in bruto.split(",") if origem.strip()]
+
+    return [
+        "https://sistema-restaurante-sigma.vercel.app",
+        "https://sistema-restaurante.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+
+
+CORS_ALLOWED_ORIGINS = obter_origens_cors()
+CORS_ALLOWED_ORIGIN_REGEX = os.getenv("CORS_ALLOWED_ORIGIN_REGEX") or r"https://.*\.vercel\.app$"
 DEFAULT_PUSH_VAPID_PUBLIC_KEY = "BKsSyK2PVl66Xpo3e02aZi8MEnzaBJEqhqa8O9fdJLIAzDELTlm5CN2UpxvwAFtCsU5dqH_W3gZc8IXiIy-gY9I"
 DEFAULT_PUSH_VAPID_PRIVATE_KEY = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgD0DmaOHZ54MbZCLjSUi4ARfykKYDWahFHJaFyswCImmhRANCAASrEsitj1Zeul6aN3tNmmYvDBJ82gSRKoamvDvX3SSyAMwxC05ZuQjdlKcb8ABbQrFOXah_1t4GXPCF4iMvoGPS"
 PUSH_VAPID_PUBLIC_KEY = os.getenv("PUSH_VAPID_PUBLIC_KEY", DEFAULT_PUSH_VAPID_PUBLIC_KEY).strip()
@@ -123,6 +145,8 @@ class Restaurante(Base):
     validade_assinatura: Mapped[date] = mapped_column(Date, default=lambda: date.today() + timedelta(days=30), index=True)
     token_acesso: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     valor_mensalidade: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
+    plano: Mapped[str] = mapped_column(String(30), default="basic")
+    plan_type: Mapped[str] = mapped_column(String(20), default="basic")
     cnpj: Mapped[str] = mapped_column(String(30), default="")
     total_mesas: Mapped[int] = mapped_column(Integer, default=10)
     delivery_ativo: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -596,8 +620,9 @@ app = FastAPI(title="SaaS Restaurante - Multi-tenancy por coluna")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ALLOWED_ORIGINS,
+    allow_origin_regex=CORS_ALLOWED_ORIGIN_REGEX,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -673,6 +698,21 @@ async def middleware_validade_assinatura(request: Request, call_next):
                 content={"detail": "Acesso negado: assinatura inativa"},
             )
 
+        if restaurante and (
+            path.startswith("/api/admin/pedidos")
+            or path.startswith("/api/admin/entregadores")
+            or path.startswith("/api/public/pedidos")
+            or path.startswith("/api/public/entregadores")
+        ) and not plano_permite_pedidos_delivery(restaurante):
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "Plano basic não possui permissão para Delivery e Pedidos.",
+                    "plan_type": obter_plan_type_restaurante(restaurante),
+                    "permissions": obter_permissoes_plano(restaurante),
+                },
+            )
+
         return await call_next(request)
     finally:
         db.close()
@@ -707,6 +747,38 @@ def assinatura_ativa(restaurante: Restaurante) -> bool:
     if not restaurante.validade_assinatura:
         return False
     return date.today() <= restaurante.validade_assinatura
+
+
+def normalizar_plan_type(plan_type: str | None, plano_legacy: str | None = None) -> str:
+    valor = (plan_type or "").strip().lower()
+    if valor in {"basic", "standard", "premium"}:
+        return valor
+
+    legado = (plano_legacy or "").strip().lower()
+    if legado in {"pro", "standard"}:
+        return "standard"
+    if legado in {"enterprise", "premium"}:
+        return "premium"
+    return "basic"
+
+
+def obter_plan_type_restaurante(restaurante: Restaurante) -> str:
+    return normalizar_plan_type(
+        getattr(restaurante, "plan_type", ""),
+        getattr(restaurante, "plano", ""),
+    )
+
+
+def plano_permite_pedidos_delivery(restaurante: Restaurante) -> bool:
+    return obter_plan_type_restaurante(restaurante) in {"standard", "premium"}
+
+
+def obter_permissoes_plano(restaurante: Restaurante) -> dict:
+    permitido = plano_permite_pedidos_delivery(restaurante)
+    return {
+        "can_orders": permitido,
+        "can_delivery": permitido,
+    }
 
 
 def extrair_slug_da_rota(path: str, prefixo: str) -> str | None:
@@ -2213,14 +2285,27 @@ def garantir_restaurante_slug_padrao(db: Session) -> Restaurante:
     restaurante = db.query(Restaurante).filter(Restaurante.slug == slug_alvo).first()
     if restaurante:
         alterado = False
+        plan_type_alvo = normalizar_plan_type(DEFAULT_RESTAURANTE_PLAN_TYPE, "pro")
         if not (restaurante.token_acesso or "").strip():
             restaurante.token_acesso = secrets.token_urlsafe(24)
+            alterado = True
+        if (restaurante.nome_unidade or "").strip() != "Solar Supermercado":
+            restaurante.nome_unidade = "Solar Supermercado"
             alterado = True
         if (restaurante.status_assinatura or "") != "Ativo":
             restaurante.status_assinatura = "Ativo"
             alterado = True
         if not restaurante.validade_assinatura or restaurante.validade_assinatura < date.today():
             restaurante.validade_assinatura = date.today() + timedelta(days=3650)
+            alterado = True
+        if (getattr(restaurante, "plano", "") or "").strip().lower() != "pro":
+            restaurante.plano = "pro"
+            alterado = True
+        if obter_plan_type_restaurante(restaurante) != plan_type_alvo:
+            restaurante.plan_type = plan_type_alvo
+            alterado = True
+        if not restaurante.delivery_ativo:
+            restaurante.delivery_ativo = True
             alterado = True
         if alterado:
             db.commit()
@@ -2240,7 +2325,7 @@ def garantir_restaurante_slug_padrao(db: Session) -> Restaurante:
 
     novo = Restaurante(
         restaurante_id=str(uuid.uuid4()),
-        nome_unidade=DEFAULT_RESTAURANTE_NOME or "Solar",
+        nome_unidade="Solar Supermercado",
         slug=slug_alvo,
         email_admin=email,
         senha_hash=DEFAULT_RESTAURANTE_SENHA or "solar1234",
@@ -2249,11 +2334,54 @@ def garantir_restaurante_slug_padrao(db: Session) -> Restaurante:
         validade_assinatura=date.today() + timedelta(days=3650),
         token_acesso=secrets.token_urlsafe(24),
         valor_mensalidade=Decimal("0.00"),
+        plano="pro",
+        plan_type=normalizar_plan_type(DEFAULT_RESTAURANTE_PLAN_TYPE, "pro"),
+        delivery_ativo=True,
     )
     db.add(novo)
     db.commit()
     db.refresh(novo)
     return novo
+
+
+def garantir_usuario_admin_restaurante(db: Session, restaurante: Restaurante) -> Usuario:
+    email = (restaurante.email_admin or "").strip().lower()
+    if not email:
+        raise ValueError("Restaurante padrão sem email_admin para criar usuário admin")
+
+    usuario = db.query(Usuario).filter(
+        Usuario.restaurante_id == restaurante.restaurante_id,
+        Usuario.email == email,
+    ).first()
+
+    if usuario:
+        alterado = False
+        if (usuario.perfil or "").strip().lower() != "admin":
+            usuario.perfil = "admin"
+            alterado = True
+        if not usuario.ativo:
+            usuario.ativo = True
+            alterado = True
+        if (usuario.senha_hash or "") != (restaurante.senha_hash or ""):
+            usuario.senha_hash = restaurante.senha_hash or ""
+            alterado = True
+        if alterado:
+            db.commit()
+            db.refresh(usuario)
+        return usuario
+
+    novo_usuario = Usuario(
+        restaurante_id=restaurante.restaurante_id,
+        nome="Administrador Solar",
+        email=email,
+        senha_hash=restaurante.senha_hash or DEFAULT_RESTAURANTE_SENHA,
+        perfil="admin",
+        ativo=True,
+    )
+    db.add(novo_usuario)
+    db.commit()
+    db.refresh(novo_usuario)
+    return novo_usuario
 
 
 def garantir_config_smtp_padrao(db: Session) -> None:
@@ -2296,6 +2424,13 @@ def startup_event():
             colunas_cardapio_global = {c["name"] for c in inspector.get_columns("cardapio")}
             if "imagem_base64" not in colunas_cardapio_global:
                 conn.exec_driver_sql("ALTER TABLE cardapio ADD COLUMN imagem_base64 VARCHAR(1000000) DEFAULT ''")
+
+        if "restaurantes" in tabelas:
+            colunas_restaurantes_global = {c["name"] for c in inspector.get_columns("restaurantes")}
+            if "plano" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN plano VARCHAR(30) DEFAULT 'basic'")
+            if "plan_type" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN plan_type VARCHAR(20) DEFAULT 'basic'")
 
     if DATABASE_URL.startswith("sqlite"):
         with engine.begin() as conn:
@@ -2355,6 +2490,10 @@ def startup_event():
                 conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN data_assinatura DATE")
             if "validade_assinatura" not in colunas:
                 conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN validade_assinatura DATE")
+            if "plano" not in colunas:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN plano VARCHAR(30) DEFAULT 'basic'")
+            if "plan_type" not in colunas:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN plan_type VARCHAR(20) DEFAULT 'basic'")
 
             conn.exec_driver_sql(
                 """
@@ -2366,6 +2505,23 @@ def startup_event():
                 """
                 UPDATE restaurantes
                 SET validade_assinatura = COALESCE(validade_assinatura, DATE('now', '+30 day'))
+                """
+            )
+            conn.exec_driver_sql(
+                """
+                UPDATE restaurantes
+                SET plano = COALESCE(NULLIF(plano, ''), 'basic')
+                """
+            )
+            conn.exec_driver_sql(
+                """
+                UPDATE restaurantes
+                SET plan_type = CASE
+                    WHEN LOWER(COALESCE(NULLIF(plan_type, ''), '')) IN ('basic', 'standard', 'premium') THEN LOWER(plan_type)
+                    WHEN LOWER(COALESCE(NULLIF(plano, ''), 'basic')) IN ('pro', 'standard') THEN 'standard'
+                    WHEN LOWER(COALESCE(NULLIF(plano, ''), 'basic')) IN ('enterprise', 'premium') THEN 'premium'
+                    ELSE 'basic'
+                END
                 """
             )
 
@@ -2446,7 +2602,8 @@ def startup_event():
         remover_restaurantes_fake(db)
         garantir_credenciais_super_admin(db)
         garantir_restaurante_admin_padrao(db)
-        garantir_restaurante_slug_padrao(db)
+        restaurante_solar = garantir_restaurante_slug_padrao(db)
+        garantir_usuario_admin_restaurante(db, restaurante_solar)
         garantir_config_smtp_padrao(db)
     finally:
         db.close()
@@ -3693,6 +3850,8 @@ def obter_cardapio_por_slug(slug: str, mesa: str = Query(...), db: Session = Dep
             "restaurante_id": restaurante.restaurante_id,
             "nome_unidade": restaurante.nome_unidade,
             "slug": restaurante.slug,
+            "plan_type": obter_plan_type_restaurante(restaurante),
+            "permissions": obter_permissoes_plano(restaurante),
             "cnpj": restaurante.cnpj,
             "total_mesas": restaurante.total_mesas,
             "capa_cardapio": restaurante.capa_cardapio_base64,
@@ -3739,6 +3898,8 @@ def obter_configuracao_restaurante(slug: str, token_acesso: str = Header(...), d
         "restaurante_id": restaurante.restaurante_id,
         "nome_unidade": restaurante.nome_unidade,
         "slug": restaurante.slug,
+        "plan_type": obter_plan_type_restaurante(restaurante),
+        "permissions": obter_permissoes_plano(restaurante),
         "cnpj": restaurante.cnpj,
         "total_mesas": restaurante.total_mesas,
         "delivery_ativo": restaurante.delivery_ativo,
@@ -3803,6 +3964,8 @@ def obter_perfil_admin(slug: str, token_acesso: str = Header(...), db: Session =
         "validade_assinatura": restaurante.validade_assinatura.isoformat() if restaurante.validade_assinatura else None,
         "valor_mensalidade": float(restaurante.valor_mensalidade or 0),
         "plano": (restaurante.plano or "basic").strip() or "basic",
+        "plan_type": obter_plan_type_restaurante(restaurante),
+        "permissions": obter_permissoes_plano(restaurante),
         "pagamentos_aprovados": len(historico),
         "historico_pagamentos": historico,
     }
@@ -3849,6 +4012,8 @@ def atualizar_perfil_admin(
         "status_assinatura": restaurante.status_assinatura,
         "validade_assinatura": restaurante.validade_assinatura.isoformat() if restaurante.validade_assinatura else None,
         "valor_mensalidade": float(restaurante.valor_mensalidade or 0),
+        "plan_type": obter_plan_type_restaurante(restaurante),
+        "permissions": obter_permissoes_plano(restaurante),
     }
 
 

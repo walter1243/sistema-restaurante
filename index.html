@@ -1121,13 +1121,28 @@
             registrarListenersEnderecoDelivery();
         }
 
+        function planTypeAtualPublico() {
+            const planType = String(app.restaurante?.plan_type || '').trim().toLowerCase();
+            if (planType) return planType;
+            return 'basic';
+        }
+
+        function planoPermiteDeliveryPublico() {
+            const perms = app.restaurante?.permissions || {};
+            if (typeof perms.can_delivery === 'boolean') {
+                return !!perms.can_delivery;
+            }
+            const planType = planTypeAtualPublico();
+            return planType === 'standard' || planType === 'premium';
+        }
+
         function atualizarDisponibilidadeDelivery() {
             const btn = document.getElementById('delivery-float-btn');
             const msg = document.getElementById('delivery-indisponivel-msg');
             const form = document.getElementById('delivery-form-wrap');
             if (!btn || !msg || !form) return;
 
-            const ativo = !!app.restaurante.delivery_ativo;
+            const ativo = !!app.restaurante.delivery_ativo && planoPermiteDeliveryPublico();
             btn.style.display = ativo ? 'inline-flex' : 'none';
             msg.style.display = ativo ? 'none' : 'block';
             form.style.display = ativo && app.tipoEntrega === 'delivery' ? 'block' : 'none';
@@ -1518,7 +1533,7 @@
 
         function definirModoEntrega(modo, salvar = true) {
             app.tipoEntrega = modo === 'delivery' ? 'delivery' : 'mesa';
-            const ativoDelivery = !!app.restaurante.delivery_ativo;
+            const ativoDelivery = !!app.restaurante.delivery_ativo && planoPermiteDeliveryPublico();
             if (!ativoDelivery && app.tipoEntrega === 'delivery') {
                 app.tipoEntrega = 'mesa';
             }
@@ -1563,7 +1578,7 @@
         function atualizarBotaoDeliveryHeader() {
             const cta = document.getElementById('delivery-cta-header');
             if (!cta) return;
-            const ativo = !!app.restaurante.delivery_ativo;
+            const ativo = !!app.restaurante.delivery_ativo && planoPermiteDeliveryPublico();
             cta.style.display = ativo ? 'inline-flex' : 'none';
             cta.disabled = !ativo;
             const emDelivery = ativo && app.tipoEntrega === 'delivery';
@@ -1574,7 +1589,7 @@
         }
 
         function ativarDeliveryCTA() {
-            if (!app.restaurante.delivery_ativo) {
+            if (!app.restaurante.delivery_ativo || !planoPermiteDeliveryPublico()) {
                 mostrarToastCustomizado('Delivery indisponível no momento.', 'erro');
                 return;
             }

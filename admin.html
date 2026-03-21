@@ -915,7 +915,7 @@
             </div>
             <div class="nav-item" onclick="mudarSecao('caixa')"><i class="fas fa-cash-register"></i> Caixa</div>
             <div class="nav-item active" onclick="mudarSecao('dashboard')"><i class="fas fa-chart-line"></i> Dashboard</div>
-            <div class="nav-item" onclick="mudarSecao('pedidos')"><i class="fas fa-receipt"></i> Pedidos <span id="nav-pedidos-menu-badge" class="nav-badge hidden">0</span></div>
+            <div id="nav-pedidos" class="nav-item" onclick="mudarSecao('pedidos')"><i class="fas fa-receipt"></i> Pedidos <span id="nav-pedidos-menu-badge" class="nav-badge hidden">0</span></div>
             <div class="nav-item" onclick="mudarSecao('cardapio')"><i class="fas fa-utensils"></i> Cardápio</div>
             <div class="nav-item" onclick="mudarSecao('mesas')"><i class="fas fa-chair"></i> Mesas</div>
 
@@ -925,7 +925,7 @@
                     <span class="nav-group-line"></span>
                 </div>
             </div>
-            <div class="nav-item" onclick="mudarSecao('delivery')"><i class="fas fa-motorcycle"></i> Delivery</div>
+            <div id="nav-delivery" class="nav-item" onclick="mudarSecao('delivery')"><i class="fas fa-motorcycle"></i> Delivery</div>
             <div id="nav-entregadores" class="nav-item" onclick="mudarSecao('rastrear-pedidos')"><i class="fas fa-users"></i> Entregadores</div>
 
             <div class="nav-group">
@@ -1754,6 +1754,8 @@
                 email_admin: '',
                 foto_perfil_base64: '',
                 plano: 'basic',
+                plan_type: 'basic',
+                permissions: { can_orders: true, can_delivery: true },
                 status_assinatura: '',
                 data_assinatura: '',
                 validade_assinatura: '',
@@ -2601,21 +2603,47 @@
             aplicarRegrasPlanoSaasAdmin();
         }
 
+        function planTypeAtualAdmin() {
+            const doRestaurante = String(contexto.restaurante?.plan_type || '').trim().toLowerCase();
+            if (doRestaurante) return doRestaurante;
+
+            const doPerfil = String(contexto.perfil?.plan_type || '').trim().toLowerCase();
+            if (doPerfil) return doPerfil;
+
+            const planoLegado = String(contexto.perfil?.plano || 'basic').trim().toLowerCase();
+            if (planoLegado === 'pro') return 'standard';
+            if (planoLegado === 'enterprise') return 'premium';
+            return 'basic';
+        }
+
+        function planoPermitePedidosDelivery() {
+            const permissoes = contexto.restaurante?.permissions || contexto.perfil?.permissions || {};
+            if (typeof permissoes.can_orders === 'boolean' || typeof permissoes.can_delivery === 'boolean') {
+                return !!(permissoes.can_orders && permissoes.can_delivery);
+            }
+            const planType = planTypeAtualAdmin();
+            return planType === 'standard' || planType === 'premium';
+        }
+
         function planoPermiteEntregadores() {
-            const plano = String(contexto.perfil?.plano || 'basic').trim().toLowerCase();
-            return plano === 'pro' || plano === 'enterprise';
+            return planoPermitePedidosDelivery();
         }
 
         function aplicarRegrasPlanoSaasAdmin() {
-            const permiteEntregadores = planoPermiteEntregadores();
+            const permitePedidosDelivery = planoPermitePedidosDelivery();
+            const navPedidos = document.getElementById('nav-pedidos');
+            const navDelivery = document.getElementById('nav-delivery');
             const navEntregadores = document.getElementById('nav-entregadores');
+            const secaoPedidos = document.getElementById('pedidos');
+            const secaoDelivery = document.getElementById('delivery');
             const secaoEntregadores = document.getElementById('rastrear-pedidos');
-            if (navEntregadores) {
-                navEntregadores.style.display = permiteEntregadores ? '' : 'none';
-            }
-            if (secaoEntregadores) {
-                secaoEntregadores.style.display = permiteEntregadores ? '' : 'none';
-            }
+
+            if (navPedidos) navPedidos.style.display = permitePedidosDelivery ? '' : 'none';
+            if (navDelivery) navDelivery.style.display = permitePedidosDelivery ? '' : 'none';
+            if (navEntregadores) navEntregadores.style.display = permitePedidosDelivery ? '' : 'none';
+            if (secaoPedidos) secaoPedidos.style.display = permitePedidosDelivery ? '' : 'none';
+            if (secaoDelivery) secaoDelivery.style.display = permitePedidosDelivery ? '' : 'none';
+            if (secaoEntregadores) secaoEntregadores.style.display = permitePedidosDelivery ? '' : 'none';
 
             const botaoEnterprise = document.getElementById('btn-enterprise-suporte');
             const plano = String(contexto.perfil?.plano || 'basic').trim().toLowerCase();
@@ -2623,7 +2651,11 @@
                 botaoEnterprise.hidden = plano !== 'enterprise';
             }
 
-            if (!permiteEntregadores && document.getElementById('rastrear-pedidos')?.classList.contains('active')) {
+            if (!permitePedidosDelivery && (
+                document.getElementById('pedidos')?.classList.contains('active')
+                || document.getElementById('delivery')?.classList.contains('active')
+                || document.getElementById('rastrear-pedidos')?.classList.contains('active')
+            )) {
                 mudarSecao('dashboard');
             }
         }
@@ -2705,6 +2737,8 @@
                 email_admin: data.email_admin || '',
                 foto_perfil_base64: data.foto_perfil_base64 || '',
                 plano: data.plano || 'basic',
+                plan_type: data.plan_type || '',
+                permissions: data.permissions || {},
                 status_assinatura: data.status_assinatura || '',
                 data_assinatura: data.data_assinatura || '',
                 validade_assinatura: data.validade_assinatura || '',
@@ -2787,6 +2821,8 @@
                 contexto.perfil.status_assinatura = data.status_assinatura || contexto.perfil.status_assinatura;
                 contexto.perfil.validade_assinatura = data.validade_assinatura || contexto.perfil.validade_assinatura;
                 contexto.perfil.plano = data.plano || contexto.perfil.plano || 'basic';
+                contexto.perfil.plan_type = data.plan_type || contexto.perfil.plan_type || '';
+                contexto.perfil.permissions = data.permissions || contexto.perfil.permissions || {};
                 contexto.perfil.valor_mensalidade = Number(data.valor_mensalidade || contexto.perfil.valor_mensalidade || 0);
 
                 salvarTokenLocal();
@@ -3098,9 +3134,17 @@
 
                 await etapa('produtos', carregarProdutos);
 
-                await carregarPedidos();
+                if (planoPermitePedidosDelivery()) {
+                    await carregarPedidos();
+                } else {
+                    contexto.pedidos = [];
+                }
                 await carregarMesas();
-                await carregarEntregadores();
+                if (planoPermitePedidosDelivery()) {
+                    await carregarEntregadores();
+                } else {
+                    contexto.entregadores = [];
+                }
                 renderizarTudo();
                 iniciarAtualizacaoTempoReal();
 
@@ -3115,6 +3159,9 @@
         function iniciarAtualizacaoTempoReal() {
             if (intervalPedidos) {
                 clearInterval(intervalPedidos);
+            }
+            if (!planoPermitePedidosDelivery()) {
+                return;
             }
             intervalPedidos = setInterval(async () => {
                 await carregarPedidos();
@@ -3135,8 +3182,8 @@
         }
 
         function mudarSecao(secao) {
-            if (secao === 'rastrear-pedidos' && !planoPermiteEntregadores()) {
-                mostrarToastCustomizado('O plano Basic não inclui o módulo de entregadores. Faça upgrade para Pro ou Enterprise.', 'aviso');
+            if ((secao === 'pedidos' || secao === 'delivery' || secao === 'rastrear-pedidos') && !planoPermitePedidosDelivery()) {
+                mostrarToastCustomizado('O plano Basic não inclui Delivery e Pedidos.', 'aviso');
                 secao = 'dashboard';
             }
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -3222,6 +3269,8 @@
 
             contexto.restaurante = {
                 nome_unidade: data.nome_unidade || '',
+                plan_type: data.plan_type || 'basic',
+                permissions: data.permissions || {},
                 cnpj: data.cnpj || '',
                 total_mesas: data.total_mesas || 10,
                 url_base_publica: data.url_base_publica || '',
@@ -3696,6 +3745,10 @@
 
         // PEDIDOS
         async function carregarPedidos() {
+            if (!planoPermitePedidosDelivery()) {
+                contexto.pedidos = [];
+                return;
+            }
             try {
                 const res = await fetch(`${API_URL}/api/admin/pedidos/${contexto.slug}`, {
                     headers: { 'token-acesso': contexto.token }
@@ -3951,6 +4004,10 @@
         }
 
         async function carregarEntregadores() {
+            if (!planoPermitePedidosDelivery()) {
+                contexto.entregadores = [];
+                return;
+            }
             try {
                 const res = await fetch(`${API_URL}/api/admin/entregadores/${contexto.slug}`, {
                     headers: { 'token-acesso': contexto.token }
