@@ -2791,17 +2791,11 @@
 
                 salvarTokenLocal();
 
-                const configOk = await etapa('configuracao', carregarConfiguracao);
-                if (!configOk) {
-                    carregarConfiguracaoLocalFallback();
-                }
+                await etapa('configuracao', carregarConfiguracao);
 
                 await etapa('perfil', carregarPerfilAdmin);
 
-                const produtosOk = await etapa('produtos', carregarProdutos);
-                if (!produtosOk) {
-                    carregarProdutosLocalFallback();
-                }
+                await etapa('produtos', carregarProdutos);
 
                 await carregarPedidos();
                 await carregarMesas();
@@ -2810,7 +2804,7 @@
                 iniciarAtualizacaoTempoReal();
 
                 if (falhasInicializacao.length) {
-                    mostrarToastCustomizado('Painel carregado com dados locais em algumas seções.', 'aviso');
+                    mostrarToastCustomizado('Algumas seções não carregaram do Render. Recarregue para tentar novamente.', 'aviso');
                 }
             } catch (erro) {
                 mostrarFalhaInicializacao('Erro de autenticação ou conexão com o banco da conta.', erro);
@@ -3305,12 +3299,13 @@
                 });
                 if (res.ok) {
                     contexto.pedidos = await res.json();
-                } else {
-                    contexto.pedidos = JSON.parse(localStorage.getItem(storageKey('pedidos')) || '[]');
+                    return;
                 }
             } catch (e) {
-                contexto.pedidos = JSON.parse(localStorage.getItem(storageKey('pedidos')) || '[]');
+                console.warn('Erro ao carregar pedidos do Render:', e?.message || e);
             }
+
+            contexto.pedidos = [];
         }
 
         async function despacharAutomaticamentePedidoPronto(pedido) {
@@ -3555,15 +3550,12 @@
                     localStorage.setItem(storageKey('entregadores'), JSON.stringify(contexto.entregadores));
                     return;
                 }
-            } catch (_) {}
-
-            if (contexto.token) {
-                contexto.entregadores = [];
-                localStorage.setItem(storageKey('entregadores'), '[]');
-                return;
+            } catch (erro) {
+                console.warn('Erro ao carregar entregadores do Render:', erro?.message || erro);
             }
 
-            contexto.entregadores = JSON.parse(localStorage.getItem(storageKey('entregadores')) || '[]');
+            contexto.entregadores = [];
+            localStorage.setItem(storageKey('entregadores'), '[]');
         }
 
         function renderizarEntregadores() {
