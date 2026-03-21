@@ -44,10 +44,31 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, rela
 
 SQLITE_LOCAL_DATABASE_URL = "sqlite:///./restaurante.db"
 SQLITE_VERCEL_DATABASE_URL = "sqlite:////tmp/banco.db"
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    SQLITE_VERCEL_DATABASE_URL if os.getenv("VERCEL") == "1" else SQLITE_LOCAL_DATABASE_URL,
-)
+
+
+def resolver_database_url() -> str:
+    # Prioriza variáveis padrão e aliases comuns de Postgres/Render.
+    chaves = [
+        "DATABASE_URL",
+        "RENDER_DATABASE_URL",
+        "RENDER_POSTGRES_URL",
+        "POSTGRES_URL",
+        "POSTGRESQL_URL",
+        "SQLALCHEMY_DATABASE_URL",
+    ]
+
+    for chave in chaves:
+        valor = (os.getenv(chave) or "").strip()
+        if valor:
+            return valor
+
+    if os.getenv("VERCEL") == "1":
+        return SQLITE_VERCEL_DATABASE_URL
+
+    return SQLITE_LOCAL_DATABASE_URL
+
+
+DATABASE_URL = resolver_database_url()
 
 
 def normalizar_database_url(url: str) -> str:
@@ -67,6 +88,18 @@ def normalizar_database_url(url: str) -> str:
 
 
 DATABASE_URL = normalizar_database_url(DATABASE_URL)
+
+
+def ambiente_producao() -> bool:
+    marcadores = ["VERCEL", "RENDER", "RENDER_EXTERNAL_URL", "VERCEL_ENV"]
+    return any((os.getenv(chave) or "").strip() for chave in marcadores)
+
+
+if ambiente_producao() and DATABASE_URL.startswith("sqlite"):
+    raise RuntimeError(
+        "DATABASE_URL de produção não configurada para PostgreSQL. "
+        "Defina DATABASE_URL (ou RENDER_DATABASE_URL/POSTGRES_URL) no ambiente."
+    )
 DEFAULT_PUSH_VAPID_PUBLIC_KEY = "BKsSyK2PVl66Xpo3e02aZi8MEnzaBJEqhqa8O9fdJLIAzDELTlm5CN2UpxvwAFtCsU5dqH_W3gZc8IXiIy-gY9I"
 DEFAULT_PUSH_VAPID_PRIVATE_KEY = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgD0DmaOHZ54MbZCLjSUi4ARfykKYDWahFHJaFyswCImmhRANCAASrEsitj1Zeul6aN3tNmmYvDBJ82gSRKoamvDvX3SSyAMwxC05ZuQjdlKcb8ABbQrFOXah_1t4GXPCF4iMvoGPS"
 PUSH_VAPID_PUBLIC_KEY = os.getenv("PUSH_VAPID_PUBLIC_KEY", DEFAULT_PUSH_VAPID_PUBLIC_KEY).strip()
@@ -2366,7 +2399,10 @@ def startup_event():
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {
+        "ok": True,
+        "db_backend": "sqlite" if DATABASE_URL.startswith("sqlite") else "postgres",
+    }
 
 
 @app.get("/api/public/push/config")
