@@ -1622,6 +1622,7 @@
         const API_URL = window.resolveApiBase
             ? window.resolveApiBase()
             : window.location.origin.replace(/\/$/, '');
+        let API_URL_ATIVO = API_URL;
 
         let secaoAtual = 'dashboard';
         let filtroStatus = 'todos';
@@ -1668,57 +1669,43 @@
         }
 
         async function postSuperAdminComFallback(path, payload) {
-            const bases = obterBasesApiSuperAdmin();
-            let ultimoErro = 'Não foi possível conectar à API.';
-
-            for (const base of bases) {
-                try {
-                    const res = await fetch(`${base}${path}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload),
-                    });
-
-                    let data = {};
-                    try { data = await res.json(); } catch (_) {}
-
-                    if (res.ok) {
-                        localStorage.setItem('api_base_url', base);
-                        return { res, data, base };
-                    }
-
-                    if (res.status === 405) {
-                        ultimoErro = 'API desta porta está desatualizada (405). Tentando outra...';
-                        continue;
-                    }
-
-                    ultimoErro = data?.detail || `Erro ${res.status}`;
-                } catch (erro) {
-                    ultimoErro = `Falha de conexão com a API (${base}). Verifique se o backend está online.`;
-                }
-            }
-
-            throw new Error(ultimoErro);
+            return requestSuperAdminComFallback(path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
         }
 
         async function getSuperAdminComFallback(path) {
+            return requestSuperAdminComFallback(path);
+        }
+
+        async function requestSuperAdminComFallback(path, options = {}) {
             const bases = obterBasesApiSuperAdmin();
             let ultimoErro = 'Não foi possível conectar à API.';
 
+            const method = String(options.method || 'GET').toUpperCase();
+
             for (const base of bases) {
                 try {
-                    const res = await fetch(`${base}${path}`);
+                    const res = await fetch(`${base}${path}`, options);
                     let data = {};
                     try { data = await res.json(); } catch (_) {}
 
                     if (res.ok) {
                         localStorage.setItem('api_base_url', base);
+                        API_URL_ATIVO = base;
                         return { res, data, base };
                     }
 
-                    if (res.status === 404 || res.status === 405) {
+                    if (res.status === 404 || res.status === 405 || res.status === 502 || res.status === 503) {
                         ultimoErro = `API ${base} não possui este endpoint ainda. Tentando outra...`;
                         continue;
+                    }
+
+                    if (method !== 'GET' && res.status === 422) {
+                        ultimoErro = data?.detail || `Erro ${res.status}`;
+                        break;
                     }
 
                     ultimoErro = data?.detail || `Erro ${res.status}`;
@@ -1747,6 +1734,13 @@
         }
 
         function normalizarRestauranteApi(rest) {
+            const planType = String(rest.plan_type || '').trim().toLowerCase();
+            const planoLegacy = String(rest.plano || '').trim().toLowerCase();
+            let planoNormalizado = planoLegacy;
+            if (!planoNormalizado) {
+                if (planType === 'standard') planoNormalizado = 'pro';
+                else if (planType === 'premium') planoNormalizado = 'enterprise';
+            }
             return {
                 id_backend: rest.id,
                 nome: rest.nome_unidade || '',
@@ -1757,7 +1751,7 @@
                 email: rest.email_admin || '',
                 telefone: '',
                 cnpj: '',
-                plano: rest.plano || inferirPlanoPorValor(rest.valor_mensalidade),
+                plano: planoNormalizado || inferirPlanoPorValor(rest.valor_mensalidade),
                 valor_mensalidade: Number(rest.valor_mensalidade || 0),
                 vencimento: rest.validade_assinatura || '',
                 status: (rest.status_assinatura || '').toLowerCase() === 'ativo' ? 'ativo' : 'bloqueado',
@@ -1768,9 +1762,7 @@
 
         async function sincronizarComBackend() {
             try {
-                const res = await fetch(`${API_URL}/api/super-admin/restaurantes`);
-                if (!res.ok) throw new Error('Falha ao carregar restaurantes');
-                const listaApi = await res.json();
+                const { data: listaApi } = await getSuperAdminComFallback('/api/super-admin/restaurantes');
                 const listaNormalizada = Array.isArray(listaApi) ? listaApi.map(normalizarRestauranteApi) : [];
                 salvarRestaurantes(listaNormalizada);
             } catch (erro) {
@@ -1966,9 +1958,7 @@
 
         async function renderAnalyticsConversao() {
             try {
-                const res = await fetch(`${API_URL}/api/super-admin/analytics/conversao`);
-                if (!res.ok) throw new Error('Falha ao carregar analytics');
-                const data = await res.json();
+                const { data } = await getSuperAdminComFallback('/api/super-admin/analytics/conversao');
                 const resumo = data.resumo || {};
                 const eventos = data.ultimos_eventos || [];
                 serieConversao30Dias = data.serie_diaria_30_dias || [];
@@ -2377,7 +2367,7 @@
             try {
                 if (idx !== '') {
                     const rAtual = lista[parseInt(idx)];
-                    const res = await fetch(`${API_URL}/api/super-admin/restaurantes/${rAtual.id_backend}`, {
+                    const { res, data: erroData } = await requestSuperAdminComFallback(`/api/super-admin/restaurantes/${rAtual.id_backend}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -2392,8 +2382,7 @@
                         })
                     });
                     if (!res.ok) {
-                        const erro = await res.json().catch(() => ({}));
-                        throw new Error(erro.detail || 'Falha ao atualizar restaurante');
+                        throw new Error(erroData?.detail || 'Falha ao atualizar restaurante');
                     }
                     toast('Restaurante atualizado.');
                 } else {
@@ -2401,7 +2390,7 @@
                         toast('Informe uma senha inicial com pelo menos 4 caracteres.', 'erro');
                         return;
                     }
-                    const res = await fetch(`${API_URL}/api/super-admin/cadastrar-restaurante`, {
+                    const { res, data: erroData } = await requestSuperAdminComFallback('/api/super-admin/cadastrar-restaurante', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -2417,8 +2406,7 @@
                         })
                     });
                     if (!res.ok) {
-                        const erro = await res.json().catch(() => ({}));
-                        throw new Error(erro.detail || 'Falha ao cadastrar restaurante');
+                        throw new Error(erroData?.detail || 'Falha ao cadastrar restaurante');
                     }
                     toast('Restaurante cadastrado.');
                 }
@@ -2492,7 +2480,7 @@
             try {
                 if (acaoPendente === 'bloquear' || acaoPendente === 'desbloquear') {
                     const status = acaoPendente === 'bloquear' ? 'Inativo' : 'Ativo';
-                    const res = await fetch(`${API_URL}/api/super-admin/restaurantes/${restaurante.id_backend}/assinatura?status=${status}`, {
+                    const { res } = await requestSuperAdminComFallback(`/api/super-admin/restaurantes/${restaurante.id_backend}/assinatura?status=${status}`, {
                         method: 'PATCH'
                     });
                     if (!res.ok) throw new Error('Falha ao atualizar assinatura');
@@ -2500,7 +2488,7 @@
                         ? `"${restaurante.nome}" bloqueado.`
                         : `"${restaurante.nome}" desbloqueado.`, acaoPendente === 'bloquear' ? 'aviso' : 'ok');
                 } else {
-                    const res = await fetch(`${API_URL}/api/super-admin/restaurantes/${restaurante.id_backend}`, {
+                    const { res } = await requestSuperAdminComFallback(`/api/super-admin/restaurantes/${restaurante.id_backend}`, {
                         method: 'DELETE'
                     });
                     if (!res.ok) throw new Error('Falha ao excluir restaurante');
@@ -2549,7 +2537,7 @@
             }
 
             try {
-                const resValidade = await fetch(`${API_URL}/api/super-admin/restaurantes/${restaurante.id_backend}/validade`, {
+                const { res: resValidade } = await requestSuperAdminComFallback(`/api/super-admin/restaurantes/${restaurante.id_backend}/validade`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ nova_validade_assinatura: novaData })
@@ -2557,7 +2545,7 @@
                 if (!resValidade.ok) throw new Error('Falha ao atualizar validade');
 
                 if (document.getElementById('novo-status-fat').value === 'em_dia') {
-                    await fetch(`${API_URL}/api/super-admin/restaurantes/${restaurante.id_backend}/assinatura?status=Ativo`, {
+                    await requestSuperAdminComFallback(`/api/super-admin/restaurantes/${restaurante.id_backend}/assinatura?status=Ativo`, {
                         method: 'PATCH'
                     });
                 }
@@ -2638,9 +2626,7 @@
 
         async function carregarConfigMP() {
             try {
-                const res = await fetch(`${API_URL}/api/super-admin/config-mp`);
-                if (!res.ok) return;
-                const data = await res.json();
+                const { data } = await getSuperAdminComFallback('/api/super-admin/config-mp');
                 const statusEl = document.getElementById('mp-status');
                 if (statusEl) {
                     if (data.access_token_configurado) {
@@ -2661,12 +2647,10 @@
                 return;
             }
             try {
-                const res = await fetch(`${API_URL}/api/super-admin/config-mp`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ access_token: token, public_key: key }),
+                const { res, data } = await postSuperAdminComFallback('/api/super-admin/config-mp', {
+                    access_token: token,
+                    public_key: key,
                 });
-                const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Erro');
                 toast('Credenciais Mercado Pago salvas!');
                 document.getElementById('mp-access-token').value = '';
@@ -2898,13 +2882,10 @@
             painelInicializado = true;
 
             try {
-                const resPlanos = await fetch(`${API_URL}/api/super-admin/planos`);
-                if (resPlanos.ok) {
-                    const dataPlanos = await resPlanos.json();
-                    const mapa = dataPlanos.planos || {};
-                    if (mapa.basic && mapa.pro && mapa.enterprise) {
-                        localStorage.setItem('sa_planos', JSON.stringify(mapa));
-                    }
+                const { data: dataPlanos } = await getSuperAdminComFallback('/api/super-admin/planos');
+                const mapa = dataPlanos.planos || {};
+                if (mapa.basic && mapa.pro && mapa.enterprise) {
+                    localStorage.setItem('sa_planos', JSON.stringify(mapa));
                 }
             } catch (_) {}
 

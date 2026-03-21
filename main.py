@@ -424,6 +424,9 @@ class RestauranteOut(BaseModel):
     validade_assinatura: date
     token_acesso: str
     valor_mensalidade: Decimal
+    plano: str | None = None
+    plan_type: str | None = None
+    delivery_ativo: bool | None = None
     foto_perfil_base64: str | None = None
     admin_url: str | None = None
     cardapio_url: str | None = None
@@ -776,6 +779,28 @@ def normalizar_plan_type(plan_type: str | None, plano_legacy: str | None = None)
     if legado in {"enterprise", "premium"}:
         return "premium"
     return "basic"
+
+
+def normalizar_codigo_plano_legacy(plano: str | None, plan_type: str | None = None) -> str:
+    valor = (plano or "").strip().lower()
+    if valor in {"basic", "pro", "enterprise"}:
+        return valor
+
+    tipo = normalizar_plan_type(plan_type, valor)
+    if tipo == "standard":
+        return "pro"
+    if tipo == "premium":
+        return "enterprise"
+    return "basic"
+
+
+def aplicar_plano_no_restaurante(restaurante: Restaurante, plano: str | None) -> None:
+    plano_normalizado = normalizar_codigo_plano_legacy(plano, getattr(restaurante, "plan_type", ""))
+    plan_type_normalizado = normalizar_plan_type(getattr(restaurante, "plan_type", ""), plano_normalizado)
+
+    restaurante.plano = plano_normalizado
+    restaurante.plan_type = plan_type_normalizado
+    restaurante.delivery_ativo = plan_type_normalizado in {"standard", "premium"}
 
 
 def obter_plan_type_restaurante(restaurante: Restaurante) -> str:
@@ -1862,7 +1887,8 @@ def montar_admin_login_url(
 def serializar_restaurante_out(restaurante: Restaurante, base_url: str | None = None) -> dict:
     base = (base_url or "").rstrip("/")
     admin_url = montar_admin_login_url(base, restaurante.email_admin, restaurante.slug)
-    cardapio_url = f"{base}/index.html?slug={quote(restaurante.slug)}" if base else None
+    cardapio_url = f"{base}/index.html?slug={quote(restaurante.slug)}&mesa=1" if base else None
+    plano_legacy = normalizar_codigo_plano_legacy(getattr(restaurante, "plano", ""), getattr(restaurante, "plan_type", ""))
     return {
         "id": restaurante.id,
         "restaurante_id": restaurante.restaurante_id,
@@ -1874,7 +1900,9 @@ def serializar_restaurante_out(restaurante: Restaurante, base_url: str | None = 
         "validade_assinatura": restaurante.validade_assinatura,
         "token_acesso": restaurante.token_acesso,
         "valor_mensalidade": restaurante.valor_mensalidade,
-        "plano": (restaurante.plano or "basic").strip() or "basic",
+        "plano": plano_legacy,
+        "plan_type": normalizar_plan_type(getattr(restaurante, "plan_type", ""), plano_legacy),
+        "delivery_ativo": bool(restaurante.delivery_ativo),
         "foto_perfil_base64": restaurante.foto_perfil_base64,
         "admin_url": admin_url,
         "cardapio_url": cardapio_url,
@@ -2263,12 +2291,18 @@ def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
         if not (restaurante.token_acesso or "").strip():
             restaurante.token_acesso = secrets.token_urlsafe(32)
             alterado = True
-        if obter_plan_type_restaurante(restaurante) != "premium":
-            restaurante.plan_type = "premium"
-            restaurante.plano = "enterprise"
-            alterado = True
-        if not restaurante.delivery_ativo:
-            restaurante.delivery_ativo = True
+        plano_anterior = (
+            normalizar_codigo_plano_legacy(getattr(restaurante, "plano", ""), getattr(restaurante, "plan_type", "")),
+            normalizar_plan_type(getattr(restaurante, "plan_type", ""), getattr(restaurante, "plano", "")),
+            bool(restaurante.delivery_ativo),
+        )
+        aplicar_plano_no_restaurante(restaurante, "enterprise")
+        plano_atual = (
+            normalizar_codigo_plano_legacy(getattr(restaurante, "plano", ""), getattr(restaurante, "plan_type", "")),
+            normalizar_plan_type(getattr(restaurante, "plan_type", ""), getattr(restaurante, "plano", "")),
+            bool(restaurante.delivery_ativo),
+        )
+        if plano_atual != plano_anterior:
             alterado = True
         if alterado:
             db.commit()
@@ -2293,10 +2327,8 @@ def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
         validade_assinatura=date.today() + timedelta(days=3650),
         token_acesso=secrets.token_urlsafe(24),
         valor_mensalidade=Decimal("0.00"),
-        plan_type="premium",
-        plano="enterprise",
-        delivery_ativo=True,
     )
+    aplicar_plano_no_restaurante(novo, "enterprise")
     db.add(novo)
     db.commit()
     db.refresh(novo)
@@ -2441,8 +2473,18 @@ def garantir_delivery_para_planos_pagantes(db: Session) -> None:
     restaurantes = db.query(Restaurante).all()
     alterado = False
     for restaurante in restaurantes:
-        if obter_plan_type_restaurante(restaurante) in {"standard", "premium"} and not restaurante.delivery_ativo:
-            restaurante.delivery_ativo = True
+        plano_antes = (
+            normalizar_codigo_plano_legacy(getattr(restaurante, "plano", ""), getattr(restaurante, "plan_type", "")),
+            normalizar_plan_type(getattr(restaurante, "plan_type", ""), getattr(restaurante, "plano", "")),
+            bool(restaurante.delivery_ativo),
+        )
+        aplicar_plano_no_restaurante(restaurante, plano_antes[0])
+        plano_depois = (
+            normalizar_codigo_plano_legacy(getattr(restaurante, "plano", ""), getattr(restaurante, "plan_type", "")),
+            normalizar_plan_type(getattr(restaurante, "plan_type", ""), getattr(restaurante, "plano", "")),
+            bool(restaurante.delivery_ativo),
+        )
+        if plano_depois != plano_antes:
             alterado = True
 
     if alterado:
@@ -2802,8 +2844,8 @@ def cadastrar_restaurante(payload: RestauranteCreate, request: Request, db: Sess
         validade_assinatura=payload.validade_assinatura or (date.today() + timedelta(days=30)),
         token_acesso=token or secrets.token_urlsafe(32),
         valor_mensalidade=payload.valor_mensalidade,
-        plano=(payload.plano or "basic").strip() or "basic",
     )
+    aplicar_plano_no_restaurante(restaurante, payload.plano)
     db.add(restaurante)
     db.commit()
     db.refresh(restaurante)
@@ -2851,7 +2893,7 @@ def listar_planos_publicos(db: Session = Depends(get_db)):
             },
         ],
         "features": {
-            "basic": ["Cardápio digital", "Painel admin", "Pedidos (mesa e delivery)", "Pagamentos Mercado Pago"],
+            "basic": ["Cardápio digital", "Painel admin", "Pedidos para mesa", "Pagamentos Mercado Pago"],
             "pro": ["Tudo do Basic", "Módulo de entregadores", "Rastreio em tempo real", "App do entregador (PWA)"],
             "enterprise": ["Tudo do Pro", "Suporte prioritário via WhatsApp do dono", "Atendimento VIP"],
         },
@@ -3104,8 +3146,8 @@ def cadastrar_restaurante_publico(
         token_acesso=secrets.token_urlsafe(32),
         valor_mensalidade=valor_mensalidade,
         delivery_whatsapp_entregador=whatsapp,
-        plano=(payload.plano or "basic").strip() or "basic",
     )
+    aplicar_plano_no_restaurante(restaurante, payload.plano)
     db.add(restaurante)
     db.commit()
     db.refresh(restaurante)
@@ -3369,6 +3411,7 @@ def _criar_conta_a_partir_de_pagamento(
             valor_mensalidade=valor_mensalidade,
             delivery_whatsapp_entregador=whatsapp,
         )
+        aplicar_plano_no_restaurante(restaurante, plano)
         db.add(restaurante)
         db.flush()
 
@@ -3782,7 +3825,7 @@ def atualizar_restaurante_super_admin(
         restaurante.status_assinatura = payload.status_assinatura
 
     if payload.plano is not None:
-        restaurante.plano = payload.plano
+        aplicar_plano_no_restaurante(restaurante, payload.plano)
         # Ajusta valor_mensalidade automaticamente se não fornecido
         if payload.valor_mensalidade is None:
             from sqlalchemy.orm import Session as _Session
@@ -3802,7 +3845,9 @@ def atualizar_restaurante_super_admin(
         "valor_mensalidade": float(restaurante.valor_mensalidade),
         "validade_assinatura": restaurante.validade_assinatura.isoformat() if restaurante.validade_assinatura else None,
         "status_assinatura": restaurante.status_assinatura,
-        "plano": restaurante.plano or "basic",
+        "plano": normalizar_codigo_plano_legacy(getattr(restaurante, "plano", ""), getattr(restaurante, "plan_type", "")),
+        "plan_type": normalizar_plan_type(getattr(restaurante, "plan_type", ""), getattr(restaurante, "plano", "")),
+        "delivery_ativo": bool(restaurante.delivery_ativo),
     }
 
 

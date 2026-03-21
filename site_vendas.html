@@ -1665,6 +1665,7 @@
         const API_URL = window.resolveApiBase
             ? window.resolveApiBase()
             : window.location.origin.replace(/\/$/, '');
+        let API_URL_ATIVO = API_URL;
 
         let planos = [];
 
@@ -1726,7 +1727,7 @@
 
         async function registrarEventoConversao(evento, dados = {}) {
             try {
-                await fetch(`${API_URL}/api/public/analytics-evento`, {
+                await requestPublicComFallback('/api/public/analytics-evento', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1739,8 +1740,70 @@
                         detalhes: dados.detalhes || {},
                     }),
                     keepalive: true,
-                });
+                }, { silencioso: true });
             } catch (_) {}
+        }
+
+        function obterBasesApiPublicas() {
+            const bases = [];
+            const add = (base) => {
+                const norm = String(base || '').trim().replace(/\/$/, '');
+                if (norm && !bases.includes(norm)) bases.push(norm);
+            };
+
+            const hostAtual = String(window.location.hostname || '').toLowerCase();
+            const rodandoNoVercel = hostAtual.endsWith('.vercel.app');
+            const q = new URLSearchParams(window.location.search);
+
+            add(q.get('api') || '');
+            add(localStorage.getItem('api_base_url') || '');
+            add(API_URL_ATIVO);
+            add(API_URL);
+            if (!rodandoNoVercel) {
+                add(window.location.origin || '');
+            }
+            add('https://sistema-restaurante-api.onrender.com');
+
+            const host = window.location.hostname || '127.0.0.1';
+            const local = host === 'localhost' || host === '127.0.0.1';
+            if (local) {
+                add(`${window.location.protocol}//${host}:8012`);
+                add(`${window.location.protocol}//${host}:8000`);
+            }
+
+            return bases;
+        }
+
+        async function requestPublicComFallback(path, options = {}, opts = {}) {
+            const bases = obterBasesApiPublicas();
+            const silencioso = !!opts.silencioso;
+            let ultimoErro = 'Não foi possível conectar à API.';
+
+            for (const base of bases) {
+                try {
+                    const res = await fetch(`${base}${path}`, options);
+                    let data = null;
+                    try { data = await res.json(); } catch (_) { data = null; }
+
+                    if (res.ok) {
+                        API_URL_ATIVO = base;
+                        localStorage.setItem('api_base_url', base);
+                        return { res, data, base };
+                    }
+
+                    if (res.status === 404 || res.status === 405 || res.status === 502 || res.status === 503) {
+                        ultimoErro = `API indisponível em ${base}. Tentando outra...`;
+                        continue;
+                    }
+
+                    ultimoErro = data?.detail || `Erro ${res.status}`;
+                    if (!silencioso) break;
+                } catch (_) {
+                    ultimoErro = `Falha de conexão com API (${base}).`;
+                }
+            }
+
+            throw new Error(ultimoErro);
         }
 
         function fmtValor(v) {
@@ -1817,9 +1880,7 @@
             grid.innerHTML = '<div style="color:#cbd5e1;">Carregando planos...</div>';
 
             try {
-                const res = await fetch(`${API_URL}/api/public/planos`);
-                if (!res.ok) throw new Error('Falha ao carregar planos');
-                const data = await res.json();
+                const { data } = await requestPublicComFallback('/api/public/planos');
                 planos = aplicarPlanosOverrideLocal(data.planos || []);
 
                 if (!planos.length) throw new Error('Nenhum plano disponível no momento');
@@ -2014,8 +2075,11 @@
                 if (v !== null && v !== undefined && String(v).length) url.searchParams.set(k, String(v));
             });
             const apiNormalizada = String(API_URL || '').replace(/\/$/, '');
+            const apiAtivaNormalizada = String(API_URL_ATIVO || API_URL || '').replace(/\/$/, '');
             const origem = String(window.location.origin || '').replace(/\/$/, '');
-            if (apiNormalizada && apiNormalizada !== origem) {
+            if (apiAtivaNormalizada && apiAtivaNormalizada !== origem) {
+                url.searchParams.set('api', apiAtivaNormalizada);
+            } else if (apiNormalizada && apiNormalizada !== origem) {
                 url.searchParams.set('api', apiNormalizada);
             }
             return url.toString();
@@ -2098,12 +2162,11 @@
             };
 
             try {
-                const res = await fetch(`${API_URL}/api/public/criar-preferencia-pagamento`, {
+                const { res, data } = await requestPublicComFallback('/api/public/criar-preferencia-pagamento', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Falha ao iniciar pagamento');
 
                 // Fecha modal de cadastro e abre checkout Bricks embutido
@@ -2219,12 +2282,11 @@
                     onSubmit: ({ formData }) => {
                         return new Promise(async (resolve, reject) => {
                             try {
-                                const res = await fetch(`${API_URL}/api/public/processar-pagamento`, {
+                                const { res, data } = await requestPublicComFallback('/api/public/processar-pagamento', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ ...formData, pending_id }),
                                 });
-                                const data = await res.json();
                                 if (!res.ok) throw new Error(data.detail || 'Erro ao processar pagamento');
 
                                 if (data.status === 'approved' || data._conta) {
@@ -2273,8 +2335,7 @@
                 attempts++;
                 if (attempts > 90) { clearInterval(id); return; }
                 try {
-                    const r = await fetch(`${API_URL}/api/public/status-pagamento/${pending_id}`);
-                    const d = await r.json();
+                    const { data: d } = await requestPublicComFallback(`/api/public/status-pagamento/${pending_id}`, {}, { silencioso: true });
                     if (d.status === 'aprovado') {
                         clearInterval(id);
                         mostrarSucessoPagamento({ admin_url: d.admin_url, cardapio_url: d.cardapio_url });
@@ -2327,8 +2388,7 @@
             const poll = async () => {
                 tentativas++;
                 try {
-                    const res = await fetch(`${API_URL}/api/public/status-pagamento/${pendingId}`);
-                    const data = await res.json();
+                    const { data } = await requestPublicComFallback(`/api/public/status-pagamento/${pendingId}`, {}, { silencioso: true });
 
                     if (data.status === 'aprovado' && data.admin_url) {
                         persistirVinculoRestaurante({ admin_url: data.admin_url, cardapio_url: data.cardapio_url });
