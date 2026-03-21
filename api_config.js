@@ -1,7 +1,10 @@
 (function () {
+    const RENDER_PRIMARY_API_URL = 'https://sistema-restaurante-api.onrender.com';
+    const host = String(window.location.hostname || '').toLowerCase();
+    const runningOnVercel = host.endsWith('.vercel.app');
     const DEFAULT_API_URL = String(
         window.__APP_API_URL__
-        || window.location.origin
+        || (runningOnVercel ? RENDER_PRIMARY_API_URL : window.location.origin)
     ).trim();
     const CENTRAL_GOOGLE_MAPS_API_KEY = 'AIzaSyAzgtn7z086Idrvw6R_-zHI8vwOkkSTN4A';
 
