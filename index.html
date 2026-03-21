@@ -915,7 +915,6 @@
         async function carregarProdutos() {
             mostrarSkeletons();
             const produtosLocais = lerJsonLocalStorage(`produtos_${app.slug}`, []);
-            const cacheProdutosTs = Number(localStorage.getItem(`produtos_cache_ts_${app.slug}`) || '0');
             const configLocal = lerJsonLocalStorage(`restaurante_config_${app.slug}`, {});
 
             try {
@@ -926,12 +925,7 @@
                     app.horariosCategoria = data.horarios_categoria || {};
                     app.categorias = data.categorias || [];
                     const produtosApi = Array.isArray(data.produtos) ? data.produtos : [];
-                    const cacheRecente = cacheProdutosTs > 0 && (Date.now() - cacheProdutosTs) <= (15 * 60 * 1000);
-                    const usarCacheProdutos = Array.isArray(produtosLocais)
-                        && produtosLocais.length > 0
-                        && (produtosApi.length === 0 || (cacheRecente && produtosLocais.length > produtosApi.length));
-
-                    app.produtos = usarCacheProdutos ? produtosLocais : produtosApi;
+                    app.produtos = produtosApi;
                     localStorage.setItem('ultimo_slug_publico', app.slug);
                     localStorage.setItem('ultimo_slug_admin', app.slug);
                     localStorage.setItem(STORAGE_ACTIVE_RESTAURANTE_LINK, JSON.stringify({
