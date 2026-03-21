@@ -1766,18 +1766,16 @@
                 if (!bases.includes(normalizada)) bases.push(normalizada);
             };
             add(API_URL);
+            add(localStorage.getItem('api_base_url') || '');
             const origem = (window.location.origin || '').replace(/\/$/, '');
+            add(origem);
+            add('https://sistema-restaurante-api.onrender.com');
 
             const host = window.location.hostname || '127.0.0.1';
             const protocolo = window.location.protocol || 'http:';
             const origemSemPorta = origem.replace(/:\d+$/, '');
 
             const ambienteLocal = host === 'localhost' || host === '127.0.0.1';
-            if (!ambienteLocal) {
-                return bases;
-            }
-
-            add(origem);
             if (ambienteLocal) {
                 add(`${origemSemPorta}:8080`);
                 add(`${origemSemPorta}:8012`);
@@ -1852,6 +1850,51 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
+
+                    if (res.status === 404 || res.status === 405) {
+                        ultimaResposta = res;
+                        continue;
+                    }
+
+                    aplicarApiBase(base);
+                    return res;
+                } catch (erro) {
+                    ultimoErro = erro;
+                }
+            }
+
+            if (ultimaResposta) return ultimaResposta;
+            throw (ultimoErro || new Error('Não foi possível conectar à API do painel.'));
+        }
+
+        async function requisicaoAdminComFallback(metodo, caminho, payload = null, extraHeaders = {}) {
+            const bases = obterBasesApiAdmin();
+            let ultimaResposta = null;
+            let ultimoErro = null;
+
+            for (const base of bases) {
+                try {
+                    const healthRes = await fetch(`${base}/health`, { method: 'GET' });
+                    if (!healthRes.ok) continue;
+
+                    const healthData = await healthRes.json().catch(() => ({}));
+                    if (!healthData || healthData.ok !== true) continue;
+
+                    const headers = {
+                        'Content-Type': 'application/json',
+                        ...(extraHeaders || {})
+                    };
+
+                    const reqInit = {
+                        method: metodo,
+                        headers
+                    };
+
+                    if (payload !== null && payload !== undefined) {
+                        reqInit.body = JSON.stringify(payload);
+                    }
+
+                    const res = await fetch(`${base}${caminho}`, reqInit);
 
                     if (res.status === 404 || res.status === 405) {
                         ultimaResposta = res;
@@ -3359,13 +3402,10 @@
             try {
                 let res;
                 if (contexto.editandoProduto !== null) {
-                    res = await fetch(`${API_URL}/api/admin/cardapio/${contexto.slug}/${contexto.editandoProduto}`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'token-acesso': contexto.token
-                        },
-                        body: JSON.stringify({
+                    res = await requisicaoAdminComFallback(
+                        'PATCH',
+                        `/api/admin/cardapio/${contexto.slug}/${contexto.editandoProduto}`,
+                        {
                             nome,
                             preco,
                             categoria,
@@ -3375,14 +3415,11 @@
                             disponivel,
                             horario_inicio: horarioInicio,
                             horario_fim: horarioFim
-                        })
-                    });
+                        },
+                        { 'token-acesso': contexto.token }
+                    );
                 } else {
-                    res = await fetch(`${API_URL}/api/admin/cardapio`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
+                    res = await requisicaoAdminComFallback('POST', '/api/admin/cardapio', payload);
                 }
 
                 if (res.ok) {
