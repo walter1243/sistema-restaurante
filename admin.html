@@ -1119,6 +1119,17 @@
                         </label>
                         <small style="color:#64748b;font-size:0.75rem;">Habilita pedidos por entrega no cardápio do cliente.</small>
                     </div>
+                    <!-- Suporte WhatsApp Enterprise (somente plano enterprise) -->
+                    <div id="delivery-wpp-enterprise" class="form-group" style="display:none;">
+                        <div style="display:flex;align-items:center;gap:0.6rem;">
+                            <button type="button" onclick="abrirSuporteEnterprise()" style="display:inline-flex;align-items:center;gap:0.5rem;background:#25d366;color:#fff;padding:0.45rem 1.1rem;border-radius:0.6rem;font-weight:600;font-size:0.88rem;border:none;cursor:pointer;">
+                                <i class="fab fa-whatsapp" style="font-size:1.1rem;"></i>
+                                <span>Suporte WhatsApp</span>
+                            </button>
+                            <span class="form-label" style="margin:0;">Falar com o Suporte</span>
+                        </div>
+                        <small style="color:#64748b;font-size:0.75rem;">Contato direto via WhatsApp — exclusivo plano Enterprise.</small>
+                    </div>
                     <div class="form-group">
                         <label class="form-label">Endereço de saída (restaurante)</label>
                         <input type="text" class="form-input" id="config-delivery-origem" placeholder="Rua Exemplo, 123 - Centro, Cidade/UF">
@@ -2646,6 +2657,8 @@
             if (botaoEnterprise) {
                 botaoEnterprise.hidden = plano !== 'enterprise';
             }
+            const wppEnterpriseDelivery = document.getElementById('delivery-wpp-enterprise');
+            if (wppEnterpriseDelivery) wppEnterpriseDelivery.style.display = plano === 'enterprise' ? '' : 'none';
 
             if (!permitePedidosDelivery && (
                 document.getElementById('pedidos')?.classList.contains('active')
