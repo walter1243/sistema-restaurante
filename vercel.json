@@ -1,26 +1,32 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "main.py",
       "use": "@vercel/python"
     },
     {
-      "src": "*.html",
+      "src": "**.html",
       "use": "@vercel/static"
     },
     {
-      "src": "*.js",
+      "src": "**.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "**.css",
       "use": "@vercel/static"
     }
   ],
   "routes": [
-    { "src": "/api_config.js", "dest": "api_config.js" },
-    { "src": "/admin", "dest": "admin.html" },
-    { "src": "/entregador", "dest": "entregador.html" },
-    { "src": "/super-admin", "dest": "super_admin.html" },
-    { "src": "/site-vendas", "dest": "site_vendas.html" },
-    { "src": "/rastreio-entrega", "dest": "rastreio_entrega.html" },
+    { "src": "/api_config.js", "dest": "/api_config.js" },
     { "src": "/api/(.*)", "dest": "main.py" },
+    { "src": "/admin", "dest": "/admin.html" },
+    { "src": "/entregador", "dest": "/entregador.html" },
+    { "src": "/super-admin", "dest": "/super_admin.html" },
+    { "src": "/site-vendas", "dest": "/site_vendas.html" },
+    { "src": "/rastreio-entrega", "dest": "/rastreio_entrega.html" },
+    { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
 }
