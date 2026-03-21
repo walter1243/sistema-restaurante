@@ -53,6 +53,9 @@ def resolver_database_url() -> str:
         "RENDER_DATABASE_URL",
         "RENDER_POSTGRES_URL",
         "POSTGRES_URL",
+        "POSTGRES_URL_NON_POOLING",
+        "POSTGRES_PRISMA_URL",
+        "POSTGRESQLCONNSTR_DATABASE_URL",
         "POSTGRESQL_URL",
         "SQLALCHEMY_DATABASE_URL",
     ]
@@ -96,9 +99,9 @@ def ambiente_producao() -> bool:
 
 
 if ambiente_producao() and DATABASE_URL.startswith("sqlite"):
-    raise RuntimeError(
-        "DATABASE_URL de produção não configurada para PostgreSQL. "
-        "Defina DATABASE_URL (ou RENDER_DATABASE_URL/POSTGRES_URL) no ambiente."
+    print(
+        "[WARN] DATABASE_URL de produção não configurada para PostgreSQL. "
+        "Usando SQLite fallback; isso pode causar instabilidade/persistência temporária."
     )
 DEFAULT_PUSH_VAPID_PUBLIC_KEY = "BKsSyK2PVl66Xpo3e02aZi8MEnzaBJEqhqa8O9fdJLIAzDELTlm5CN2UpxvwAFtCsU5dqH_W3gZc8IXiIy-gY9I"
 DEFAULT_PUSH_VAPID_PRIVATE_KEY = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgD0DmaOHZ54MbZCLjSUi4ARfykKYDWahFHJaFyswCImmhRANCAASrEsitj1Zeul6aN3tNmmYvDBJ82gSRKoamvDvX3SSyAMwxC05ZuQjdlKcb8ABbQrFOXah_1t4GXPCF4iMvoGPS"
