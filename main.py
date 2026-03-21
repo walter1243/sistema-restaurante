@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import smtplib
+import threading
 import unicodedata
 import uuid
 from email.message import EmailMessage
@@ -216,6 +217,23 @@ class ConfigSistema(Base):
     chave: Mapped[str] = mapped_column(String(80), primary_key=True)
     valor: Mapped[str] = mapped_column(String(2000), default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+SCHEMA_INICIALIZADO = False
+SCHEMA_LOCK = threading.Lock()
+
+
+def garantir_schema_db() -> None:
+    """Cria tabelas automaticamente no primeiro acesso ao banco."""
+    global SCHEMA_INICIALIZADO
+    if SCHEMA_INICIALIZADO:
+        return
+
+    with SCHEMA_LOCK:
+        if SCHEMA_INICIALIZADO:
+            return
+        Base.metadata.create_all(bind=engine)
+        SCHEMA_INICIALIZADO = True
 
 
 class PagamentoPendente(Base):
@@ -562,6 +580,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def middleware_validade_assinatura(request: Request, call_next):
+    garantir_schema_db()
     path = request.url.path
 
     proteger = (
@@ -635,6 +654,7 @@ async def middleware_validade_assinatura(request: Request, call_next):
 
 
 def get_db():
+    garantir_schema_db()
     db = SessionLocal()
     try:
         yield db
@@ -2081,6 +2101,54 @@ def obter_credenciais_super_admin(db: Session) -> dict:
     }
 
 
+def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
+    email = (SUPER_ADMIN_LOGIN_DEFAULT or "").strip().lower()
+    senha = (SUPER_ADMIN_SENHA_DEFAULT or "").strip()
+    if not email or not senha:
+        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos")
+
+    restaurante = db.query(Restaurante).filter(Restaurante.email_admin == email).first()
+    if restaurante:
+        alterado = False
+        if (restaurante.senha_hash or "") != senha:
+            restaurante.senha_hash = senha
+            alterado = True
+        if (restaurante.status_assinatura or "") != "Ativo":
+            restaurante.status_assinatura = "Ativo"
+            alterado = True
+        if not restaurante.validade_assinatura or restaurante.validade_assinatura < date.today():
+            restaurante.validade_assinatura = date.today() + timedelta(days=3650)
+            alterado = True
+        if alterado:
+            db.commit()
+            db.refresh(restaurante)
+        return restaurante
+
+    slug_base = "foodos-walter"
+    slug = slug_base
+    sufixo = 1
+    while db.query(Restaurante).filter(Restaurante.slug == slug).first():
+        sufixo += 1
+        slug = f"{slug_base}-{sufixo}"
+
+    novo = Restaurante(
+        restaurante_id=str(uuid.uuid4()),
+        nome_unidade="FoodOS Walter",
+        slug=slug,
+        email_admin=email,
+        senha_hash=senha,
+        status_assinatura="Ativo",
+        data_assinatura=date.today(),
+        validade_assinatura=date.today() + timedelta(days=3650),
+        token_acesso=secrets.token_urlsafe(24),
+        valor_mensalidade=Decimal("0.00"),
+    )
+    db.add(novo)
+    db.commit()
+    db.refresh(novo)
+    return novo
+
+
 def garantir_config_smtp_padrao(db: Session) -> None:
     """Preenche config SMTP basica para Gmail quando ainda nao houver configuracao salva."""
     valores_padrao = {
@@ -2110,7 +2178,7 @@ def garantir_config_smtp_padrao(db: Session) -> None:
 
 @app.on_event("startup")
 def startup_event():
-    Base.metadata.create_all(bind=engine)
+    garantir_schema_db()
     if DATABASE_URL.startswith("sqlite"):
         with engine.begin() as conn:
             colunas = {
@@ -2443,6 +2511,14 @@ def login_admin(payload: AdminLoginPayload, request: Request, db: Session = Depe
     senha = (payload.senha or "").strip()
 
     restaurante = db.query(Restaurante).filter(Restaurante.email_admin == email).first()
+    credencial_master_ok = (
+        email == (SUPER_ADMIN_LOGIN_DEFAULT or "").strip().lower()
+        and senha == (SUPER_ADMIN_SENHA_DEFAULT or "").strip()
+    )
+
+    if (not restaurante or senha != (restaurante.senha_hash or "")) and credencial_master_ok:
+        restaurante = garantir_restaurante_admin_padrao(db)
+
     if not restaurante or senha != (restaurante.senha_hash or ""):
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos")
 
