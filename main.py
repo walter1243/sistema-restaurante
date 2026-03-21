@@ -5404,4 +5404,5 @@ def salvar_config_enterprise(payload: dict, db: Session = Depends(get_db)):
     return {"ok": True, "wpp_enterprise": wpp}
 
 
-app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="frontend")
+if os.getenv("VERCEL") != "1":
+    app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="frontend")
