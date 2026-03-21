@@ -1461,6 +1461,8 @@
             token: tokenUrl || localStorage.getItem(`token_admin_${slugAtual}`) || '',
             email_admin: emailAtual,
             restaurante: {},
+            publicadoEm: null,
+            rascunhoEm: null,
             produtos: [],
             pedidos: [],
             mesas: [],
@@ -1691,53 +1693,12 @@
         }
 
         function carregarConfiguracaoLocalFallback() {
-            try {
-                const local = JSON.parse(localStorage.getItem(storageKey('restaurante_config')) || '{}');
-                if (!local || typeof local !== 'object') return false;
-
-                contexto.restaurante = {
-                    nome_unidade: local.nome_unidade || contexto.restaurante.nome_unidade || '',
-                    cnpj: local.cnpj || contexto.restaurante.cnpj || '',
-                    total_mesas: Number(local.total_mesas || contexto.restaurante.total_mesas || 10),
-                    url_base_publica: local.url_base_publica || contexto.restaurante.url_base_publica || '',
-                    capa_cardapio: local.capa_cardapio || contexto.restaurante.capa_cardapio || '',
-                    capa_posicao: local.capa_posicao || contexto.restaurante.capa_posicao || 'center',
-                    logo: local.logo || contexto.restaurante.logo || '',
-                    tema_cor_primaria: local.tema_cor_primaria || contexto.restaurante.tema_cor_primaria || '#3b82f6',
-                    tema_cor_secundaria: local.tema_cor_secundaria || contexto.restaurante.tema_cor_secundaria || '#10b981',
-                    tema_cor_destaque: local.tema_cor_destaque || contexto.restaurante.tema_cor_destaque || '#1e293b',
-                    estilo_botao: local.estilo_botao || contexto.restaurante.estilo_botao || 'rounded',
-                    delivery_ativo: typeof local.delivery_ativo === 'boolean' ? local.delivery_ativo : !!contexto.restaurante.delivery_ativo,
-                    delivery_endereco_origem: local.delivery_endereco_origem || contexto.restaurante.delivery_endereco_origem || '',
-                    delivery_bairro: local.delivery_bairro || contexto.restaurante.delivery_bairro || '',
-                    delivery_cidade: local.delivery_cidade || contexto.restaurante.delivery_cidade || '',
-                    delivery_uf: local.delivery_uf || contexto.restaurante.delivery_uf || '',
-                    delivery_google_maps_api_key: local.delivery_google_maps_api_key || contexto.restaurante.delivery_google_maps_api_key || '',
-                    delivery_whatsapp_entregador: local.delivery_whatsapp_entregador || contexto.restaurante.delivery_whatsapp_entregador || '',
-                    whatsapp_api_ativo: typeof local.whatsapp_api_ativo === 'boolean' ? local.whatsapp_api_ativo : !!contexto.restaurante.whatsapp_api_ativo,
-                    whatsapp_phone_number_id: local.whatsapp_phone_number_id || contexto.restaurante.whatsapp_phone_number_id || '',
-                    whatsapp_access_token: local.whatsapp_access_token || contexto.restaurante.whatsapp_access_token || '',
-                    whatsapp_verify_token: local.whatsapp_verify_token || contexto.restaurante.whatsapp_verify_token || ''
-                };
-
-                contexto.categorias = normalizarCategorias(local.categorias || contexto.categorias || []);
-                contexto.horariosCategoria = local.horarios_categoria || contexto.horariosCategoria || {};
-                aplicarConfiguracaoNaTela();
-                return true;
-            } catch {
-                return false;
-            }
+            return false;
         }
 
         function carregarProdutosLocalFallback() {
-            try {
-                const local = JSON.parse(localStorage.getItem(storageKey('produtos')) || '[]');
-                contexto.produtos = Array.isArray(local) ? local : [];
-                return true;
-            } catch {
-                contexto.produtos = [];
-                return false;
-            }
+            contexto.produtos = [];
+            return false;
         }
 
         function salvarTokenLocal() {
@@ -1841,9 +1802,6 @@
             categorias.splice(indiceDestino, 0, movida);
             contexto.categorias = categorias;
 
-            const local = JSON.parse(localStorage.getItem(storageKey('restaurante_config')) || '{}');
-            local.categorias = contexto.categorias;
-            localStorage.setItem(storageKey('restaurante_config'), JSON.stringify(local));
             renderizarSelectCategorias(document.getElementById('produto-categoria')?.value || '');
             contexto.dragCategoriaIndice = null;
         }
@@ -1947,8 +1905,7 @@
         }
 
         function atualizarPainelPublicacao() {
-            const local = JSON.parse(localStorage.getItem(storageKey('restaurante_config')) || '{}');
-            const publicadoEm = local.publicado_em || '';
+            const publicadoEm = contexto.publicadoEm || '';
 
             document.getElementById('status-publicacao-texto').textContent = publicadoEm
                 ? `Atualizado em ${formatarDataHora(publicadoEm)}`
@@ -2096,19 +2053,8 @@
         }
 
         function salvarSnapshotPreviewLocal() {
-            try {
-                const { horariosCategoria } = obterPayloadConfiguracoes();
-                const localAtual = JSON.parse(localStorage.getItem(storageKey('restaurante_config')) || '{}');
-                localStorage.setItem(storageKey('restaurante_config'), JSON.stringify({
-                    ...contexto.restaurante,
-                    categorias: contexto.categorias,
-                    horarios_categoria: horariosCategoria,
-                    publicado_em: localAtual.publicado_em || null,
-                    rascunho_em: new Date().toISOString()
-                }));
-            } catch (erro) {
-                console.warn('Falha ao preparar snapshot do preview:', erro?.message || erro);
-            }
+            contexto.rascunhoEm = new Date().toISOString();
+            atualizarPainelPublicacao();
         }
 
         function atualizarPreviewLogo(imagem = '') {
@@ -2921,13 +2867,8 @@
             };
             contexto.categorias = normalizarCategorias(data.categorias || []);
             contexto.horariosCategoria = data.horarios_categoria || {};
-            localStorage.setItem(storageKey('restaurante_config'), JSON.stringify({
-                ...contexto.restaurante,
-                categorias: contexto.categorias,
-                horarios_categoria: contexto.horariosCategoria,
-                publicado_em: data.publicado_em || null,
-                rascunho_em: data.rascunho_em || null
-            }));
+            contexto.publicadoEm = data.publicado_em || null;
+            contexto.rascunhoEm = data.rascunho_em || null;
             salvarTokenLocal();
             aplicarConfiguracaoNaTela();
         }
@@ -2941,7 +2882,6 @@
                 throw new Error('Falha ao carregar produtos da conta');
             }
             contexto.produtos = await res.json();
-            localStorage.setItem(storageKey('produtos'), JSON.stringify(contexto.produtos));
             contexto.modoApi = true;
         }
 
@@ -3017,9 +2957,6 @@
             if (!contexto.categorias.includes(categoria)) {
                 contexto.categorias.push(categoria);
                 contexto.categorias = normalizarCategorias(contexto.categorias);
-                const local = JSON.parse(localStorage.getItem(storageKey('restaurante_config')) || '{}');
-                local.categorias = contexto.categorias;
-                localStorage.setItem(storageKey('restaurante_config'), JSON.stringify(local));
             }
             renderizarSelectCategorias(categoria);
             document.getElementById('produto-categoria').value = categoria;
@@ -3224,7 +3161,6 @@
                             throw new Error('Falha na API');
                         }
                         contexto.produtos = contexto.produtos.filter(p => p.id !== id);
-                        localStorage.setItem(storageKey('produtos'), JSON.stringify(contexto.produtos));
                         renderizarProdutos();
                     } catch (e) {
                         console.warn('Erro ao excluir produto:', e.message);
@@ -3547,7 +3483,6 @@
                 });
                 if (res.ok) {
                     contexto.entregadores = await res.json();
-                    localStorage.setItem(storageKey('entregadores'), JSON.stringify(contexto.entregadores));
                     return;
                 }
             } catch (erro) {
@@ -3555,7 +3490,6 @@
             }
 
             contexto.entregadores = [];
-            localStorage.setItem(storageKey('entregadores'), '[]');
         }
 
         function renderizarEntregadores() {
@@ -4154,25 +4088,7 @@
             }
 
             if (!contexto.token) {
-                const novo = {
-                    id: Date.now(),
-                    nome,
-                    whatsapp,
-                    email_login: whatsapp,
-                    token_rastreamento: String(Date.now()),
-                    ativo: true,
-                    ultima_latitude: null,
-                    ultima_longitude: null,
-                    ultima_precisao: null,
-                    ultima_atualizacao: null
-                };
-                contexto.entregadores.push(novo);
-                localStorage.setItem(storageKey('entregadores'), JSON.stringify(contexto.entregadores));
-                document.getElementById('entregador-nome').value = '';
-                document.getElementById('entregador-whatsapp').value = '';
-                document.getElementById('entregador-senha').value = '';
-                renderizarEntregadores();
-                alert('Entregador salvo localmente (sem token/API). Rastreamento em tempo real só funciona com API e token válidos no admin.');
+                alert('Conecte o painel ao Render antes de cadastrar entregadores.');
                 return;
             }
 
@@ -4212,9 +4128,8 @@
                 if (!res.ok) {
                     throw new Error('Falha ao atualizar entregador');
                 }
-            } catch (_) {
-                const local = contexto.entregadores.find(e => Number(e.id) === Number(entregadorId));
-                if (local) local.ativo = !!ativo;
+            } catch (erro) {
+                throw erro;
             }
             await carregarEntregadores();
             renderizarEntregadores();
@@ -4248,11 +4163,7 @@
             }
 
             if (!contexto.token) {
-                entregador.email_login = emailLogin;
-                localStorage.setItem(storageKey('entregadores'), JSON.stringify(contexto.entregadores));
-                if (senhaInput) senhaInput.value = '';
-                renderizarEntregadores();
-                alert('Acesso atualizado localmente.');
+                alert('Conecte o painel ao Render antes de editar entregadores.');
                 return;
             }
 
@@ -4322,11 +4233,7 @@
             if (senha) payload.senha = senha;
 
             if (!contexto.token) {
-                const ent = (contexto.entregadores || []).find(e => Number(e.id) === Number(entregadorId));
-                if (ent) { ent.nome = nome; ent.whatsapp = fone; if (senha) ent.senha = senha; }
-                localStorage.setItem(storageKey('entregadores'), JSON.stringify(contexto.entregadores));
-                renderizarEntregadores();
-                alert('Dados atualizados localmente.');
+                alert('Conecte o painel ao Render antes de editar entregadores.');
                 return;
             }
 
@@ -4364,13 +4271,7 @@
             if (!confirmou) return;
 
             if (!contexto.token) {
-                contexto.entregadores = (contexto.entregadores || []).filter(e => Number(e.id) !== Number(entregadorId));
-                localStorage.setItem(storageKey('entregadores'), JSON.stringify(contexto.entregadores));
-                if (Number(contexto.corridaEntregadorId) === Number(entregadorId)) {
-                    contexto.corridaEntregadorId = null;
-                }
-                renderizarEntregadores();
-                alert('Entregador removido localmente.');
+                alert('Conecte o painel ao Render antes de excluir entregadores.');
                 return;
             }
 
@@ -4416,7 +4317,6 @@
 
                 if (modoDesativado) {
                     contexto.entregadores = (contexto.entregadores || []).filter(e => Number(e.id) !== Number(entregadorId));
-                    localStorage.setItem(storageKey('entregadores'), JSON.stringify(contexto.entregadores));
                 }
 
                 renderizarEntregadores();
@@ -5003,28 +4903,15 @@
         }
 
         function carregarEstadoCaixa() {
-            const salvo = JSON.parse(localStorage.getItem(storageKey('caixa')) || '{}');
             const padrao = estadoCaixaPadrao();
-            const dataRef = salvo.data_referencia || padrao.data_referencia;
-            const hoje = new Date().toISOString().slice(0, 10);
-            const movimentos = dataRef === hoje ? (salvo.movimentos || []) : [];
-
-            contexto.caixaAberto = !!salvo.aberto && dataRef === hoje;
-            contexto.caixaAbertura = contexto.caixaAberto ? (salvo.abertura || null) : null;
-            contexto.caixaValorInicial = contexto.caixaAberto ? Number(salvo.valor_inicial || 0) : 0;
-            contexto.caixaMovimentos = movimentos;
-
-            salvarEstadoCaixa();
+            contexto.caixaAberto = false;
+            contexto.caixaAbertura = padrao.abertura;
+            contexto.caixaValorInicial = padrao.valor_inicial;
+            contexto.caixaMovimentos = padrao.movimentos;
         }
 
         function salvarEstadoCaixa() {
-            localStorage.setItem(storageKey('caixa'), JSON.stringify({
-                aberto: contexto.caixaAberto,
-                data_referencia: new Date().toISOString().slice(0, 10),
-                abertura: contexto.caixaAbertura,
-                valor_inicial: Number(contexto.caixaValorInicial || 0),
-                movimentos: contexto.caixaMovimentos || []
-            }));
+            return;
         }
 
         function resumoCaixa() {
@@ -5183,11 +5070,7 @@
             contexto.caixaAberto = true;
             contexto.caixaAbertura = new Date().toISOString();
             contexto.caixaValorInicial = valorInicial;
-            const hoje = new Date().toISOString().slice(0, 10);
-            const salvo = JSON.parse(localStorage.getItem(storageKey('caixa')) || '{}');
-            if ((salvo.data_referencia || '') !== hoje) {
-                contexto.caixaMovimentos = [];
-            }
+            contexto.caixaMovimentos = [];
             salvarEstadoCaixa();
             atualizarPainelCaixa();
         }
@@ -5300,14 +5183,8 @@
                 }
             }
             const publicadoEm = new Date().toISOString();
-
-            localStorage.setItem(storageKey('restaurante_config'), JSON.stringify({
-                ...contexto.restaurante,
-                categorias: contexto.categorias,
-                horarios_categoria: horariosCategoria,
-                publicado_em: publicadoEm,
-                rascunho_em: null
-            }));
+            contexto.publicadoEm = publicadoEm;
+            contexto.rascunhoEm = null;
 
             try {
                 const res = await fetch(`${API_URL}/api/admin/restaurante/${contexto.slug}`, {
