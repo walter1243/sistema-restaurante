@@ -1931,33 +1931,22 @@ async function solicitarCodigoCadastroEntregador() {
             throw new Error(ultimoErro);
         }
 
-        const codigo = String(data?.codigo_copia || '').replace(/\D/g, '').slice(0, 5);
-        app.ultimoCodigoCadastro = codigo;
+        const codigo = '';
+        app.ultimoCodigoCadastro = '';
         app.ultimaMensagemCodigo = String(data?.mensagem_codigo || '').trim();
         const mensagemPopupEl = document.getElementById('codigo-popup-mensagem');
         if (mensagemPopupEl) mensagemPopupEl.value = app.ultimaMensagemCodigo;
 
-        if (codigo && inputCodigo) {
-            aplicarCodigoNoCadastro(codigo, false);
-            try {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    await navigator.clipboard.writeText(codigo);
-                }
-            } catch (_) {}
-        }
+        if (inputCodigo) inputCodigo.value = '';
+        preencherPopupCodigo('');
 
         if (data?.codigo_enviado_whatsapp) {
-            setContaFeedback('Código enviado por WhatsApp. Cole no campo para concluir o cadastro.', false);
+            setContaFeedback('Código enviado por WhatsApp. Digite os 5 números recebidos para concluir o cadastro.', false);
+            abrirPopupCodigo('');
         } else {
             const motivo = String(data?.whatsapp_envio?.erro || data?.whatsapp_envio?.motivo || '').trim();
-            if (motivo) {
-                setContaFeedback(`Código gerado. WhatsApp não enviou (${motivo}). Copie e cole o código para concluir.`, false);
-            } else {
-                setContaFeedback('Código gerado. Copie e cole no campo de verificação para concluir o cadastro.', false);
-            }
+            throw new Error(motivo ? `WhatsApp não enviou o código: ${motivo}` : 'WhatsApp não enviou o código.');
         }
-
-        abrirPopupCodigo(codigo);
     } catch (erro) {
         setContaFeedback(erro.message || 'Falha ao solicitar código.', true);
     } finally {

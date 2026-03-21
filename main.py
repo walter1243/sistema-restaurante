@@ -5230,6 +5230,20 @@ def solicitar_codigo_entregador_publico(
     if not assinatura_ativa(restaurante):
         raise HTTPException(status_code=403, detail="Restaurante com assinatura inativa")
 
+    if not restaurante.whatsapp_api_ativo:
+        raise HTTPException(
+            status_code=400,
+            detail="Envio por WhatsApp está desativado para este restaurante. Ative no painel Admin antes de solicitar código.",
+        )
+
+    phone_number_id = (restaurante.whatsapp_phone_number_id or "").strip()
+    access_token = (restaurante.whatsapp_access_token or "").strip()
+    if not phone_number_id or not access_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Configuração do WhatsApp incompleta no Admin (phone number id/token).",
+        )
+
     existe = db.query(Entregador).filter(
         Entregador.restaurante_id == restaurante.restaurante_id,
         (Entregador.whatsapp == telefone) | (Entregador.email_login == telefone),
@@ -5239,6 +5253,22 @@ def solicitar_codigo_entregador_publico(
 
     codigo = _gerar_codigo_entregador()
     expira_em = datetime.utcnow() + timedelta(minutes=8)
+
+    mensagem = (
+        f"Código de cadastro do entregador: {codigo}. "
+        f"Validade: 8 minutos."
+    )
+    telefone_whatsapp = normalizar_telefone_whatsapp(telefone)
+    envio = enviar_whatsapp_cloud_message(
+        phone_number_id=phone_number_id,
+        access_token=access_token,
+        telefone_destino=telefone_whatsapp,
+        mensagem=mensagem,
+    )
+    if not envio.get("ok"):
+        motivo = str(envio.get("erro") or envio.get("motivo") or "Falha no envio via WhatsApp").strip()
+        raise HTTPException(status_code=503, detail=f"Não foi possível enviar o código por WhatsApp: {motivo}")
+
     chave = _chave_codigo_entregador(restaurante.restaurante_id, telefone)
     ENTREGADOR_CODIGOS_CACHE[chave] = {
         "codigo": codigo,
@@ -5247,29 +5277,14 @@ def solicitar_codigo_entregador_publico(
         "telefone": telefone,
     }
 
-    mensagem = (
-        f"Código de cadastro do entregador: {codigo}. "
-        f"Validade: 8 minutos."
-    )
-    telefone_whatsapp = normalizar_telefone_whatsapp(telefone)
-    envio = {"ok": False, "motivo": "whatsapp_desativado"}
-    if restaurante.whatsapp_api_ativo:
-        envio = enviar_whatsapp_cloud_message(
-            phone_number_id=(restaurante.whatsapp_phone_number_id or "").strip(),
-            access_token=(restaurante.whatsapp_access_token or "").strip(),
-            telefone_destino=telefone_whatsapp,
-            mensagem=mensagem,
-        )
-
     return {
         "ok": True,
         "slug": restaurante.slug,
         "restaurante_nome": restaurante.nome_unidade,
         "telefone": telefone,
-        "codigo_enviado_whatsapp": bool(envio.get("ok")),
+        "codigo_enviado_whatsapp": True,
         "whatsapp_envio": envio,
-        "mensagem_codigo": mensagem,
-        "codigo_copia": codigo,
+        "mensagem_codigo": "Código enviado para o WhatsApp do entregador. Digite os 5 números recebidos para confirmar.",
         "expira_em": expira_em.isoformat(),
     }
 
