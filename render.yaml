@@ -1,3 +1,9 @@
+databases:
+  - name: foodos-postgres
+    plan: free
+    databaseName: foodos
+    user: foodos
+
 services:
   - type: web
     name: sistema-restaurante-api
@@ -11,7 +17,9 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: foodos-postgres
+          property: connectionString
       - key: MP_ACCESS_TOKEN
         sync: false
       - key: MP_PUBLIC_KEY
