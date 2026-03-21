@@ -873,6 +873,10 @@
                     </button>
                 </div>
             </div>
+            <div style="display:flex;align-items:center;gap:0.45rem;margin-top:0.2rem;margin-bottom:0.1rem;">
+                <input id="auth-remember" type="checkbox" style="width:16px;height:16px;accent-color:#2563eb;">
+                <label for="auth-remember" style="font-size:0.84rem;color:#334155;cursor:pointer;">Deixe-me conectado neste dispositivo</label>
+            </div>
             <div class="auth-helper-row">
                 <button type="button" class="auth-link-btn" onclick="solicitarResetSenhaAdmin()">Esqueci minha senha</button>
             </div>
@@ -1529,6 +1533,54 @@
         let resetTokenUrl = (queryParams.get('reset') || '').trim();
         const STORAGE_AUTH_EMAIL_MAP = 'admin_auth_email_map';
         const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
+        const STORAGE_ADMIN_REMEMBER = 'admin_remember_credentials_v1';
+
+        function lerCredenciaisLembradas() {
+            try {
+                const bruto = localStorage.getItem(STORAGE_ADMIN_REMEMBER) || '{}';
+                const dados = JSON.parse(bruto);
+                if (!dados || typeof dados !== 'object') return null;
+                const email = String(dados.email_admin || '').trim().toLowerCase();
+                const senha = String(dados.senha || '');
+                if (!email || !senha) return null;
+                return { email, senha };
+            } catch {
+                return null;
+            }
+        }
+
+        function salvarCredenciaisLembradas(email, senha) {
+            const emailNormalizado = String(email || '').trim().toLowerCase();
+            const senhaTexto = String(senha || '');
+            if (!emailNormalizado || !senhaTexto) return;
+            localStorage.setItem(STORAGE_ADMIN_REMEMBER, JSON.stringify({
+                email_admin: emailNormalizado,
+                senha: senhaTexto,
+                atualizado_em: Date.now()
+            }));
+        }
+
+        function limparCredenciaisLembradas() {
+            localStorage.removeItem(STORAGE_ADMIN_REMEMBER);
+        }
+
+        function aplicarCredenciaisLembradasNoLogin() {
+            const emailInput = document.getElementById('auth-email');
+            const senhaInput = document.getElementById('auth-senha');
+            const rememberInput = document.getElementById('auth-remember');
+            if (!emailInput || !senhaInput) return;
+
+            const lembradas = lerCredenciaisLembradas();
+            if (lembradas) {
+                if (!String(emailInput.value || '').trim()) {
+                    emailInput.value = lembradas.email;
+                }
+                senhaInput.value = lembradas.senha;
+                if (rememberInput) rememberInput.checked = true;
+            } else if (rememberInput) {
+                rememberInput.checked = false;
+            }
+        }
 
         function lerMapaAuthEmail() {
             try {
@@ -2738,6 +2790,7 @@
                 emailInput.value = (contexto.email_admin || '').trim().toLowerCase();
             }
             if (senhaInput) senhaInput.value = '';
+            aplicarCredenciaisLembradasNoLogin();
             atualizarPainelResetSenha();
             if (mensagem) {
                 setAuthMensagem(mensagem);
@@ -2866,6 +2919,7 @@
             if (event) event.preventDefault();
             const emailInput = document.getElementById('auth-email');
             const senhaInput = document.getElementById('auth-senha');
+            const rememberInput = document.getElementById('auth-remember');
             const botao = document.getElementById('auth-btn');
 
             const email = (emailInput?.value || '').trim().toLowerCase();
@@ -2890,6 +2944,12 @@
                 contexto.token = String(data.token_acesso || '').trim();
                 contexto.email_admin = String(data.email_admin || email).trim().toLowerCase();
                 salvarTokenLocal();
+
+                if (rememberInput?.checked) {
+                    salvarCredenciaisLembradas(contexto.email_admin || email, senha);
+                } else {
+                    limparCredenciaisLembradas();
+                }
 
                 const novaUrl = new URL(window.location.href);
                 novaUrl.searchParams.delete('token');
