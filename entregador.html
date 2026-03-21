@@ -362,6 +362,74 @@
             display: block;
         }
 
+        .codigo-popup-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 3200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(2, 6, 23, 0.78);
+            padding: 0.9rem;
+        }
+        .codigo-popup-overlay.active {
+            display: flex;
+        }
+        .codigo-popup {
+            width: min(420px, 100%);
+            background: rgba(12, 24, 44, 0.98);
+            border: 1px solid rgba(96,165,250,0.35);
+            border-radius: 14px;
+            box-shadow: 0 16px 40px rgba(2, 6, 23, 0.6);
+            padding: 0.9rem;
+            display: grid;
+            gap: 0.6rem;
+        }
+        .codigo-popup-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #dbeafe;
+        }
+        .codigo-popup-sub {
+            font-size: 0.77rem;
+            color: #9fb3cf;
+            line-height: 1.35;
+        }
+        .codigo-popup-digits {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.45rem;
+        }
+        .codigo-popup-digit {
+            width: 100%;
+            height: 2.55rem;
+            text-align: center;
+            font-size: 1.08rem;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            border-radius: 0.62rem;
+            border: 1px solid rgba(96,165,250,0.5);
+            background: #0b1220;
+            color: #e2e8f0;
+            outline: none;
+        }
+        .codigo-popup-digit:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.28);
+        }
+        .codigo-popup-msg {
+            width: 100%;
+            min-height: 64px;
+            resize: vertical;
+            border-radius: 0.56rem;
+            border: 1px solid rgba(71,85,105,0.7);
+            background: #0b1220;
+            color: #cbd5e1;
+            padding: 0.55rem;
+            font-size: 0.75rem;
+            line-height: 1.35;
+        }
+
         /* ─── BOTTOM PANEL ─── */
         .bottom-panel {
             background: var(--surface);
@@ -784,7 +852,10 @@
             <input id="cadastro-nome" class="conta-input" type="text" placeholder="Nome completo do entregador">
             <input id="cadastro-telefone" class="conta-input" type="text" placeholder="Telefone / WhatsApp">
             <button class="btn btn-stop" id="btn-solicitar-codigo-cadastro" type="button" onclick="solicitarCodigoCadastroEntregador()">Solicitar código de 5 dígitos</button>
-            <input id="cadastro-codigo" class="conta-input" type="text" inputmode="numeric" maxlength="5" placeholder="Código de verificação (5 dígitos)">
+            <div class="conta-row">
+                <input id="cadastro-codigo" class="conta-input" type="text" inputmode="numeric" maxlength="5" autocomplete="one-time-code" placeholder="Código de verificação (5 dígitos)">
+                <button class="btn btn-map" type="button" onclick="abrirPopupCodigo()">Digitar código</button>
+            </div>
             <input id="cadastro-senha" class="conta-input" type="password" placeholder="Crie uma senha">
             <button class="btn btn-map" id="btn-cadastrar-entregador" onclick="fazerCadastroEntregador()">Cadastrar e entrar</button>
             <button class="btn btn-stop" type="button" onclick="mostrarLoginEntregador()">Voltar ao login</button>
@@ -806,6 +877,29 @@
         </div>
 
         <div id="conta-feedback" class="conta-feedback"></div>
+    </div>
+</div>
+
+<div class="codigo-popup-overlay" id="codigo-popup-overlay">
+    <div class="codigo-popup">
+        <div class="conta-head">
+            <div class="codigo-popup-title">Código de verificação</div>
+            <button class="conta-close" type="button" onclick="fecharPopupCodigo()">Fechar</button>
+        </div>
+        <div class="codigo-popup-sub">Digite os 5 números recebidos. Se você copiou o código, toque em "Ler código copiado" para preencher automaticamente.</div>
+        <div class="codigo-popup-digits" id="codigo-popup-digits">
+            <input class="codigo-popup-digit" data-codigo-idx="0" maxlength="1" inputmode="numeric" autocomplete="one-time-code">
+            <input class="codigo-popup-digit" data-codigo-idx="1" maxlength="1" inputmode="numeric">
+            <input class="codigo-popup-digit" data-codigo-idx="2" maxlength="1" inputmode="numeric">
+            <input class="codigo-popup-digit" data-codigo-idx="3" maxlength="1" inputmode="numeric">
+            <input class="codigo-popup-digit" data-codigo-idx="4" maxlength="1" inputmode="numeric">
+        </div>
+        <div class="conta-row">
+            <button class="btn btn-stop" type="button" onclick="lerCodigoClipboardPopup()">Ler código copiado</button>
+            <button class="btn btn-map" type="button" onclick="confirmarCodigoPopup()">Usar este código</button>
+        </div>
+        <textarea id="codigo-popup-mensagem" class="codigo-popup-msg" readonly placeholder="Mensagem do código aparecerá aqui para copiar e compartilhar."></textarea>
+        <button class="btn btn-stop" type="button" onclick="copiarMensagemCodigoPopup()">Copiar mensagem do código</button>
     </div>
 </div>
 
@@ -1195,6 +1289,8 @@ const app = {
     restauranteUfTrava: '',
     centroCidadeTrava: null,
     ultimaCidadeTravaGeocodificada: '',
+    ultimoCodigoCadastro: '',
+    ultimaMensagemCodigo: '',
 };
 
 if (app.token || app.slug) {
@@ -1294,6 +1390,155 @@ function setContaFeedback(msg = '', erro = false) {
     el.textContent = texto;
 }
 
+function extrairCodigo5Digitos(valor = '') {
+    return String(valor || '').replace(/\D/g, '').slice(0, 5);
+}
+
+function obterDigitosPopupCodigo() {
+    return Array.from(document.querySelectorAll('.codigo-popup-digit'));
+}
+
+function preencherPopupCodigo(codigo = '') {
+    const digitos = obterDigitosPopupCodigo();
+    const limpo = extrairCodigo5Digitos(codigo);
+    digitos.forEach((el, idx) => {
+        if (!el) return;
+        el.value = limpo[idx] || '';
+    });
+}
+
+function coletarPopupCodigo() {
+    const digitos = obterDigitosPopupCodigo();
+    return digitos.map((el) => String(el?.value || '').replace(/\D/g, '').slice(0, 1)).join('');
+}
+
+function aplicarCodigoNoCadastro(codigo = '', focarSenha = false) {
+    const inputCodigo = document.getElementById('cadastro-codigo');
+    const valor = extrairCodigo5Digitos(codigo);
+    if (inputCodigo) {
+        inputCodigo.value = valor;
+    }
+    preencherPopupCodigo(valor);
+
+    if (focarSenha) {
+        const inputSenha = document.getElementById('cadastro-senha');
+        if (inputSenha) inputSenha.focus();
+    }
+}
+
+function abrirPopupCodigo(codigo = '') {
+    const overlay = document.getElementById('codigo-popup-overlay');
+    if (!overlay) return;
+    const valorAtual = extrairCodigo5Digitos(codigo || document.getElementById('cadastro-codigo')?.value || app.ultimoCodigoCadastro || '');
+    preencherPopupCodigo(valorAtual);
+    overlay.classList.add('active');
+
+    const mensagemEl = document.getElementById('codigo-popup-mensagem');
+    if (mensagemEl) {
+        const textoMensagem = String(app.ultimaMensagemCodigo || '').trim();
+        mensagemEl.value = textoMensagem;
+    }
+
+    const primeiroVazio = obterDigitosPopupCodigo().find((el) => !String(el?.value || '').trim());
+    (primeiroVazio || obterDigitosPopupCodigo()[0])?.focus();
+}
+
+function fecharPopupCodigo() {
+    const overlay = document.getElementById('codigo-popup-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+}
+
+function confirmarCodigoPopup() {
+    const codigo = extrairCodigo5Digitos(coletarPopupCodigo());
+    if (codigo.length !== 5) {
+        setContaFeedback('Digite os 5 números do código.', true);
+        return;
+    }
+    aplicarCodigoNoCadastro(codigo, true);
+    fecharPopupCodigo();
+    setContaFeedback('Código preenchido. Agora confirme sua senha e finalize o cadastro.', false);
+}
+
+async function lerCodigoClipboardPopup() {
+    try {
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+            throw new Error('Clipboard indisponível neste navegador.');
+        }
+        const texto = await navigator.clipboard.readText();
+        const codigo = extrairCodigo5Digitos(texto);
+        if (codigo.length !== 5) {
+            throw new Error('Não encontrei um código de 5 dígitos no que foi copiado.');
+        }
+        aplicarCodigoNoCadastro(codigo, false);
+        setContaFeedback('Código copiado detectado e preenchido.', false);
+    } catch (erro) {
+        setContaFeedback(erro.message || 'Não foi possível ler o código copiado.', true);
+    }
+}
+
+async function copiarMensagemCodigoPopup() {
+    const mensagem = String(document.getElementById('codigo-popup-mensagem')?.value || '').trim();
+    if (!mensagem) {
+        setContaFeedback('Não há mensagem de código para copiar.', true);
+        return;
+    }
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(mensagem);
+            setContaFeedback('Mensagem do código copiada.', false);
+            return;
+        }
+    } catch (_) {}
+    setContaFeedback('Copie a mensagem manualmente na caixa de texto.', false);
+}
+
+function configurarAutocompleteCodigoCadastro() {
+    const inputCodigo = document.getElementById('cadastro-codigo');
+    if (inputCodigo) {
+        inputCodigo.addEventListener('input', (evento) => {
+            const codigo = extrairCodigo5Digitos(evento?.target?.value || '');
+            evento.target.value = codigo;
+            preencherPopupCodigo(codigo);
+        });
+        inputCodigo.addEventListener('paste', (evento) => {
+            const texto = evento.clipboardData?.getData('text') || '';
+            const codigo = extrairCodigo5Digitos(texto || inputCodigo.value);
+            if (!codigo) return;
+            evento.preventDefault();
+            aplicarCodigoNoCadastro(codigo, false);
+        });
+    }
+
+    const digitos = obterDigitosPopupCodigo();
+    digitos.forEach((el, idx) => {
+        if (!el) return;
+
+        el.addEventListener('input', (evento) => {
+            const valor = String(evento.target.value || '').replace(/\D/g, '').slice(-1);
+            evento.target.value = valor;
+            if (valor && digitos[idx + 1]) digitos[idx + 1].focus();
+            aplicarCodigoNoCadastro(coletarPopupCodigo(), false);
+        });
+
+        el.addEventListener('keydown', (evento) => {
+            if (evento.key === 'Backspace' && !evento.target.value && digitos[idx - 1]) {
+                digitos[idx - 1].focus();
+            }
+        });
+
+        el.addEventListener('paste', (evento) => {
+            const texto = evento.clipboardData?.getData('text') || '';
+            const codigo = extrairCodigo5Digitos(texto);
+            if (!codigo) return;
+            evento.preventDefault();
+            aplicarCodigoNoCadastro(codigo, false);
+            const foco = digitos[Math.min(codigo.length, 5) - 1] || digitos[0];
+            if (foco) foco.focus();
+        });
+    });
+}
+
 function atualizarSecoesConta() {
     const boxLogin = document.getElementById('conta-login-box');
     const boxCadastro = document.getElementById('conta-cadastro-box');
@@ -1314,6 +1559,7 @@ function mostrarCadastroEntregador() {
     const origemRest = String(document.getElementById('login-restaurante')?.value || app.restauranteNome || app.slug || '').trim();
     const campoRest = document.getElementById('cadastro-restaurante');
     if (campoRest && !campoRest.value) campoRest.value = origemRest;
+    aplicarCodigoNoCadastro('', false);
 }
 
 function mostrarLoginEntregador() {
@@ -1346,6 +1592,7 @@ function fecharPainelConta() {
     if (!overlay) return;
     overlay.classList.remove('active');
     setContaFeedback('');
+    fecharPopupCodigo();
 }
 
 function preencherPerfilEntregador(payload = {}) {
@@ -1685,8 +1932,13 @@ async function solicitarCodigoCadastroEntregador() {
         }
 
         const codigo = String(data?.codigo_copia || '').replace(/\D/g, '').slice(0, 5);
+        app.ultimoCodigoCadastro = codigo;
+        app.ultimaMensagemCodigo = String(data?.mensagem_codigo || '').trim();
+        const mensagemPopupEl = document.getElementById('codigo-popup-mensagem');
+        if (mensagemPopupEl) mensagemPopupEl.value = app.ultimaMensagemCodigo;
+
         if (codigo && inputCodigo) {
-            inputCodigo.value = codigo;
+            aplicarCodigoNoCadastro(codigo, false);
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     await navigator.clipboard.writeText(codigo);
@@ -1704,6 +1956,8 @@ async function solicitarCodigoCadastroEntregador() {
                 setContaFeedback('Código gerado. Copie e cole no campo de verificação para concluir o cadastro.', false);
             }
         }
+
+        abrirPopupCodigo(codigo);
     } catch (erro) {
         setContaFeedback(erro.message || 'Falha ao solicitar código.', true);
     } finally {
@@ -3718,6 +3972,7 @@ function pararRastreamento() {
 async function boot() {
     try {
         inicializarElementosUI();
+        configurarAutocompleteCodigoCadastro();
         atualizarCabecalhoEntregador({
             nome: 'Entregador',
             restauranteNome: app.restauranteNome || app.slug || '',

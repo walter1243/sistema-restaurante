@@ -5268,6 +5268,7 @@ def solicitar_codigo_entregador_publico(
         "telefone": telefone,
         "codigo_enviado_whatsapp": bool(envio.get("ok")),
         "whatsapp_envio": envio,
+        "mensagem_codigo": mensagem,
         "codigo_copia": codigo,
         "expira_em": expira_em.isoformat(),
     }
