@@ -38,7 +38,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, Numeric, String, create_engine, func
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, Numeric, String, create_engine, func, inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 
@@ -2246,6 +2246,17 @@ def garantir_config_smtp_padrao(db: Session) -> None:
 @app.on_event("startup")
 def startup_event():
     garantir_schema_db()
+
+    # Migração leve e idempotente para bancos já existentes (inclui Postgres).
+    with engine.begin() as conn:
+        inspector = inspect(conn)
+        tabelas = set(inspector.get_table_names())
+
+        if "cardapio" in tabelas:
+            colunas_cardapio_global = {c["name"] for c in inspector.get_columns("cardapio")}
+            if "imagem_base64" not in colunas_cardapio_global:
+                conn.exec_driver_sql("ALTER TABLE cardapio ADD COLUMN imagem_base64 VARCHAR(1000000) DEFAULT ''")
+
     if DATABASE_URL.startswith("sqlite"):
         with engine.begin() as conn:
             colunas = {
