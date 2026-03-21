@@ -1398,11 +1398,14 @@
                 <div class="form-group">
                     <label class="form-label">Imagem</label>
                     <div style="display: flex; gap: 1rem; align-items: flex-start;">
-                        <div class="image-preview empty" id="imagem-preview">
+                        <div class="image-preview empty" id="imagem-preview" onclick="abrirSeletorImagemProduto()" style="cursor: pointer;" title="Clique para escolher a imagem">
                             <i class="fas fa-image"></i>
                         </div>
                         <div>
                             <input type="file" class="form-input" id="produto-imagem" accept="image/*" onchange="previewImagem(event)">
+                            <button class="btn btn-secondary btn-sm" type="button" style="margin-top: 0.6rem;" onclick="abrirSeletorImagemProduto()">
+                                <i class="fas fa-upload"></i> Escolher foto
+                            </button>
                             <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Clique para selecionar uma imagem</p>
                         </div>
                     </div>
@@ -1762,18 +1765,19 @@
                 if (!normalizada) return;
                 if (!bases.includes(normalizada)) bases.push(normalizada);
             };
-            const origemVercel = 'https://sistema-restaurante-sigma.vercel.app';
-
             add(API_URL);
-            add(origemVercel);
             const origem = (window.location.origin || '').replace(/\/$/, '');
-            add(origem);
 
             const host = window.location.hostname || '127.0.0.1';
             const protocolo = window.location.protocol || 'http:';
             const origemSemPorta = origem.replace(/:\d+$/, '');
 
             const ambienteLocal = host === 'localhost' || host === '127.0.0.1';
+            if (!ambienteLocal) {
+                return bases;
+            }
+
+            add(origem);
             if (ambienteLocal) {
                 add(`${origemSemPorta}:8080`);
                 add(`${origemSemPorta}:8012`);
@@ -1786,11 +1790,9 @@
                 add(`${protocolo}//localhost:8080`);
                 add(`${protocolo}//localhost:8012`);
                 add(`${protocolo}//localhost:8010`);
-                add(origemVercel);
                 add(`${protocolo}//127.0.0.1:8080`);
                 add(`${protocolo}//127.0.0.1:8012`);
                 add(`${protocolo}//127.0.0.1:8010`);
-                add(origemVercel);
             }
 
             return bases;
@@ -3099,12 +3101,28 @@
                 throw new Error(detalhe);
             }
             contexto.produtos = await res.json();
+            sincronizarCacheCardapioPublico();
             contexto.modoApi = true;
+        }
+
+        function sincronizarCacheCardapioPublico() {
+            const slug = String(contexto.slug || '').trim();
+            if (!slug) return;
+            if (!Array.isArray(contexto.produtos)) return;
+
+            try {
+                localStorage.setItem(`produtos_${slug}`, JSON.stringify(contexto.produtos));
+                localStorage.setItem(`produtos_cache_ts_${slug}`, String(Date.now()));
+            } catch (_) {
+                // Ignore quota/storage issues; API remains source of truth.
+            }
         }
 
         function abrirModalProduto(id = null) {
             contexto.editandoProduto = id;
             renderizarSelectCategorias();
+            const inputImagem = document.getElementById('produto-imagem');
+            if (inputImagem) inputImagem.value = '';
             if (id !== null) {
                 const produto = contexto.produtos.find(p => p.id === id);
                 if (produto) {
@@ -3154,17 +3172,33 @@
             contexto.editandoProduto = null;
         }
 
+        function abrirSeletorImagemProduto() {
+            const input = document.getElementById('produto-imagem');
+            if (!input) return;
+            input.click();
+        }
+
         function previewImagem(event) {
             const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const preview = document.getElementById('imagem-preview');
-                    preview.innerHTML = `<img src="${e.target.result}">`;
-                    preview.dataset.base64 = e.target.result;
-                };
-                reader.readAsDataURL(file);
+            if (!file) return;
+
+            if (!String(file.type || '').toLowerCase().startsWith('image/')) {
+                alert('Selecione um arquivo de imagem válido.');
+                event.target.value = '';
+                return;
             }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.getElementById('imagem-preview');
+                preview.innerHTML = `<img src="${e.target.result}">`;
+                preview.dataset.base64 = e.target.result;
+                preview.classList.remove('empty');
+            };
+            reader.onerror = () => {
+                alert('Não foi possível ler a imagem selecionada. Tente outra foto.');
+            };
+            reader.readAsDataURL(file);
         }
 
         function criarCategoria() {

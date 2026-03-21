@@ -1,7 +1,6 @@
 (function () {
     const DEFAULT_API_URL = String(
-        window.__APP_RENDER_API_URL__
-        || window.__APP_API_URL__
+        window.__APP_API_URL__
         || window.location.origin
     ).trim();
     const CENTRAL_GOOGLE_MAPS_API_KEY = 'AIzaSyAzgtn7z086Idrvw6R_-zHI8vwOkkSTN4A';
