@@ -3012,16 +3012,40 @@
         }
 
         // CONFIGURAÇÃO
+        function tratarRespostaTokenInvalido(detalhe, mensagemLogin = 'Sua sessão expirou. Faça login novamente para continuar.') {
+            if (!/token invalido|token inválido/i.test(String(detalhe || ''))) return false;
+            contexto.token = '';
+            salvarTokenLocal();
+            mostrarTelaLogin(mensagemLogin);
+            return true;
+        }
+
         async function carregarConfiguracao() {
             contexto.modoApi = true;
             const res = await fetch(`${API_URL}/api/admin/restaurante/${contexto.slug}`, {
                 headers: { 'token-acesso': contexto.token }
             });
             if (!res.ok) {
-                throw new Error('Falha ao carregar configuração da conta');
+                let detalhe = 'Falha ao carregar configuração da conta';
+                try {
+                    const erroData = await res.json();
+                    detalhe = String(erroData?.detail || erroData?.message || detalhe);
+                } catch (_) {}
+                tratarRespostaTokenInvalido(detalhe);
+                throw new Error(detalhe);
             }
 
             const data = await res.json();
+            const slugCanonico = String(data.slug || '').trim();
+            const tokenCanonico = String(data.token_acesso || '').trim();
+            if (slugCanonico) contexto.slug = slugCanonico;
+            if (tokenCanonico) contexto.token = tokenCanonico;
+            if (slugCanonico) {
+                const urlAtual = new URL(window.location.href);
+                urlAtual.searchParams.set('slug', slugCanonico);
+                window.history.replaceState({}, '', urlAtual.toString());
+            }
+
             contexto.restaurante = {
                 nome_unidade: data.nome_unidade || '',
                 cnpj: data.cnpj || '',
@@ -3060,7 +3084,13 @@
                 headers: { 'token-acesso': contexto.token }
             });
             if (!res.ok) {
-                throw new Error('Falha ao carregar produtos da conta');
+                let detalhe = 'Falha ao carregar produtos da conta';
+                try {
+                    const erroData = await res.json();
+                    detalhe = String(erroData?.detail || erroData?.message || detalhe);
+                } catch (_) {}
+                tratarRespostaTokenInvalido(detalhe);
+                throw new Error(detalhe);
             }
             contexto.produtos = await res.json();
             contexto.modoApi = true;
@@ -3418,6 +3448,13 @@
                     contexto.pedidos = await res.json();
                     return;
                 }
+
+                let detalhe = 'Falha ao carregar pedidos da conta';
+                try {
+                    const erroData = await res.json();
+                    detalhe = String(erroData?.detail || erroData?.message || detalhe);
+                } catch (_) {}
+                tratarRespostaTokenInvalido(detalhe);
             } catch (e) {
                 console.warn('Erro ao carregar pedidos do Render:', e?.message || e);
             }
@@ -5399,6 +5436,11 @@
                 alert(mensagemSucesso);
             } catch (e) {
                 console.warn('Erro ao salvar configuração da conta:', e.message);
+                if (/token invalido|token inválido/i.test(String(e.message || ''))) {
+                    contexto.token = '';
+                    salvarTokenLocal();
+                    mostrarTelaLogin('Sua sessão expirou. Faça login novamente para continuar.');
+                }
                 alert(`Não foi possível salvar as alterações no banco desta conta.\n\nMotivo: ${e.message || 'erro desconhecido'}`);
                 throw e;
             }

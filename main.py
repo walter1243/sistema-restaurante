@@ -2111,6 +2111,24 @@ def obter_credenciais_super_admin(db: Session) -> dict:
     }
 
 
+def garantir_token_acesso_restaurante(restaurante: Restaurante, db: Session) -> Restaurante:
+    token_atual = (restaurante.token_acesso or "").strip()
+    if token_atual:
+        return restaurante
+
+    novo_token = ""
+    while not novo_token:
+        candidato = secrets.token_urlsafe(32)
+        existe = db.query(Restaurante).filter(Restaurante.token_acesso == candidato).first()
+        if not existe:
+            novo_token = candidato
+
+    restaurante.token_acesso = novo_token
+    db.commit()
+    db.refresh(restaurante)
+    return restaurante
+
+
 def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
     email = (SUPER_ADMIN_LOGIN_DEFAULT or "").strip().lower()
     senha = (SUPER_ADMIN_SENHA_DEFAULT or "").strip()
@@ -2128,6 +2146,9 @@ def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
             alterado = True
         if not restaurante.validade_assinatura or restaurante.validade_assinatura < date.today():
             restaurante.validade_assinatura = date.today() + timedelta(days=3650)
+            alterado = True
+        if not (restaurante.token_acesso or "").strip():
+            restaurante.token_acesso = secrets.token_urlsafe(32)
             alterado = True
         if alterado:
             db.commit()
@@ -2572,6 +2593,8 @@ def login_admin(payload: AdminLoginPayload, request: Request, db: Session = Depe
             bloquear_restaurante_por_validade_expirada(restaurante, db)
             raise HTTPException(status_code=403, detail="Assinatura expirada")
         raise HTTPException(status_code=403, detail="Assinatura inativa")
+
+    restaurante = garantir_token_acesso_restaurante(restaurante, db)
 
     base_url = str(request.base_url).rstrip("/")
     return {
