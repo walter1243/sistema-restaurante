@@ -1243,6 +1243,7 @@
                         </div>
                         <input type="file" class="form-input" id="config-logo" accept="image/*" onchange="previewLogo(event)" style="margin-top: 0.75rem;">
                         <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">2) Faça upload da logo.</p>
+                        <button class="btn btn-primary" style="width:100%; margin-top:0.85rem;" onclick="publicarConfiguracoes('Capa e logo salvas com sucesso!')"><i class="fas fa-cloud-upload-alt"></i> Salvar Capa e Logo</button>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Preview final (Capa + Logo)</label>
@@ -1527,7 +1528,14 @@
     <script>
         // CONTEXTO
         const queryParams = new URLSearchParams(window.location.search);
-        const slugAtual = (queryParams.get('slug') || '').trim();
+        const _slugDaUrl = (queryParams.get('slug') || '').trim();
+        const _slugSalvoAdmin = (localStorage.getItem('ultimo_slug_admin') || '').trim();
+        const _slugConfig = String(
+            window.getDefaultRestaurantSlug
+                ? window.getDefaultRestaurantSlug()
+                : (window.__RESTAURANT_SLUG__ || '')
+        ).trim().toLowerCase();
+        const slugAtual = _slugDaUrl || _slugSalvoAdmin || _slugConfig;
         const tokenUrl = queryParams.get('token') || '';
         const emailAtual = (queryParams.get('email') || '').trim().toLowerCase();
         let resetTokenUrl = (queryParams.get('reset') || '').trim();
