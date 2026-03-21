@@ -1534,6 +1534,9 @@
         const STORAGE_AUTH_EMAIL_MAP = 'admin_auth_email_map';
         const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
         const STORAGE_ADMIN_REMEMBER = 'admin_remember_credentials_v1';
+        const STORAGE_ADMIN_AUTOLOGIN_BLOCK_UNTIL = 'admin_autologin_block_until_v1';
+        let autoLoginEmAndamento = false;
+        let autoLoginTentadoNestaTela = false;
 
         function lerCredenciaisLembradas() {
             try {
@@ -1562,6 +1565,20 @@
 
         function limparCredenciaisLembradas() {
             localStorage.removeItem(STORAGE_ADMIN_REMEMBER);
+        }
+
+        function podeTentarAutoLogin() {
+            const bloqueadoAte = Number(localStorage.getItem(STORAGE_ADMIN_AUTOLOGIN_BLOCK_UNTIL) || '0');
+            return Date.now() >= bloqueadoAte;
+        }
+
+        function bloquearAutoLoginPorInstabilidade() {
+            const tresMinutos = 3 * 60 * 1000;
+            localStorage.setItem(STORAGE_ADMIN_AUTOLOGIN_BLOCK_UNTIL, String(Date.now() + tresMinutos));
+        }
+
+        function limparBloqueioAutoLogin() {
+            localStorage.removeItem(STORAGE_ADMIN_AUTOLOGIN_BLOCK_UNTIL);
         }
 
         function aplicarCredenciaisLembradasNoLogin() {
@@ -2791,6 +2808,7 @@
             }
             if (senhaInput) senhaInput.value = '';
             aplicarCredenciaisLembradasNoLogin();
+            autoLoginTentadoNestaTela = false;
             atualizarPainelResetSenha();
             if (mensagem) {
                 setAuthMensagem(mensagem);
@@ -2798,6 +2816,12 @@
                 limparAuthMensagem();
             }
             definirPainelVisivel(false);
+
+            if (!resetTokenUrl) {
+                setTimeout(() => {
+                    tentarAutoLoginSePossivel();
+                }, 60);
+            }
         }
 
         function esconderTelaLogin() {
@@ -2915,12 +2939,13 @@
             }
         }
 
-        async function autenticarAdminEmailSenha(event) {
+        async function autenticarAdminEmailSenha(event, opcoes = {}) {
             if (event) event.preventDefault();
             const emailInput = document.getElementById('auth-email');
             const senhaInput = document.getElementById('auth-senha');
             const rememberInput = document.getElementById('auth-remember');
             const botao = document.getElementById('auth-btn');
+            const loginAutomatico = !!opcoes?.auto;
 
             const email = (emailInput?.value || '').trim().toLowerCase();
             const senha = (senhaInput?.value || '').trim();
@@ -2959,13 +2984,39 @@
 
                 esconderTelaLogin();
                 await inicializar();
+                if (loginAutomatico) {
+                    limparBloqueioAutoLogin();
+                }
             } catch (erro) {
                 setAuthMensagem(erro.message || 'Falha no login.');
+                if (loginAutomatico) {
+                    bloquearAutoLoginPorInstabilidade();
+                }
             } finally {
                 if (botao) {
                     botao.disabled = false;
                     botao.innerHTML = '<i class="fas fa-right-to-bracket"></i> Entrar no painel';
                 }
+            }
+        }
+
+        async function tentarAutoLoginSePossivel() {
+            if (autoLoginEmAndamento || autoLoginTentadoNestaTela) return;
+            if (!podeTentarAutoLogin()) return;
+            if (resetTokenUrl) return;
+
+            const lembradas = lerCredenciaisLembradas();
+            if (!lembradas) return;
+
+            autoLoginTentadoNestaTela = true;
+            autoLoginEmAndamento = true;
+
+            try {
+                const rememberInput = document.getElementById('auth-remember');
+                if (rememberInput) rememberInput.checked = true;
+                await autenticarAdminEmailSenha(null, { auto: true });
+            } finally {
+                autoLoginEmAndamento = false;
             }
         }
 
