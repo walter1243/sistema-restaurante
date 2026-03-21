@@ -2119,6 +2119,50 @@
 
         // ── Checkout Bricks ─────────────────────────────────────────────────
         let _brickController = null;
+        const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
+
+        function extrairSlugContaViaUrl(url) {
+            const valor = String(url || '').trim();
+            if (!valor) return '';
+
+            try {
+                const alvo = new URL(valor, window.location.origin);
+                const slugQuery = (alvo.searchParams.get('slug') || '').trim();
+                if (slugQuery) return slugQuery;
+
+                const partes = (alvo.pathname || '').split('/').filter(Boolean);
+                const idxCardapio = partes.findIndex(parte => (parte || '').toLowerCase() === 'cardapio');
+                if (idxCardapio >= 0 && partes[idxCardapio + 1]) return decodeURIComponent(partes[idxCardapio + 1]);
+
+                const ultima = partes[partes.length - 1] || '';
+                if (ultima && !/\.html?$/i.test(ultima)) return decodeURIComponent(ultima);
+                return '';
+            } catch {
+                return '';
+            }
+        }
+
+        function persistirVinculoRestaurante(conta) {
+            try {
+                const dados = conta && typeof conta === 'object' ? conta : {};
+                const slug = extrairSlugContaViaUrl(dados.cardapio_url || '') || extrairSlugContaViaUrl(dados.admin_url || '');
+                if (!slug) return;
+
+                const origem = window.location.origin;
+                const payload = {
+                    slug,
+                    cardapio_url: dados.cardapio_url || `${origem}/index.html?slug=${encodeURIComponent(slug)}&mesa=1`,
+                    admin_url: dados.admin_url || `${origem}/admin.html?slug=${encodeURIComponent(slug)}`,
+                    atualizado_em: Date.now()
+                };
+
+                localStorage.setItem(STORAGE_ACTIVE_RESTAURANTE_LINK, JSON.stringify(payload));
+                localStorage.setItem('ultimo_slug_publico', slug);
+                localStorage.setItem('ultimo_slug_admin', slug);
+            } catch (_) {
+                // persistência local é auxiliar e não deve quebrar o checkout
+            }
+        }
 
         function abrirBricksModal(data) {
             document.getElementById('bricks-resumo').innerHTML = `
@@ -2203,6 +2247,7 @@
         }
 
         function mostrarSucessoPagamento(conta) {
+            persistirVinculoRestaurante(conta);
             if (_brickController) { try { _brickController.unmount(); } catch {} _brickController = null; }
             document.getElementById('paymentBrick_container').style.display = 'none';
             document.getElementById('bricks-loading').style.display = 'none';
@@ -2286,6 +2331,7 @@
                     const data = await res.json();
 
                     if (data.status === 'aprovado' && data.admin_url) {
+                        persistirVinculoRestaurante({ admin_url: data.admin_url, cardapio_url: data.cardapio_url });
                         mostrarResultadoPagamento('success', `
                             <i class="fa-solid fa-check-circle" style="color:#22c55e;font-size:1.5rem;"></i><br>
                             <strong>Conta ativada com sucesso!</strong><br>

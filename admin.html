@@ -5378,13 +5378,28 @@
                 });
 
                 if (!res.ok) {
-                    throw new Error('Falha ao salvar na API');
+                    let detalhe = 'Falha ao salvar na API';
+                    try {
+                        const dataErro = await res.json();
+                        detalhe = String(dataErro?.detail || dataErro?.message || detalhe);
+                    } catch (_) {}
+                    throw new Error(detalhe);
                 }
+
+                const data = await res.json().catch(() => ({}));
+                if (data && typeof data === 'object') {
+                    const slugNovo = String(data.slug || '').trim();
+                    const tokenNovo = String(data.token_acesso || '').trim();
+                    if (slugNovo) contexto.slug = slugNovo;
+                    if (tokenNovo) contexto.token = tokenNovo;
+                    salvarTokenLocal();
+                }
+
                 contexto.modoApi = true;
                 alert(mensagemSucesso);
             } catch (e) {
                 console.warn('Erro ao salvar configuração da conta:', e.message);
-                alert('Não foi possível salvar as alterações no banco desta conta.');
+                alert(`Não foi possível salvar as alterações no banco desta conta.\n\nMotivo: ${e.message || 'erro desconhecido'}`);
                 throw e;
             }
 

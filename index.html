@@ -533,10 +533,62 @@
 
             try {
                 const alvo = new URL(valor, window.location.origin);
-                return (alvo.searchParams.get('slug') || '').trim();
+                const slugQuery = (alvo.searchParams.get('slug') || '').trim();
+                if (slugQuery) return slugQuery;
+
+                const partes = (alvo.pathname || '').split('/').filter(Boolean);
+                if (!partes.length) return '';
+
+                const idxCardapio = partes.findIndex(parte => (parte || '').toLowerCase() === 'cardapio');
+                if (idxCardapio >= 0 && partes[idxCardapio + 1]) return decodeURIComponent(partes[idxCardapio + 1]);
+
+                const ultima = partes[partes.length - 1] || '';
+                if (!/\.html?$/i.test(ultima)) return decodeURIComponent(ultima);
+
+                return '';
             } catch {
                 return '';
             }
+        }
+
+        async function resolverSlugPrincipalSemParametro(forcarBuscaRemota = false) {
+            const vinculoLocal = lerVinculoRestauranteAtivo();
+            const slugLocal = String(vinculoLocal.slug || '').trim();
+            if (!forcarBuscaRemota && slugLocal) return slugLocal;
+
+            const slugDoLink = extrairSlugDeUrl(vinculoLocal.cardapio_url || vinculoLocal.admin_url || '');
+            if (!forcarBuscaRemota && slugDoLink) return slugDoLink;
+
+            const bases = obterBasesApiCandidatas();
+            for (const base of bases) {
+                try {
+                    const res = await fetch(`${base}/api/public/cardapio-principal`);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    const slug = String(data?.slug || '').trim();
+                    if (!slug) continue;
+
+                    const origem = base || window.location.origin;
+                    localStorage.setItem('ultimo_slug_publico', slug);
+                    localStorage.setItem('ultimo_slug_admin', slug);
+                    localStorage.setItem(STORAGE_ACTIVE_RESTAURANTE_LINK, JSON.stringify({
+                        ...(vinculoLocal || {}),
+                        slug,
+                        cardapio_url: `${origem}/index.html?slug=${encodeURIComponent(slug)}&mesa=1`,
+                        admin_url: `${origem}/admin.html?slug=${encodeURIComponent(slug)}`,
+                        atualizado_em: Date.now()
+                    }));
+                    if (base) {
+                        app.API_URL = base;
+                        localStorage.setItem('api_base_url', base);
+                    }
+                    return slug;
+                } catch (_) {
+                    // segue para a próxima base candidata
+                }
+            }
+
+            return '';
         }
 
         function lerVinculoRestauranteAtivo() {
@@ -596,6 +648,7 @@
             numeroPedido: 0,
             ultimoPedidoId: null,
             _waRastreioLink: null,
+            _fallbackSlugTentado: false,
             ultimosProdutos: [],
             monitorStatusHandle: null,
             notificarSomStatus: true,
@@ -814,6 +867,11 @@
         // ============ INICIALIZAÇÃO ============
         async function inicializar() {
             if (!app.slug) {
+                const slugPrincipal = await resolverSlugPrincipalSemParametro();
+                if (slugPrincipal) app.slug = slugPrincipal;
+            }
+
+            if (!app.slug) {
                 const mesaInfo = document.getElementById('mesa-info');
                 if (mesaInfo) mesaInfo.textContent = 'Link inválido';
                 const container = document.getElementById('produtos-container');
@@ -879,6 +937,8 @@
                         app.categorias = configLocal.categorias;
                     }
 
+                    app._fallbackSlugTentado = false;
+
                     if (app.preview) {
                         app.restaurante = {
                             ...app.restaurante,
@@ -937,6 +997,23 @@
                     app.categorias = configLocal.categorias || [];
                     app.produtos = produtosLocais;
                 } else {
+                    if (!app._fallbackSlugTentado) {
+                        app._fallbackSlugTentado = true;
+                        const slugOriginal = String(app.slug || '').trim();
+                        const slugPrincipal = await resolverSlugPrincipalSemParametro(true);
+                        if (slugPrincipal && slugPrincipal !== slugOriginal) {
+                            app.slug = slugPrincipal;
+                            const urlAtualizada = new URL(window.location.href);
+                            urlAtualizada.searchParams.set('slug', app.slug);
+                            if (!urlAtualizada.searchParams.get('mesa')) {
+                                urlAtualizada.searchParams.set('mesa', app.mesa || '1');
+                            }
+                            window.history.replaceState({}, '', urlAtualizada.toString());
+                            await carregarProdutos();
+                            return;
+                        }
+                    }
+
                     app.restaurante = {};
                     app.horariosCategoria = {};
                     app.categorias = [];

@@ -1706,10 +1706,20 @@ def esta_disponivel_por_horario(horario_inicio: str, horario_fim: str) -> bool:
 
 
 def garantir_isolamento(slug: str, token_acesso: str, db: Session) -> Restaurante:
-    restaurante_slug = get_restaurante_por_slug(db, slug)
     restaurante_token = get_restaurante_por_token(db, token_acesso)
+    slug_normalizado = (slug or "").strip().lower()
+
+    if not slug_normalizado:
+        return restaurante_token
+
+    restaurante_slug = db.query(Restaurante).filter(Restaurante.slug == slug_normalizado).first()
+    if not restaurante_slug:
+        return restaurante_token
+
     if restaurante_slug.restaurante_id != restaurante_token.restaurante_id:
-        raise HTTPException(status_code=403, detail="Isolamento violado: restaurante sem acesso")
+        # Quando o frontend estiver com slug antigo no cache, prioriza o token válido.
+        return restaurante_token
+
     return restaurante_slug
 
 
@@ -2327,6 +2337,7 @@ def startup_event():
     try:
         remover_restaurantes_fake(db)
         garantir_credenciais_super_admin(db)
+        garantir_restaurante_admin_padrao(db)
         garantir_config_smtp_padrao(db)
     finally:
         db.close()
@@ -2343,6 +2354,40 @@ def obter_push_config_publica():
         "ok": True,
         "enabled": push_habilitado(),
         "vapid_public_key": PUSH_VAPID_PUBLIC_KEY if push_habilitado() else "",
+    }
+
+
+@app.get("/api/public/cardapio-principal")
+def obter_cardapio_principal_publico(request: Request, db: Session = Depends(get_db)):
+    restaurante = None
+
+    email_principal = (SUPER_ADMIN_LOGIN_DEFAULT or "").strip().lower()
+    if email_principal:
+        restaurante = db.query(Restaurante).filter(Restaurante.email_admin == email_principal).first()
+
+    if not restaurante and DEMO_RESTAURANTE_SLUG:
+        restaurante = db.query(Restaurante).filter(Restaurante.slug == DEMO_RESTAURANTE_SLUG).first()
+
+    if not restaurante:
+        restaurante = db.query(Restaurante).filter(Restaurante.status_assinatura == "Ativo").order_by(Restaurante.id.asc()).first()
+
+    if not restaurante:
+        restaurante = db.query(Restaurante).order_by(Restaurante.id.asc()).first()
+
+    if not restaurante:
+        raise HTTPException(status_code=404, detail="Nenhum restaurante disponível")
+
+    if not assinatura_ativa(restaurante):
+        raise HTTPException(status_code=403, detail="Nenhum restaurante ativo disponível")
+
+    base_url = str(request.base_url).rstrip("/")
+    out = serializar_restaurante_out(restaurante, base_url)
+    return {
+        "ok": True,
+        "slug": restaurante.slug,
+        "nome_unidade": restaurante.nome_unidade,
+        "cardapio_url": out.get("cardapio_url"),
+        "admin_url": out.get("admin_url"),
     }
 
 
@@ -3756,6 +3801,8 @@ def atualizar_configuracao_restaurante(
 
     return {
         "ok": True,
+        "slug": restaurante.slug,
+        "token_acesso": restaurante.token_acesso,
         "nome_unidade": restaurante.nome_unidade,
         "cnpj": restaurante.cnpj,
         "total_mesas": restaurante.total_mesas,
