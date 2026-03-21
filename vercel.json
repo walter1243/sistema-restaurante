@@ -20,6 +20,7 @@
   ],
   "routes": [
     { "src": "/api_config.js", "dest": "/api_config.js" },
+    { "src": "/health", "dest": "main.py" },
     { "src": "/api/(.*)", "dest": "main.py" },
     { "src": "/admin", "dest": "/admin.html" },
     { "src": "/entregador", "dest": "/entregador.html" },
