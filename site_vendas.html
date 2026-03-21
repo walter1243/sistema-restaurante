@@ -1751,17 +1751,13 @@
                 if (norm && !bases.includes(norm)) bases.push(norm);
             };
 
-            const hostAtual = String(window.location.hostname || '').toLowerCase();
-            const rodandoNoVercel = hostAtual.endsWith('.vercel.app');
             const q = new URLSearchParams(window.location.search);
 
+            add(window.location.origin || '');
             add(q.get('api') || '');
             add(localStorage.getItem('api_base_url') || '');
             add(API_URL_ATIVO);
             add(API_URL);
-            if (!rodandoNoVercel) {
-                add(window.location.origin || '');
-            }
             add('https://sistema-restaurante-api.onrender.com');
 
             const host = window.location.hostname || '127.0.0.1';

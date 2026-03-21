@@ -1845,11 +1845,7 @@
                 if (!bases.includes(normalizada)) bases.push(normalizada);
             };
             const origem = (window.location.origin || '').replace(/\/$/, '');
-            const hostAtual = String(window.location.hostname || '').toLowerCase();
-            const rodandoNoVercel = hostAtual.endsWith('.vercel.app');
-            if (!rodandoNoVercel) {
-                add(origem);
-            }
+            add(origem);
             add(API_URL);
             add(localStorage.getItem('api_base_url') || '');
             add('https://sistema-restaurante-api.onrender.com');

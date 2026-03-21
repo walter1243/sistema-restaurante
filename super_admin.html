@@ -1642,15 +1642,12 @@
                 const norm = String(base || '').trim().replace(/\/$/, '');
                 if (norm && !bases.includes(norm)) bases.push(norm);
             };
-            const hostAtual = String(window.location.hostname || '').toLowerCase();
-            const rodandoNoVercel = hostAtual.endsWith('.vercel.app');
 
-            add('https://sistema-restaurante-api.onrender.com');
+            add(window.location.origin || '');
+            add(API_URL_ATIVO);
             add(API_URL);
             add(localStorage.getItem('api_base_url') || '');
-            if (!rodandoNoVercel) {
-                add(window.location.origin || '');
-            }
+            add('https://sistema-restaurante-api.onrender.com');
 
             const host = window.location.hostname || '127.0.0.1';
             const local = host === 'localhost' || host === '127.0.0.1';

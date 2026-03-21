@@ -5,7 +5,7 @@
     const runningOnVercel = host.endsWith('.vercel.app');
     const DEFAULT_API_URL = String(
         window.__APP_API_URL__
-        || (runningOnVercel ? RENDER_PRIMARY_API_URL : window.location.origin)
+        || window.location.origin
     ).trim();
     const CENTRAL_GOOGLE_MAPS_API_KEY = 'AIzaSyAzgtn7z086Idrvw6R_-zHI8vwOkkSTN4A';
 
