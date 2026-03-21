@@ -13,7 +13,7 @@ import uuid
 from email.message import EmailMessage
 from urllib import error as urllib_error
 from urllib import request as urllib_request
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 import mercadopago
 
 # ── Mercado Pago credentials ─────────────────────────────────────────────────
@@ -727,8 +727,24 @@ def get_db():
         db.close()
 
 
+def normalizar_slug_identificador(slug: str | None) -> str:
+    bruto = unquote(str(slug or "")).strip().lower()
+    if not bruto:
+        return ""
+    sem_acentos = unicodedata.normalize("NFKD", bruto).encode("ascii", "ignore").decode("ascii")
+    sem_acentos = re.sub(r"[_\s]+", "-", sem_acentos)
+    return re.sub(r"[^a-z0-9-]", "", sem_acentos)
+
+
 def get_restaurante_por_slug(db: Session, slug: str) -> Restaurante:
-    restaurante = db.query(Restaurante).filter(Restaurante.slug == slug).first()
+    slug_bruto = str(slug or "").strip().lower()
+    slug_norm = normalizar_slug_identificador(slug_bruto)
+    candidatos = [valor for valor in {slug_bruto, slug_norm} if valor]
+
+    restaurante = None
+    if candidatos:
+        restaurante = db.query(Restaurante).filter(func.lower(Restaurante.slug).in_(candidatos)).first()
+
     if not restaurante:
         raise HTTPException(status_code=404, detail="Restaurante não encontrado")
     return restaurante
@@ -2251,6 +2267,9 @@ def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
             restaurante.plan_type = "premium"
             restaurante.plano = "enterprise"
             alterado = True
+        if not restaurante.delivery_ativo:
+            restaurante.delivery_ativo = True
+            alterado = True
         if alterado:
             db.commit()
             db.refresh(restaurante)
@@ -2276,6 +2295,7 @@ def garantir_restaurante_admin_padrao(db: Session) -> Restaurante:
         valor_mensalidade=Decimal("0.00"),
         plan_type="premium",
         plano="enterprise",
+        delivery_ativo=True,
     )
     db.add(novo)
     db.commit()
@@ -2412,6 +2432,18 @@ def garantir_config_smtp_padrao(db: Session) -> None:
         else:
             db.add(ConfigSistema(chave=chave, valor=valor))
         alterado = True
+
+    if alterado:
+        db.commit()
+
+
+def garantir_delivery_para_planos_pagantes(db: Session) -> None:
+    restaurantes = db.query(Restaurante).all()
+    alterado = False
+    for restaurante in restaurantes:
+        if obter_plan_type_restaurante(restaurante) in {"standard", "premium"} and not restaurante.delivery_ativo:
+            restaurante.delivery_ativo = True
+            alterado = True
 
     if alterado:
         db.commit()
@@ -2611,6 +2643,7 @@ def startup_event():
         restaurante_solar = garantir_restaurante_slug_padrao(db)
         garantir_usuario_admin_restaurante(db, restaurante_solar)
         garantir_config_smtp_padrao(db)
+        garantir_delivery_para_planos_pagantes(db)
     finally:
         db.close()
 
