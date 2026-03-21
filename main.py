@@ -45,33 +45,15 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, rela
 SQLITE_LOCAL_DATABASE_URL = "sqlite:///./restaurante.db"
 SQLITE_VERCEL_DATABASE_URL = "sqlite:////tmp/banco.db"
 
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    SQLITE_VERCEL_DATABASE_URL if os.getenv("VERCEL") == "1" else SQLITE_LOCAL_DATABASE_URL,
+)
 
-def resolver_database_url() -> str:
-    # Prioriza variáveis padrão e aliases comuns de Postgres/Render.
-    chaves = [
-        "DATABASE_URL",
-        "RENDER_DATABASE_URL",
-        "RENDER_POSTGRES_URL",
-        "POSTGRES_URL",
-        "POSTGRES_URL_NON_POOLING",
-        "POSTGRES_PRISMA_URL",
-        "POSTGRESQLCONNSTR_DATABASE_URL",
-        "POSTGRESQL_URL",
-        "SQLALCHEMY_DATABASE_URL",
-    ]
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-    for chave in chaves:
-        valor = (os.getenv(chave) or "").strip()
-        if valor:
-            return valor
-
-    if os.getenv("VERCEL") == "1":
-        return SQLITE_VERCEL_DATABASE_URL
-
-    return SQLITE_LOCAL_DATABASE_URL
-
-
-DATABASE_URL = resolver_database_url()
+DATABASE_URL = SQLALCHEMY_DATABASE_URL
 
 
 def normalizar_database_url(url: str) -> str:
