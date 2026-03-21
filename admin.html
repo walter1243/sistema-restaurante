@@ -2896,8 +2896,14 @@
                 const etapa = async (nome, tarefa) => {
                     try {
                         await tarefa();
+                        if (!contexto.token) {
+                            throw new Error('Sessão encerrada durante inicialização.');
+                        }
                         return true;
                     } catch (erro) {
+                        if (!contexto.token) {
+                            throw erro;
+                        }
                         falhasInicializacao.push(nome);
                         console.warn(`Falha na etapa ${nome}:`, erro?.message || erro);
                         return false;
@@ -3304,7 +3310,7 @@
             }
 
             const payload = {
-                'token-acesso': contexto.token,
+                token_acesso: contexto.token,
                 nome,
                 preco,
                 categoria,
@@ -3349,14 +3355,19 @@
                     await carregarProdutos();
                     contexto.modoApi = true;
                 } else {
-                    throw new Error('Falha na API');
+                    let detalhe = 'Falha na API';
+                    try {
+                        const erroData = await res.json();
+                        detalhe = String(erroData?.detail || erroData?.message || detalhe);
+                    } catch (_) {}
+                    throw new Error(detalhe);
                 }
 
                 renderizarProdutos();
                 fecharModalProduto();
             } catch (e) {
                 console.error('Erro ao salvar produto:', e);
-                alert('Não foi possível salvar o produto no banco desta conta.');
+                alert(`Não foi possível salvar o produto no banco desta conta.\n\nMotivo: ${e.message || 'erro desconhecido'}`);
             }
         }
 
