@@ -2484,6 +2484,21 @@
             filtrarProdutos();
         }
 
+        function normalizarHorarioFormularioProduto(valor) {
+            const texto = String(valor || '').trim();
+            return /^\d{2}:\d{2}$/.test(texto) ? texto : '';
+        }
+
+        function resetarFiltrosVisualizacaoProdutos() {
+            contexto.filtroProduto = 'todos';
+            document.querySelectorAll('.filter-chip').forEach(btn => btn.classList.remove('active'));
+            const chipTodos = Array.from(document.querySelectorAll('.filter-chip')).find(btn => /todos/i.test(String(btn.textContent || '')));
+            if (chipTodos) chipTodos.classList.add('active');
+
+            const campoFiltro = document.getElementById('filtro-categoria');
+            if (campoFiltro) campoFiltro.value = '';
+        }
+
         async function previewCapa(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -3637,8 +3652,8 @@
             const descricao = document.getElementById('produto-descricao').value;
             const complementos = coletarComplementosDoFormulario();
             const disponivel = document.getElementById('produto-disponivel').checked;
-            const horarioInicio = document.getElementById('produto-horario-inicio').value || '';
-            const horarioFim = document.getElementById('produto-horario-fim').value || '';
+            const horarioInicio = normalizarHorarioFormularioProduto(document.getElementById('produto-horario-inicio').value);
+            const horarioFim = normalizarHorarioFormularioProduto(document.getElementById('produto-horario-fim').value);
             const imagem = document.getElementById('imagem-preview').dataset.base64 || '';
 
             if (!nome || !preco) {
@@ -3731,8 +3746,10 @@
                     throw new Error(detalhe);
                 }
 
+                resetarFiltrosVisualizacaoProdutos();
                 renderizarProdutos();
                 fecharModalProduto();
+                mostrarToastCustomizado('Produto salvo e exibido na lista.', 'sucesso');
             } catch (e) {
                 console.error('Erro ao salvar produto:', e);
                 alert(`Não foi possível salvar o produto no banco desta conta.\n\nMotivo: ${e.message || 'erro desconhecido'}`);
@@ -3767,7 +3784,7 @@
             if (!container) return;
 
             const produtos = Array.isArray(contexto.produtos) ? contexto.produtos : [];
-            container.innerHTML = produtos
+            const filtrados = produtos
                 .filter(p => String(p?.categoria || '').toLowerCase().includes(filtro) || String(p?.nome || '').toLowerCase().includes(filtro))
                 .filter(p => {
                     if (contexto.filtroProduto === 'ativos') return produtoDisponivelAgora(p);
@@ -3777,7 +3794,18 @@
                     }
                     if (contexto.filtroProduto === 'pausados') return p.disponivel === false || !produtoDisponivelAgora(p);
                     return true;
-                })
+                });
+
+            if (!filtrados.length) {
+                container.innerHTML = `
+                    <div class="card" style="padding:0.9rem;border:1px solid #dbeafe;background:#f8fbff;color:#1e3a8a;grid-column:1/-1;">
+                        Nenhum produto visível com os filtros atuais. Limpe o filtro e selecione "Todos" para exibir todos os produtos.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtrados
                 .map(p => {
                     const status = obterStatusProduto(p);
                     return `
