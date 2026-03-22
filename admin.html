@@ -7,8 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
     <style>
         :root {
             --admin-preview-primary: #3b82f6;
@@ -239,6 +241,10 @@
         .modal-header h2 { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
         .modal-body { padding: 1.5rem; }
         .modal-footer { padding: 1.5rem; border-top: 1px solid #e2e8f0; display: flex; gap: 1rem; justify-content: flex-end; }
+        .crop-editor-wrap { width: 100%; height: min(56vh, 430px); background: #0f172a; border-radius: 0.75rem; overflow: hidden; border: 1px solid #334155; }
+        .crop-editor-image { display: block; max-width: 100%; }
+        .crop-toolbar { display: grid; grid-template-columns: 1fr auto auto; gap: 0.6rem; align-items: center; margin-top: 0.8rem; }
+        .crop-zoom-range { width: 100%; accent-color: #2563eb; }
         .payment-close-panel { margin-top: 1rem; padding: 0.9rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #f8fafc; }
         .payment-helper { margin-top: 0.45rem; font-size: 0.78rem; color: #64748b; }
         .payment-info-chip { margin-top: 0.5rem; padding: 0.65rem 0.75rem; border-radius: 0.65rem; font-size: 0.82rem; border: 1px solid #dbeafe; background: #eff6ff; color: #1e40af; }
@@ -1366,6 +1372,30 @@
     </div>
 
     <!-- MODAL DE PRODUTO -->
+    <div class="modal" id="modal-crop-editor">
+        <div class="modal-content" style="max-width:760px;">
+            <div class="modal-header">
+                <h2 id="crop-editor-title">Ajustar imagem</h2>
+                <button class="btn btn-secondary" onclick="fecharEditorRecorte()"><i class="fas fa-times"></i> Fechar</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:0.82rem;color:#64748b;margin-bottom:0.65rem;">Arraste a imagem para posicionar e use o zoom para recortar do seu jeito.</p>
+                <div class="crop-editor-wrap">
+                    <img id="crop-editor-image" class="crop-editor-image" alt="Editor de recorte">
+                </div>
+                <div class="crop-toolbar">
+                    <input id="crop-editor-zoom" class="crop-zoom-range" type="range" min="1" max="3" step="0.01" value="1">
+                    <button class="btn btn-secondary" type="button" onclick="resetarEditorRecorte()"><i class="fas fa-rotate-left"></i> Resetar</button>
+                    <button class="btn btn-themed-soft" type="button" onclick="girarEditorRecorte()"><i class="fas fa-rotate-right"></i> Girar</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharEditorRecorte()">Cancelar</button>
+                <button class="btn btn-primary" onclick="aplicarEditorRecorte()"><i class="fas fa-check"></i> Aplicar recorte</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="modal-produto">
         <div class="modal-content">
             <div class="modal-header">
@@ -1782,6 +1812,14 @@
         };
 
         let adminToastTimer = null;
+        let cropperEditor = null;
+        let cropEditorEstado = {
+            alvo: 'capa',
+            aspectRatio: 16 / 7.2,
+            largura: 1600,
+            altura: 720,
+            url: ''
+        };
 
         function classificarTipoMensagemAdmin(mensagem) {
             const texto = String(mensagem || '').toLowerCase();
@@ -2516,6 +2554,116 @@
             return /^\d{2}:\d{2}$/.test(texto) ? texto : '';
         }
 
+        function destruirEditorRecorte() {
+            if (cropperEditor) {
+                try { cropperEditor.destroy(); } catch (_) {}
+                cropperEditor = null;
+            }
+            if (cropEditorEstado.url) {
+                try { URL.revokeObjectURL(cropEditorEstado.url); } catch (_) {}
+                cropEditorEstado.url = '';
+            }
+        }
+
+        function fecharEditorRecorte() {
+            const modal = document.getElementById('modal-crop-editor');
+            if (modal) modal.classList.remove('active');
+            destruirEditorRecorte();
+        }
+
+        function resetarEditorRecorte() {
+            if (!cropperEditor) return;
+            cropperEditor.reset();
+            const zoomEl = document.getElementById('crop-editor-zoom');
+            if (zoomEl) zoomEl.value = 1;
+        }
+
+        function girarEditorRecorte() {
+            if (!cropperEditor) return;
+            cropperEditor.rotate(90);
+        }
+
+        function abrirEditorRecorte({ file, alvo }) {
+            if (!file) return;
+            if (typeof Cropper === 'undefined') {
+                alert('Editor de recorte indisponível. Recarregue a página e tente novamente.');
+                return;
+            }
+
+            const conf = alvo === 'logo'
+                ? { title: 'Ajustar logo', ratio: 900 / 270, largura: 900, altura: 270 }
+                : { title: 'Ajustar capa', ratio: 1600 / 720, largura: 1600, altura: 720 };
+
+            cropEditorEstado = {
+                alvo,
+                aspectRatio: conf.ratio,
+                largura: conf.largura,
+                altura: conf.altura,
+                url: ''
+            };
+
+            const modal = document.getElementById('modal-crop-editor');
+            const titulo = document.getElementById('crop-editor-title');
+            const img = document.getElementById('crop-editor-image');
+            const zoomEl = document.getElementById('crop-editor-zoom');
+
+            if (!modal || !img) return;
+
+            destruirEditorRecorte();
+            cropEditorEstado.url = URL.createObjectURL(file);
+            img.src = cropEditorEstado.url;
+            if (titulo) titulo.textContent = conf.title;
+            if (zoomEl) zoomEl.value = 1;
+
+            modal.classList.add('active');
+
+            img.onload = () => {
+                cropperEditor = new Cropper(img, {
+                    aspectRatio: cropEditorEstado.aspectRatio,
+                    viewMode: 1,
+                    dragMode: 'move',
+                    autoCropArea: 1,
+                    responsive: true,
+                    movable: true,
+                    zoomable: true,
+                    scalable: false,
+                    rotatable: true,
+                    cropBoxResizable: true,
+                    background: false
+                });
+
+                if (zoomEl) {
+                    zoomEl.oninput = (event) => {
+                        if (!cropperEditor) return;
+                        const fator = Number(event.target.value || 1);
+                        cropperEditor.zoomTo(Math.max(1, Math.min(3, fator)));
+                    };
+                }
+            };
+        }
+
+        function aplicarEditorRecorte() {
+            if (!cropperEditor) return;
+            const canvas = cropperEditor.getCroppedCanvas({
+                width: cropEditorEstado.largura,
+                height: cropEditorEstado.altura,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high'
+            });
+            if (!canvas) {
+                alert('Não foi possível aplicar o recorte.');
+                return;
+            }
+
+            const base64 = canvas.toDataURL('image/jpeg', 0.92);
+            if (cropEditorEstado.alvo === 'logo') {
+                atualizarPreviewLogo(base64);
+            } else {
+                atualizarPreviewCapa(base64);
+            }
+            fecharEditorRecorte();
+        }
+
         function resetarFiltrosVisualizacaoProdutos() {
             contexto.filtroProduto = 'todos';
             document.querySelectorAll('.filter-chip').forEach(btn => btn.classList.remove('active'));
@@ -2529,9 +2677,7 @@
         async function previewCapa(event) {
             const file = event.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => atualizarPreviewCapa(e.target.result);
-            reader.readAsDataURL(file);
+            abrirEditorRecorte({ file, alvo: 'capa' });
         }
 
         function gerarImagemRecortada(file, larguraDestino, alturaDestino) {
@@ -2586,9 +2732,7 @@
         async function previewLogo(event) {
             const file = event.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => atualizarPreviewLogo(e.target.result);
-            reader.readAsDataURL(file);
+            abrirEditorRecorte({ file, alvo: 'logo' });
         }
 
         function aplicarConfiguracaoNaTela() {
