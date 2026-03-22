@@ -3250,6 +3250,34 @@
             return true;
         }
 
+        async function renovarSessaoAdminSilenciosamente() {
+            const lembradas = lerCredenciaisLembradas();
+            if (!lembradas?.email || !lembradas?.senha) return false;
+
+            try {
+                const res = await postAdminComFallback('/api/admin/auth/login', {
+                    email_admin: lembradas.email,
+                    senha: lembradas.senha
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) return false;
+
+                const novoSlug = String(data.slug || '').trim();
+                const novoToken = String(data.token_acesso || '').trim();
+                const novoEmail = String(data.email_admin || lembradas.email).trim().toLowerCase();
+
+                if (!novoSlug || !novoToken) return false;
+
+                contexto.slug = novoSlug;
+                contexto.token = novoToken;
+                contexto.email_admin = novoEmail;
+                salvarTokenLocal();
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
         async function carregarConfiguracao() {
             contexto.modoApi = true;
             const res = await fetch(`${API_URL}/api/admin/restaurante/${contexto.slug}`, {
@@ -3631,10 +3659,9 @@
                 horario_fim: horarioFim
             };
 
-            try {
-                let res;
+            const enviarSalvarProduto = async () => {
                 if (contexto.editandoProduto !== null) {
-                    res = await requisicaoAdminComFallback(
+                    return requisicaoAdminComFallback(
                         'PATCH',
                         `/api/admin/cardapio/${contexto.slug}/${contexto.editandoProduto}`,
                         {
@@ -3650,9 +3677,21 @@
                         },
                         { 'token-acesso': contexto.token }
                     );
-                } else {
-                    res = await requisicaoAdminComFallback('POST', '/api/admin/cardapio', payload);
                 }
+
+                return requisicaoAdminComFallback(
+                    'POST',
+                    '/api/admin/cardapio',
+                    {
+                        ...payload,
+                        token_acesso: contexto.token
+                    },
+                    { 'token-acesso': contexto.token }
+                );
+            };
+
+            try {
+                let res = await enviarSalvarProduto();
 
                 if (res.ok) {
                     await carregarProdutos();
@@ -3663,6 +3702,32 @@
                         const erroData = await res.json();
                         detalhe = String(erroData?.detail || erroData?.message || detalhe);
                     } catch (_) {}
+
+                    if (/token invalido|token inválido/i.test(detalhe)) {
+                        const renovou = await renovarSessaoAdminSilenciosamente();
+                        if (renovou) {
+                            res = await enviarSalvarProduto();
+                            if (res.ok) {
+                                await carregarProdutos();
+                                contexto.modoApi = true;
+                                renderizarProdutos();
+                                fecharModalProduto();
+                                mostrarToastCustomizado('Sessão renovada e produto salvo com sucesso.', 'sucesso');
+                                return;
+                            }
+
+                            let detalheRetry = 'Falha na API após renovar sessão';
+                            try {
+                                const erroRetry = await res.json();
+                                detalheRetry = String(erroRetry?.detail || erroRetry?.message || detalheRetry);
+                            } catch (_) {}
+                            tratarRespostaTokenInvalido(detalheRetry);
+                            throw new Error(detalheRetry);
+                        }
+
+                        tratarRespostaTokenInvalido(detalhe);
+                    }
+
                     throw new Error(detalhe);
                 }
 
