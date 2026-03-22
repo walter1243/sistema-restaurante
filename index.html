@@ -263,7 +263,7 @@
         .delivery-mode button { flex:1; border:1px solid #cbd5e1; background:#fff; color:#334155; font-weight:700; border-radius:999px; padding:0.42rem 0.6rem; font-size:0.75rem; cursor:pointer; }
         .delivery-mode button.active { border-color: var(--theme-primary); color: var(--theme-primary); background: var(--theme-primary-soft); }
         .delivery-hint { font-size:0.74rem; color:#64748b; margin-top:0.45rem; padding:0.55rem 0.6rem; border:1px solid #dbeafe; border-radius:0.55rem; background:#f8fbff; }
-        .delivery-panel-actions { display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-top:0.8rem; }
+        .delivery-panel-actions { display:grid; grid-template-columns: 1fr; gap:0.5rem; margin-top:0.8rem; }
         .delivery-panel-actions button { min-height: 44px; }
         .delivery-panel-actions button.full { grid-column: 1 / -1; }
         .delivery-panel-actions .btn-block.secondary { background: linear-gradient(135deg, #334155, #0f172a); color: #fff; }
@@ -374,7 +374,7 @@
                     <input type="hidden" id="delivery-longitude">
                 </div>
                 <div class="delivery-panel-actions">
-                    <button class="btn-block secondary" onclick="usarMinhaLocalizacaoDelivery()"><i class="fas fa-location-crosshairs"></i> Capturar localização exata</button>
+                    <button class="btn-block secondary full" onclick="usarMinhaLocalizacaoDelivery()"><i class="fas fa-location-crosshairs"></i> Capturar localização exata</button>
                     <button class="btn-block primary full" onclick="salvarDeliveryCliente(true, true)"><i class="fas fa-check"></i> Salvar localização</button>
                 </div>
                 <div class="delivery-hint" id="delivery-status-msg">Delivery com GPS obrigatório: toque em “Capturar localização exata”.</div>
@@ -1491,6 +1491,61 @@
             return null;
         }
 
+        function ambienteGpsMobile() {
+            const ua = String(navigator.userAgent || '').toLowerCase();
+            const isIOS = /iphone|ipad|ipod/.test(ua);
+            const isAndroid = /android/.test(ua);
+            const isWhatsApp = /whatsapp/.test(ua);
+            const isInAppBrowser = /fban|fbav|instagram|line\//.test(ua)
+                || /twitter|x\//.test(ua)
+                || /; wv\)/.test(ua)
+                || (isWhatsApp && (isIOS || isAndroid));
+
+            return {
+                isIOS,
+                isAndroid,
+                isWhatsApp,
+                isInAppBrowser,
+            };
+        }
+
+        async function obterEstadoPermissaoGeolocalizacao() {
+            if (!navigator.permissions || typeof navigator.permissions.query !== 'function') {
+                return 'unknown';
+            }
+            try {
+                const estado = await navigator.permissions.query({ name: 'geolocation' });
+                return String(estado?.state || 'unknown');
+            } catch (_) {
+                return 'unknown';
+            }
+        }
+
+        function mensagemErroGeolocalizacao(erro) {
+            const ambiente = ambienteGpsMobile();
+            const codigo = Number(erro?.code);
+
+            if (codigo === 1) {
+                if (ambiente.isWhatsApp && ambiente.isIOS) {
+                    return 'No iPhone dentro do WhatsApp, o GPS pode ficar bloqueado sem pedir permissão. Abra este link no Safari e tente novamente.';
+                }
+                if (ambiente.isInAppBrowser) {
+                    return 'Este navegador interno pode bloquear GPS. Abra em Safari/Chrome e permita localização.';
+                }
+                return 'Permissão de localização negada. Ative o GPS para este site nas configurações do navegador.';
+            }
+
+            if (codigo === 2) {
+                return 'Localização indisponível agora. Verifique sinal de rede/GPS e tente novamente.';
+            }
+
+            if (codigo === 3) {
+                return 'Tempo de localização esgotado. Vá para uma área com melhor sinal e tente novamente.';
+            }
+
+            return 'Não foi possível obter sua localização. Permita o acesso ao GPS no navegador.';
+        }
+
         async function usarMinhaLocalizacaoDelivery() {
             if (app.tipoEntrega !== 'delivery') {
                 definirModoEntrega('delivery');
@@ -1520,6 +1575,24 @@
                     ? 'Obtendo localização atual...'
                     : 'Solicitando permissão de localização...';
                 msg.style.color = '#2563eb';
+            }
+
+            const ambiente = ambienteGpsMobile();
+            const estadoPermissao = await obterEstadoPermissaoGeolocalizacao();
+            if (estadoPermissao === 'denied') {
+                const textoPermissao = ambiente.isWhatsApp && ambiente.isIOS
+                    ? 'Permissão de GPS já bloqueada no navegador interno do WhatsApp. Abra no Safari para permitir localização.'
+                    : 'Permissão de GPS já está bloqueada para este site. Libere nas configurações do navegador e tente novamente.';
+                if (msg) {
+                    msg.textContent = textoPermissao;
+                    msg.style.color = '#b91c1c';
+                }
+                mostrarToastCustomizado(textoPermissao, 'erro');
+                return;
+            }
+
+            if (ambiente.isWhatsApp && ambiente.isIOS) {
+                mostrarToastCustomizado('Dica: no iPhone, abra no Safari para o pedido de localização funcionar.', 'aviso');
             }
 
             const obterPosicaoAtual = () => new Promise((resolve, reject) => {
@@ -1572,11 +1645,12 @@
                 }
                 mostrarToastCustomizado('Localização capturada, endereço preenchido e validado! 🎯', 'sucesso');
             } catch (erro) {
+                const mensagem = mensagemErroGeolocalizacao(erro);
                 if (msg) {
-                    msg.textContent = 'Não foi possível obter sua localização. Permita o acesso ao GPS no navegador.';
+                    msg.textContent = mensagem;
                     msg.style.color = '#b91c1c';
                 }
-                mostrarToastCustomizado(erro?.message || 'Falha ao capturar localização.', 'erro');
+                mostrarToastCustomizado(mensagem, 'erro');
             }
         }
 
