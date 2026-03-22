@@ -1017,6 +1017,7 @@
             mostrarSkeletons();
             const produtosLocais = lerJsonLocalStorage(`produtos_${app.slug}`, []);
             const configLocal = lerJsonLocalStorage(`restaurante_config_${app.slug}`, {});
+            let carregouApi = false;
 
             try {
                 const res = await obterRespostaCardapioComFallback();
@@ -1027,6 +1028,7 @@
                     app.categorias = data.categorias || [];
                     const produtosApi = Array.isArray(data.produtos) ? data.produtos : [];
                     app.produtos = produtosApi;
+                    carregouApi = true;
                     localStorage.setItem('ultimo_slug_publico', app.slug);
                     localStorage.setItem('ultimo_slug_admin', app.slug);
                     localStorage.setItem(STORAGE_ACTIVE_RESTAURANTE_LINK, JSON.stringify({
@@ -1121,12 +1123,23 @@
                     app.restaurante = {};
                     app.horariosCategoria = {};
                     app.categorias = [];
-                    app.produtos = [];
-                    mostrarToastCustomizado('Não foi possível atualizar o cardápio. Verifique o link e o slug do restaurante.', 'erro');
+                    const produtosAtuais = Array.isArray(app.produtos) ? app.produtos : [];
+                    if (produtosLocais.length) {
+                        app.produtos = produtosLocais;
+                        mostrarToastCustomizado('Conexão instável. Exibindo produtos salvos no aparelho.', 'aviso');
+                    } else if (produtosAtuais.length) {
+                        app.produtos = produtosAtuais;
+                        mostrarToastCustomizado('Conexão instável. Mantendo a última lista carregada.', 'aviso');
+                    } else {
+                        app.produtos = [];
+                        mostrarToastCustomizado('Não foi possível atualizar o cardápio. Verifique o link e o slug do restaurante.', 'erro');
+                    }
                 }
             }
 
-            localStorage.setItem(`produtos_${app.slug}`, JSON.stringify(app.produtos));
+            if (carregouApi && Array.isArray(app.produtos) && app.produtos.length) {
+                localStorage.setItem(`produtos_${app.slug}`, JSON.stringify(app.produtos));
+            }
             if (app.restaurante && Object.keys(app.restaurante).length > 0) {
                 localStorage.setItem(`restaurante_publico_${app.slug}`, JSON.stringify(app.restaurante));
             } else {

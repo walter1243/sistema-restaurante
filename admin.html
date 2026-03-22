@@ -3692,16 +3692,11 @@
             }
 
             try {
-                abrirEditorRecorte({ file, alvo: 'produto' });
+                const base64Leve = await converterImagemParaBase64Leve(file);
+                atualizarPreviewImagemProduto(base64Leve);
             } catch (erro) {
-                try {
-                    const base64Leve = await converterImagemParaBase64Leve(file);
-                    atualizarPreviewImagemProduto(base64Leve);
-                    mostrarToastCustomizado('Imagem carregada sem editor de recorte.', 'aviso');
-                } catch (_) {
-                    alert(erro?.message || 'Não foi possível processar a imagem selecionada.');
-                    event.target.value = '';
-                }
+                alert(erro?.message || 'Não foi possível processar a imagem selecionada.');
+                event.target.value = '';
             }
         }
 
