@@ -1027,7 +1027,13 @@
                     app.horariosCategoria = data.horarios_categoria || {};
                     app.categorias = data.categorias || [];
                     const produtosApi = Array.isArray(data.produtos) ? data.produtos : [];
-                    app.produtos = produtosApi;
+                    if (!app.preview && produtosApi.length === 0 && produtosLocais.length > 0) {
+                        // Evita "sumiço" visual quando a API responde vazia por instabilidade momentanea.
+                        app.produtos = produtosLocais;
+                        mostrarToastCustomizado('Conexao instavel: mantendo produtos salvos no aparelho.', 'aviso');
+                    } else {
+                        app.produtos = produtosApi;
+                    }
                     carregouApi = true;
                     localStorage.setItem('ultimo_slug_publico', app.slug);
                     localStorage.setItem('ultimo_slug_admin', app.slug);
