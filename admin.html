@@ -1453,11 +1453,11 @@
                             <i class="fas fa-image"></i>
                         </div>
                         <div>
-                            <input type="file" class="form-input" id="produto-imagem" accept="image/*" onchange="previewImagem(event)">
-                            <button class="btn btn-secondary btn-sm" type="button" style="margin-top: 0.6rem;" onclick="abrirSeletorImagemProduto()">
+                            <input type="file" id="produto-imagem" accept="image/*" onchange="previewImagem(event)" style="display:none;">
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="abrirSeletorImagemProduto()">
                                 <i class="fas fa-upload"></i> Escolher foto
                             </button>
-                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Clique para selecionar uma imagem</p>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Use o botão acima para selecionar a imagem</p>
                         </div>
                     </div>
                 </div>
@@ -2585,8 +2585,7 @@
         function abrirEditorRecorte({ file, alvo }) {
             if (!file) return;
             if (typeof Cropper === 'undefined') {
-                alert('Editor de recorte indisponível. Recarregue a página e tente novamente.');
-                return;
+                throw new Error('Editor de recorte indisponível.');
             }
 
             let conf = { title: 'Ajustar capa', ratio: 1600 / 720, largura: 1600, altura: 720 };
@@ -3355,20 +3354,28 @@
                 return;
             }
             intervalPedidos = setInterval(async () => {
-                await carregarPedidos();
-                renderizarPedidos();
-                renderizarMesas();
-                atualizarKPIsPedidos();
-                atualizarPainelCorridaTempoReal();
+                try {
+                    await carregarPedidos();
+                    renderizarPedidos();
+                    renderizarMesas();
+                    atualizarKPIsPedidos();
+                    atualizarPainelCorridaTempoReal();
+                } catch (erro) {
+                    console.warn('Falha no polling de pedidos:', erro?.message || erro);
+                }
             }, 12000);
 
             if (intervalEntregadores) {
                 clearInterval(intervalEntregadores);
             }
             intervalEntregadores = setInterval(async () => {
-                await carregarEntregadores();
-                renderizarEntregadores();
-                atualizarPainelCorridaTempoReal();
+                try {
+                    await carregarEntregadores();
+                    renderizarEntregadores();
+                    atualizarPainelCorridaTempoReal();
+                } catch (erro) {
+                    console.warn('Falha no polling de entregadores:', erro?.message || erro);
+                }
             }, 15000);
         }
 
@@ -3687,8 +3694,14 @@
             try {
                 abrirEditorRecorte({ file, alvo: 'produto' });
             } catch (erro) {
-                alert(erro?.message || 'Não foi possível processar a imagem selecionada.');
-                event.target.value = '';
+                try {
+                    const base64Leve = await converterImagemParaBase64Leve(file);
+                    atualizarPreviewImagemProduto(base64Leve);
+                    mostrarToastCustomizado('Imagem carregada sem editor de recorte.', 'aviso');
+                } catch (_) {
+                    alert(erro?.message || 'Não foi possível processar a imagem selecionada.');
+                    event.target.value = '';
+                }
             }
         }
 
@@ -4024,10 +4037,14 @@
                 contexto.pedidos = [];
                 return;
             }
-            try {
-                const res = await fetch(`${API_URL}/api/admin/pedidos/${contexto.slug}`, {
+
+            const buscarPedidos = async () => {
+                return fetch(`${API_URL}/api/admin/pedidos/${contexto.slug}`, {
                     headers: { 'token-acesso': contexto.token }
                 });
+            };
+            try {
+                let res = await buscarPedidos();
                 if (res.ok) {
                     contexto.pedidos = await res.json();
                     return;
@@ -4038,12 +4055,29 @@
                     const erroData = await res.json();
                     detalhe = String(erroData?.detail || erroData?.message || detalhe);
                 } catch (_) {}
-                tratarRespostaTokenInvalido(detalhe);
+
+                if (/token invalido|token inválido/i.test(detalhe)) {
+                    const renovou = await renovarSessaoAdminSilenciosamente();
+                    if (renovou) {
+                        res = await buscarPedidos();
+                        if (res.ok) {
+                            contexto.pedidos = await res.json();
+                            return;
+                        }
+
+                        let detalheRetry = 'Falha ao carregar pedidos após renovar sessão';
+                        try {
+                            const erroRetry = await res.json();
+                            detalheRetry = String(erroRetry?.detail || erroRetry?.message || detalheRetry);
+                        } catch (_) {}
+                        tratarRespostaTokenInvalido(detalheRetry);
+                    } else {
+                        tratarRespostaTokenInvalido(detalhe);
+                    }
+                }
             } catch (e) {
                 console.warn('Erro ao carregar pedidos do Render:', e?.message || e);
             }
-
-            contexto.pedidos = [];
         }
 
         async function despacharAutomaticamentePedidoPronto(pedido) {
