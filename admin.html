@@ -158,7 +158,7 @@
         .menu-live-preview { width: 100%; border: 1px solid #e2e8f0; border-radius: 0.75rem; overflow: hidden; background: #fff; margin-top: 0.75rem; }
         .menu-live-header { color: #fff; padding: 1rem; text-align: center; background-image: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%), var(--admin-live-cover, none); background-size: cover; background-position: var(--admin-live-cover-position, center); }
         .menu-live-logo-wrap { height: 58px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.35rem; }
-        .menu-live-logo { width: 190px; height: 56px; object-fit: cover; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.38); box-shadow: 0 6px 14px rgba(0,0,0,0.22); background: rgba(255,255,255,0.08); display: none; }
+        .menu-live-logo { width: 190px; height: 56px; object-fit: cover; object-position: var(--admin-live-logo-position, center); border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.38); box-shadow: 0 6px 14px rgba(0,0,0,0.22); background: rgba(255,255,255,0.08); display: none; }
         .menu-live-logo-placeholder { width: 190px; height: 56px; border-radius: 0.45rem; border: 1px dashed rgba(255,255,255,0.55); color: #cbd5e1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; }
         .menu-live-subtitle { margin-top: 0.2rem; font-size: 0.82rem; color: #cbd5e1; }
         .menu-live-toolbar { display: flex; gap: 0.5rem; align-items: center; padding: 0.65rem 0.75rem; border-top: 1px solid #e2e8f0; }
@@ -1254,6 +1254,12 @@
                         </div>
                         <input type="file" class="form-input" id="config-logo" accept="image/*" onchange="previewLogo(event)" style="margin-top: 0.75rem;">
                         <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">2) Faça upload da logo.</p>
+                        <label class="form-label" style="margin-top: 0.75rem;">Foco da Logo</label>
+                        <select class="form-select" id="config-logo-posicao" onchange="atualizarPosicaoLogoPreview()">
+                            <option value="top">Topo</option>
+                            <option value="center" selected>Centro</option>
+                            <option value="bottom">Base</option>
+                        </select>
                         <button class="btn btn-primary" style="width:100%; margin-top:0.85rem;" onclick="publicarConfiguracoes('Capa e logo salvas com sucesso!')"><i class="fas fa-cloud-upload-alt"></i> Salvar Capa e Logo</button>
                     </div>
                     <div class="form-group">
@@ -2151,6 +2157,24 @@
             document.documentElement.style.setProperty('--admin-live-cover-position', posicao);
         }
 
+        function atualizarPosicaoLogoPreview() {
+            const posicao = document.getElementById('config-logo-posicao')?.value || 'center';
+            const posicoesValidas = ['top', 'center', 'bottom'];
+            const logoPosicao = posicoesValidas.includes(posicao) ? posicao : 'center';
+
+            const previewLogo = document.querySelector('#logo-preview img');
+            if (previewLogo) {
+                previewLogo.style.objectFit = 'cover';
+                previewLogo.style.objectPosition = logoPosicao;
+            }
+
+            const liveLogo = document.getElementById('menu-live-logo');
+            if (liveLogo) {
+                liveLogo.style.objectPosition = logoPosicao;
+            }
+            document.documentElement.style.setProperty('--admin-live-logo-position', logoPosicao);
+        }
+
         function atualizarPreviewTema() {
             const corPrimaria = document.getElementById('config-cor-primaria').value || '#3b82f6';
             const corSecundaria = document.getElementById('config-cor-secundaria').value || '#10b981';
@@ -2378,12 +2402,14 @@
             const thumb = document.getElementById('logo-thumb-preview');
             const liveLogo = document.getElementById('menu-live-logo');
             const livePlaceholder = document.getElementById('menu-live-logo-placeholder');
+            const logoPosicao = document.getElementById('config-logo-posicao')?.value || 'center';
 
             if (imagem) {
-                preview.innerHTML = `<img src="${imagem}" style="width: 100%; height: 100%; object-fit: contain;">`;
+                preview.innerHTML = `<img src="${imagem}" style="width: 100%; height: 100%; object-fit: cover; object-position: ${logoPosicao};">`;
                 preview.dataset.base64 = imagem;
                 if (thumb) thumb.innerHTML = `<img src="${imagem}">`;
                 liveLogo.src = imagem;
+                liveLogo.style.objectPosition = logoPosicao;
                 liveLogo.style.display = 'block';
                 livePlaceholder.style.display = 'none';
             } else {
@@ -2396,6 +2422,7 @@
             }
 
             atualizarBloqueioCoresTema();
+            atualizarPosicaoLogoPreview();
         }
 
         function obterHorarioProduto(produto) {
@@ -2502,14 +2529,9 @@
         async function previewCapa(event) {
             const file = event.target.files[0];
             if (!file) return;
-            try {
-                const imagemRecortada = await gerarImagemRecortada(file, 1600, 720);
-                atualizarPreviewCapa(imagemRecortada);
-            } catch (erro) {
-                const reader = new FileReader();
-                reader.onload = (e) => atualizarPreviewCapa(e.target.result);
-                reader.readAsDataURL(file);
-            }
+            const reader = new FileReader();
+            reader.onload = (e) => atualizarPreviewCapa(e.target.result);
+            reader.readAsDataURL(file);
         }
 
         function gerarImagemRecortada(file, larguraDestino, alturaDestino) {
@@ -2564,14 +2586,9 @@
         async function previewLogo(event) {
             const file = event.target.files[0];
             if (!file) return;
-            try {
-                const imagemRecortada = await gerarImagemRecortada(file, 900, 270);
-                atualizarPreviewLogo(imagemRecortada);
-            } catch (erro) {
-                const reader = new FileReader();
-                reader.onload = (e) => atualizarPreviewLogo(e.target.result);
-                reader.readAsDataURL(file);
-            }
+            const reader = new FileReader();
+            reader.onload = (e) => atualizarPreviewLogo(e.target.result);
+            reader.readAsDataURL(file);
         }
 
         function aplicarConfiguracaoNaTela() {
@@ -2585,6 +2602,7 @@
             document.getElementById('config-mesas').value = contexto.restaurante.total_mesas || 10;
             document.getElementById('config-url-base').value = contexto.restaurante.url_base_publica || '';
             document.getElementById('config-capa-posicao').value = contexto.restaurante.capa_posicao || 'center';
+            document.getElementById('config-logo-posicao').value = contexto.restaurante.logo_posicao || 'center';
             document.getElementById('config-cor-primaria').value = contexto.restaurante.tema_cor_primaria || '#3b82f6';
             document.getElementById('config-cor-secundaria').value = contexto.restaurante.tema_cor_secundaria || '#10b981';
             document.getElementById('config-cor-destaque').value = contexto.restaurante.tema_cor_destaque || '#1e293b';
@@ -2603,6 +2621,7 @@
             atualizarPreviewCapa(contexto.restaurante.capa_cardapio || '');
             atualizarPosicaoCapaPreview();
             atualizarPreviewLogo(contexto.restaurante.logo || '');
+            atualizarPosicaoLogoPreview();
             atualizarPreviewTema();
             atualizarBloqueioCoresTema();
             renderizarSelectCategorias();
@@ -3329,6 +3348,7 @@
                 capa_cardapio: data.capa_cardapio || '',
                 capa_posicao: data.capa_posicao || 'center',
                 logo: data.logo || '',
+                logo_posicao: data.logo_posicao || 'center',
                 tema_cor_primaria: data.tema_cor_primaria || '#3b82f6',
                 tema_cor_secundaria: data.tema_cor_secundaria || '#10b981',
                 tema_cor_destaque: data.tema_cor_destaque || '#1e293b',
@@ -5731,6 +5751,7 @@
             const capa = document.getElementById('capa-preview').dataset.base64 || '';
             const capaPosicao = document.getElementById('config-capa-posicao').value || 'center';
             const logo = document.getElementById('logo-preview').dataset.base64 || '';
+            const logoPosicao = document.getElementById('config-logo-posicao').value || 'center';
             const horariosCategoria = coletarHorariosCategoriaFormulario();
             const temaCorPrimaria = document.getElementById('config-cor-primaria').value || '#3b82f6';
             const temaCorSecundaria = document.getElementById('config-cor-secundaria').value || '#10b981';
@@ -5758,6 +5779,7 @@
                 capa_cardapio_base64: capa,
                 capa_posicao: capaPosicao,
                 logo_base64: logo,
+                logo_posicao: logoPosicao,
                 tema_cor_primaria: temaCorPrimaria,
                 tema_cor_secundaria: temaCorSecundaria,
                 tema_cor_destaque: temaCorDestaque,
@@ -5783,6 +5805,7 @@
                 capa_cardapio: capa,
                 capa_posicao: capaPosicao,
                 logo,
+                logo_posicao: logoPosicao,
                 tema_cor_primaria: temaCorPrimaria,
                 tema_cor_secundaria: temaCorSecundaria,
                 tema_cor_destaque: temaCorDestaque,
@@ -5861,8 +5884,10 @@
             }
 
             contexto.mesas = [];
+            await carregarProdutos();
             await carregarMesas();
             aplicarConfiguracaoNaTela();
+            renderizarProdutos();
             renderizarMesas();
         }
 

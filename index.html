@@ -23,7 +23,7 @@
         
         .header { background-image: linear-gradient(135deg, var(--header-overlay-start) 0%, var(--header-overlay-end) 100%), var(--header-cover, none); background-size: cover; background-position: var(--header-cover-position, center); color: #fff; padding: 1rem; text-align: center; position: sticky; top: 0; z-index: 30; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .header-logo-wrap { min-height: 58px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.25rem; }
-        .header-logo { width: 190px; height: 56px; object-fit: cover; border-radius: var(--button-radius); border: 1px solid rgba(255,255,255,0.38); box-shadow: 0 6px 14px rgba(0,0,0,0.22); background: rgba(255,255,255,0.08); display: none; }
+        .header-logo { width: 190px; height: 56px; object-fit: cover; object-position: var(--header-logo-position, center); border-radius: var(--button-radius); border: 1px solid rgba(255,255,255,0.38); box-shadow: 0 6px 14px rgba(0,0,0,0.22); background: rgba(255,255,255,0.08); display: none; }
         .header-logo-placeholder { width: 190px; height: 56px; border-radius: 0.5rem; border: 1px dashed rgba(255,255,255,0.5); display: inline-flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 0.8rem; }
         .header-mesa { font-size: 0.875rem; color: #cbd5e1; }
         .delivery-cta-header { margin-top: 0.5rem; border: 1px solid rgba(255,255,255,0.34); background: linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.14)); color: #fff; padding: 0.46rem 0.92rem; border-radius: 999px; font-size: 0.78rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; box-shadow: 0 8px 20px rgba(15,23,42,0.24); backdrop-filter: blur(4px); transition: all 0.2s ease; }
@@ -962,6 +962,7 @@
                             capa_cardapio: configLocal.capa_cardapio || app.restaurante.capa_cardapio || app.restaurante.capa_cardapio_base64 || '',
                             logo: configLocal.logo || app.restaurante.logo || app.restaurante.logo_base64 || '',
                             capa_posicao: configLocal.capa_posicao || app.restaurante.capa_posicao || 'center',
+                            logo_posicao: configLocal.logo_posicao || app.restaurante.logo_posicao || 'center',
                             tema_cor_primaria: configLocal.tema_cor_primaria || app.restaurante.tema_cor_primaria || '#3b82f6',
                             tema_cor_secundaria: configLocal.tema_cor_secundaria || app.restaurante.tema_cor_secundaria || '#10b981',
                             tema_cor_destaque: configLocal.tema_cor_destaque || app.restaurante.tema_cor_destaque || '#1e293b',
@@ -995,6 +996,7 @@
                         nome_unidade: configLocal.nome_unidade || 'Cardápio',
                         capa_cardapio: configLocal.capa_cardapio || '',
                         capa_posicao: configLocal.capa_posicao || 'center',
+                        logo_posicao: configLocal.logo_posicao || 'center',
                         logo: configLocal.logo || '',
                         tema_cor_primaria: configLocal.tema_cor_primaria || '#3b82f6',
                         tema_cor_secundaria: configLocal.tema_cor_secundaria || '#10b981',
@@ -1079,6 +1081,9 @@
             document.documentElement.style.setProperty('--button-radius-lg', raioGrande);
 
             const logo = app.restaurante.logo || app.restaurante.logo_base64 || '';
+            const logoPosicao = app.restaurante.logo_posicao || 'center';
+            const posicoesLogoValidas = ['top', 'center', 'bottom'];
+            document.documentElement.style.setProperty('--header-logo-position', posicoesLogoValidas.includes(logoPosicao) ? logoPosicao : 'center');
             const logoImg = document.getElementById('header-logo');
             const logoPlaceholder = document.getElementById('header-logo-placeholder');
 

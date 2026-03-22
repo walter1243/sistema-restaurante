@@ -165,6 +165,7 @@ class Restaurante(Base):
     capa_cardapio_base64: Mapped[str] = mapped_column(String(1000000), default="")
     capa_posicao: Mapped[str] = mapped_column(String(20), default="center")
     logo_base64: Mapped[str] = mapped_column(String(1000000), default="")
+    logo_posicao: Mapped[str] = mapped_column(String(20), default="center")
     tema_cor_primaria: Mapped[str] = mapped_column(String(20), default="#3b82f6")
     tema_cor_secundaria: Mapped[str] = mapped_column(String(20), default="#10b981")
     tema_cor_destaque: Mapped[str] = mapped_column(String(20), default="#1e293b")
@@ -480,6 +481,7 @@ class RestauranteConfigUpdate(BaseModel):
     capa_cardapio_base64: str | None = None
     capa_posicao: str | None = None
     logo_base64: str | None = None
+    logo_posicao: str | None = None
     tema_cor_primaria: str | None = None
     tema_cor_secundaria: str | None = None
     tema_cor_destaque: str | None = None
@@ -2554,6 +2556,8 @@ def startup_event():
                 conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN capa_posicao VARCHAR(20) DEFAULT 'center'")
             if "logo_base64" not in colunas:
                 conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN logo_base64 VARCHAR(1000000) DEFAULT ''")
+            if "logo_posicao" not in colunas:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN logo_posicao VARCHAR(20) DEFAULT 'center'")
             if "tema_cor_primaria" not in colunas:
                 conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN tema_cor_primaria VARCHAR(20) DEFAULT '#3b82f6'")
             if "tema_cor_secundaria" not in colunas:
@@ -3941,6 +3945,7 @@ def obter_cardapio_por_slug(slug: str, mesa: str = Query(...), db: Session = Dep
             "capa_cardapio": restaurante.capa_cardapio_base64,
             "capa_posicao": restaurante.capa_posicao,
             "logo": restaurante.logo_base64,
+            "logo_posicao": restaurante.logo_posicao,
             "tema_cor_primaria": restaurante.tema_cor_primaria,
             "tema_cor_secundaria": restaurante.tema_cor_secundaria,
             "tema_cor_destaque": restaurante.tema_cor_destaque,
@@ -4002,6 +4007,7 @@ def obter_configuracao_restaurante(slug: str, token_acesso: str = Header(...), d
         "capa_cardapio": restaurante.capa_cardapio_base64,
         "capa_posicao": restaurante.capa_posicao,
         "logo": restaurante.logo_base64,
+        "logo_posicao": restaurante.logo_posicao,
         "tema_cor_primaria": restaurante.tema_cor_primaria,
         "tema_cor_secundaria": restaurante.tema_cor_secundaria,
         "tema_cor_destaque": restaurante.tema_cor_destaque,
@@ -4150,6 +4156,9 @@ def atualizar_configuracao_restaurante(
         restaurante.capa_posicao = payload.capa_posicao if payload.capa_posicao in capa_posicoes_validas else "center"
     if payload.logo_base64 is not None:
         restaurante.logo_base64 = payload.logo_base64
+    if payload.logo_posicao is not None:
+        logo_posicoes_validas = {"top", "center", "bottom"}
+        restaurante.logo_posicao = payload.logo_posicao if payload.logo_posicao in logo_posicoes_validas else "center"
     if payload.tema_cor_primaria is not None:
         restaurante.tema_cor_primaria = payload.tema_cor_primaria
     if payload.tema_cor_secundaria is not None:
@@ -4185,6 +4194,7 @@ def atualizar_configuracao_restaurante(
         "capa_cardapio": restaurante.capa_cardapio_base64,
         "capa_posicao": restaurante.capa_posicao,
         "logo": restaurante.logo_base64,
+        "logo_posicao": restaurante.logo_posicao,
         "tema_cor_primaria": restaurante.tema_cor_primaria,
         "tema_cor_secundaria": restaurante.tema_cor_secundaria,
         "tema_cor_destaque": restaurante.tema_cor_destaque,
