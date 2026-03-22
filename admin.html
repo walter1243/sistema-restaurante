@@ -1468,12 +1468,17 @@
                     </label>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Horário do Produto (Opcional)</label>
-                    <div class="inline-row">
-                        <input type="time" class="form-input" id="produto-horario-inicio">
-                        <input type="time" class="form-input" id="produto-horario-fim">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="produto-horario-ativo" onchange="toggleHorarioProduto(this.checked)">
+                        <span class="form-label" style="margin: 0;">Ativar controle de horário</span>
+                    </label>
+                    <div id="produto-horario-campos" style="display:none; margin-top: 0.5rem;">
+                        <div class="inline-row">
+                            <input type="time" class="form-input" id="produto-horario-inicio">
+                            <input type="time" class="form-input" id="produto-horario-fim">
+                        </div>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Produto visível apenas neste intervalo de horário.</p>
                     </div>
-                    <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Se vazio, usa o horário configurado da categoria.</p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -2555,6 +2560,14 @@
             return /^\d{2}:\d{2}$/.test(texto) ? texto : '';
         }
 
+        function toggleHorarioProduto(ativo) {
+            document.getElementById('produto-horario-campos').style.display = ativo ? 'block' : 'none';
+            if (!ativo) {
+                document.getElementById('produto-horario-inicio').value = '';
+                document.getElementById('produto-horario-fim').value = '';
+            }
+        }
+
         function destruirEditorRecorte() {
             if (cropperEditor) {
                 try { cropperEditor.destroy(); } catch (_) {}
@@ -3616,6 +3629,9 @@
                     document.getElementById('produto-complementos').value = complementosParaTexto(produto.complementos || []);
                     renderizarComplementosProdutoLista();
                     document.getElementById('produto-disponivel').checked = produto.disponivel !== false;
+                    const temHorario = !!(produto.horario_inicio && produto.horario_fim);
+                    document.getElementById('produto-horario-ativo').checked = temHorario;
+                    document.getElementById('produto-horario-campos').style.display = temHorario ? 'block' : 'none';
                     document.getElementById('produto-horario-inicio').value = produto.horario_inicio || '';
                     document.getElementById('produto-horario-fim').value = produto.horario_fim || '';
                     
@@ -3631,6 +3647,8 @@
                 document.getElementById('complemento-nome').value = '';
                 document.getElementById('complemento-preco').value = '';
                 document.getElementById('produto-disponivel').checked = true;
+                document.getElementById('produto-horario-ativo').checked = false;
+                document.getElementById('produto-horario-campos').style.display = 'none';
                 document.getElementById('produto-horario-inicio').value = '';
                 document.getElementById('produto-horario-fim').value = '';
                 document.getElementById('nova-categoria').value = '';
@@ -3874,8 +3892,9 @@
             const descricao = document.getElementById('produto-descricao').value;
             const complementos = coletarComplementosDoFormulario();
             const disponivel = document.getElementById('produto-disponivel').checked;
-            const horarioInicio = normalizarHorarioFormularioProduto(document.getElementById('produto-horario-inicio').value);
-            const horarioFim = normalizarHorarioFormularioProduto(document.getElementById('produto-horario-fim').value);
+            const horarioAtivo = document.getElementById('produto-horario-ativo').checked;
+            const horarioInicio = horarioAtivo ? normalizarHorarioFormularioProduto(document.getElementById('produto-horario-inicio').value) : '';
+            const horarioFim = horarioAtivo ? normalizarHorarioFormularioProduto(document.getElementById('produto-horario-fim').value) : '';
             const imagem = document.getElementById('imagem-preview').dataset.base64 || '';
 
             if (!nome || !preco) {

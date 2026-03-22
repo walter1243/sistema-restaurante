@@ -3929,11 +3929,8 @@ def obter_cardapio_por_slug(slug: str, mesa: str = Query(...), db: Session = Dep
     for p in produtos:
         horario_inicio = p.horario_inicio or ""
         horario_fim = p.horario_fim or ""
-        if not horario_inicio and not horario_fim:
-            horario_categoria = horarios_categoria.get(p.categoria, {}) if isinstance(horarios_categoria, dict) else {}
-            horario_inicio = horario_categoria.get("inicio", "")
-            horario_fim = horario_categoria.get("fim", "")
-
+        # Só aplica filtro de horário se o produto tiver ambos os campos configurados explicitamente.
+        # Produtos sem horário definido ficam disponíveis o tempo todo.
         if esta_disponivel_por_horario(horario_inicio, horario_fim):
             produtos_filtrados.append((p, horario_inicio, horario_fim))
 
