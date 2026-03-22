@@ -906,7 +906,7 @@
 
             for (const base of bases) {
                 try {
-                    const resposta = await fetch(`${base}${caminho}`);
+                    const resposta = await fetch(`${base}${caminho}`, { cache: 'no-store' });
                     if (!resposta.ok) {
                         ultimoErro = new Error(`Falha ao carregar cardápio em ${base || 'origem'} (${resposta.status})`);
                         continue;
@@ -1026,9 +1026,22 @@
                     app.restaurante = data.restaurante || {};
                     app.horariosCategoria = data.horarios_categoria || {};
                     app.categorias = data.categorias || [];
-                    const produtosApi = Array.isArray(data.produtos) ? data.produtos : [];
+                    let produtosApi = Array.isArray(data.produtos) ? data.produtos : [];
+                    // Se a API retornou vazio e não há cache local, tenta 1x após 2s (cold start do servidor)
+                    if (!app.preview && produtosApi.length === 0 && produtosLocais.length === 0 && !app._retryCardapioPendente) {
+                        app._retryCardapioPendente = true;
+                        await new Promise(r => setTimeout(r, 2000));
+                        try {
+                            const res2 = await obterRespostaCardapioComFallback();
+                            if (res2.ok) {
+                                const data2 = await res2.json();
+                                produtosApi = Array.isArray(data2.produtos) ? data2.produtos : [];
+                            }
+                        } catch (_) {}
+                        app._retryCardapioPendente = false;
+                    }
                     if (!app.preview && produtosApi.length === 0 && produtosLocais.length > 0) {
-                        // Evita "sumiço" visual quando a API responde vazia por instabilidade momentanea.
+                        // Evita "sumiço" visual quando a API responde vazia por instabilidade momentânea.
                         app.produtos = produtosLocais;
                         mostrarToastCustomizado('Conexao instavel: mantendo produtos salvos no aparelho.', 'aviso');
                     } else {
