@@ -1132,7 +1132,6 @@
                                 <i class="fab fa-whatsapp" style="font-size:1.1rem;"></i>
                                 <span>Suporte WhatsApp</span>
                             </button>
-                            <span class="form-label" style="margin:0;">Falar com o Suporte</span>
                         </div>
                         <small style="color:#64748b;font-size:0.75rem;">Contato direto via WhatsApp — exclusivo plano Enterprise.</small>
                     </div>
@@ -4290,19 +4289,48 @@
                 contexto.entregadores = [];
                 return;
             }
-            try {
-                const res = await fetch(`${API_URL}/api/admin/entregadores/${contexto.slug}`, {
+
+            const buscarEntregadores = async () => {
+                return fetch(`${API_URL}/api/admin/entregadores/${contexto.slug}`, {
                     headers: { 'token-acesso': contexto.token }
                 });
+            };
+
+            try {
+                let res = await buscarEntregadores();
                 if (res.ok) {
                     contexto.entregadores = await res.json();
                     return;
                 }
+
+                let detalhe = 'Falha ao carregar entregadores da conta';
+                try {
+                    const erroData = await res.json();
+                    detalhe = String(erroData?.detail || erroData?.message || detalhe);
+                } catch (_) {}
+
+                if (/token invalido|token inválido/i.test(detalhe)) {
+                    const renovou = await renovarSessaoAdminSilenciosamente();
+                    if (renovou) {
+                        res = await buscarEntregadores();
+                        if (res.ok) {
+                            contexto.entregadores = await res.json();
+                            return;
+                        }
+
+                        let detalheRetry = 'Falha ao carregar entregadores após renovar sessão';
+                        try {
+                            const erroRetry = await res.json();
+                            detalheRetry = String(erroRetry?.detail || erroRetry?.message || detalheRetry);
+                        } catch (_) {}
+                        tratarRespostaTokenInvalido(detalheRetry);
+                    } else {
+                        tratarRespostaTokenInvalido(detalhe);
+                    }
+                }
             } catch (erro) {
                 console.warn('Erro ao carregar entregadores do Render:', erro?.message || erro);
             }
-
-            contexto.entregadores = [];
         }
 
         function renderizarEntregadores() {
@@ -4905,8 +4933,8 @@
                 return;
             }
 
-            try {
-                const res = await fetch(`${API_URL}/api/admin/entregadores/${contexto.slug}`, {
+            const enviarCadastro = async () => {
+                return fetch(`${API_URL}/api/admin/entregadores/${contexto.slug}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4914,9 +4942,33 @@
                     },
                     body: JSON.stringify({ nome, whatsapp, senha })
                 });
+            };
+
+            try {
+                let res = await enviarCadastro();
                 if (!res.ok) {
                     const erro = await res.json().catch(() => ({}));
-                    throw new Error(erro.detail || 'Falha ao cadastrar entregador');
+                    let detalhe = String(erro?.detail || 'Falha ao cadastrar entregador');
+
+                    if (/token invalido|token inválido/i.test(detalhe)) {
+                        const renovou = await renovarSessaoAdminSilenciosamente();
+                        if (renovou) {
+                            res = await enviarCadastro();
+                            if (!res.ok) {
+                                const erroRetry = await res.json().catch(() => ({}));
+                                detalhe = String(erroRetry?.detail || 'Falha ao cadastrar entregador');
+                                if (/token invalido|token inválido/i.test(detalhe)) {
+                                    tratarRespostaTokenInvalido(detalhe);
+                                }
+                                throw new Error(detalhe);
+                            }
+                        } else {
+                            tratarRespostaTokenInvalido(detalhe);
+                            throw new Error(detalhe);
+                        }
+                    } else {
+                        throw new Error(detalhe);
+                    }
                 }
                 document.getElementById('entregador-nome').value = '';
                 document.getElementById('entregador-whatsapp').value = '';
