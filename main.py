@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 import importlib
 import json
@@ -1843,7 +1844,7 @@ def esta_disponivel_por_horario(horario_inicio: str, horario_fim: str) -> bool:
     if not horario_inicio or not horario_fim:
         return True
 
-    agora = datetime.now().strftime("%H:%M")
+    agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%H:%M")
     if horario_inicio <= horario_fim:
         return horario_inicio <= agora <= horario_fim
     return agora >= horario_inicio or agora <= horario_fim
