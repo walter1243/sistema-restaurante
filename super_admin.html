@@ -1643,11 +1643,12 @@
                 if (norm && !bases.includes(norm)) bases.push(norm);
             };
 
-            add(window.location.origin || '');
+            add(window.resolveApiBase ? window.resolveApiBase() : '');
             add(API_URL_ATIVO);
             add(API_URL);
             add(localStorage.getItem('api_base_url') || '');
             add('https://sistema-restaurante-api.onrender.com');
+            add(window.location.origin || '');
 
             const host = window.location.hostname || '127.0.0.1';
             const local = host === 'localhost' || host === '127.0.0.1';

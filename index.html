@@ -723,14 +723,16 @@
             }
         }
 
+        function obterConfigLocalRestaurante() {
+            const configNova = lerJsonLocalStorage(`restaurante_config_${app.slug}`, null);
+            if (configNova && typeof configNova === 'object' && Object.keys(configNova).length) {
+                return configNova;
+            }
+            return lerJsonLocalStorage(`config_${app.slug}`, {});
+        }
+
         function obterGoogleMapsApiKey() {
-            const configLocal = (() => {
-                try {
-                    return JSON.parse(localStorage.getItem(`config_${app.slug}`) || '{}') || {};
-                } catch (_) {
-                    return {};
-                }
-            })();
+            const configLocal = obterConfigLocalRestaurante();
 
             const candidatos = [
                 app?.restaurante?.delivery_google_maps_api_key,
@@ -1016,7 +1018,7 @@
         async function carregarProdutos() {
             mostrarSkeletons();
             const produtosLocais = lerJsonLocalStorage(`produtos_${app.slug}`, []);
-            const configLocal = lerJsonLocalStorage(`restaurante_config_${app.slug}`, {});
+            const configLocal = obterConfigLocalRestaurante();
             let carregouApi = false;
 
             try {

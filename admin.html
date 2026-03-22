@@ -1906,10 +1906,11 @@
                 if (!bases.includes(normalizada)) bases.push(normalizada);
             };
             const origem = (window.location.origin || '').replace(/\/$/, '');
-            add(origem);
+            add(window.resolveApiBase ? window.resolveApiBase() : '');
             add(API_URL);
             add(localStorage.getItem('api_base_url') || '');
             add('https://sistema-restaurante-api.onrender.com');
+            add(origem);
 
             const host = window.location.hostname || '127.0.0.1';
             const protocolo = window.location.protocol || 'http:';
@@ -1950,13 +1951,11 @@
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), 4500);
                 try {
-                    const res = await fetch(`${base}/health`, {
+                    const res = await fetch(`${base}/api/public/cardapio-principal`, {
                         method: 'GET',
                         signal: controller.signal
                     });
-                    if (!res.ok) continue;
-                    const data = await res.json().catch(() => ({}));
-                    if (data && data.ok === true) {
+                    if (res.ok) {
                         aplicarApiBase(base);
                         return true;
                     }
@@ -1975,23 +1974,17 @@
             let ultimoErro = null;
 
             for (const base of bases) {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 12000);
                 try {
-                    const healthRes = await fetch(`${base}/health`, { method: 'GET' });
-                    if (!healthRes.ok) {
-                        continue;
-                    }
-                    const healthData = await healthRes.json().catch(() => ({}));
-                    if (!healthData || healthData.ok !== true) {
-                        continue;
-                    }
-
                     const res = await fetch(`${base}${caminho}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify(payload),
+                        signal: controller.signal
                     });
 
-                    if (res.status === 404 || res.status === 405) {
+                    if ([404, 405, 502, 503].includes(Number(res.status))) {
                         ultimaResposta = res;
                         continue;
                     }
@@ -2000,6 +1993,8 @@
                     return res;
                 } catch (erro) {
                     ultimoErro = erro;
+                } finally {
+                    clearTimeout(timer);
                 }
             }
 
@@ -2013,13 +2008,9 @@
             let ultimoErro = null;
 
             for (const base of bases) {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 12000);
                 try {
-                    const healthRes = await fetch(`${base}/health`, { method: 'GET' });
-                    if (!healthRes.ok) continue;
-
-                    const healthData = await healthRes.json().catch(() => ({}));
-                    if (!healthData || healthData.ok !== true) continue;
-
                     const headers = {
                         'Content-Type': 'application/json',
                         ...(extraHeaders || {})
@@ -2027,7 +2018,8 @@
 
                     const reqInit = {
                         method: metodo,
-                        headers
+                        headers,
+                        signal: controller.signal
                     };
 
                     if (payload !== null && payload !== undefined) {
@@ -2036,7 +2028,7 @@
 
                     const res = await fetch(`${base}${caminho}`, reqInit);
 
-                    if (res.status === 404 || res.status === 405) {
+                    if ([404, 405, 502, 503].includes(Number(res.status))) {
                         ultimaResposta = res;
                         continue;
                     }
@@ -2045,6 +2037,8 @@
                     return res;
                 } catch (erro) {
                     ultimoErro = erro;
+                } finally {
+                    clearTimeout(timer);
                 }
             }
 
