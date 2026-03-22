@@ -20,6 +20,30 @@ services:
         fromDatabase:
           name: foodos-postgres
           property: connectionString
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CORS_ALLOWED_ORIGIN_REGEX
+        sync: false
+      - key: TERMS_URL
+        sync: false
+      - key: PRIVACY_URL
+        sync: false
+      - key: SUPER_ADMIN_NOME
+        sync: false
+      - key: SUPER_ADMIN_LOGIN
+        sync: false
+      - key: SUPER_ADMIN_SENHA
+        sync: false
+      - key: DEFAULT_RESTAURANTE_NOME
+        sync: false
+      - key: DEFAULT_RESTAURANTE_SLUG
+        sync: false
+      - key: DEFAULT_RESTAURANTE_EMAIL
+        sync: false
+      - key: DEFAULT_RESTAURANTE_SENHA
+        sync: false
+      - key: DEFAULT_RESTAURANTE_PLAN_TYPE
+        sync: false
       - key: MP_ACCESS_TOKEN
         sync: false
       - key: MP_PUBLIC_KEY

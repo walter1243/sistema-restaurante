@@ -2707,6 +2707,43 @@ def health():
     }
 
 
+@app.get("/api/public/diagnostico-runtime")
+def diagnostico_runtime_publico():
+    return {
+        "ok": True,
+        "environment": "vercel" if os.getenv("VERCEL") == "1" else ("render" if (os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL")) else "local"),
+        "db_backend": "sqlite" if DATABASE_URL.startswith("sqlite") else "postgres",
+        "database_url_configured": bool((os.getenv("DATABASE_URL") or "").strip()),
+        "env_keys": {
+            "DATABASE_URL": bool((os.getenv("DATABASE_URL") or "").strip()),
+            "CORS_ALLOWED_ORIGINS": bool((os.getenv("CORS_ALLOWED_ORIGINS") or "").strip()),
+            "CORS_ALLOWED_ORIGIN_REGEX": bool((os.getenv("CORS_ALLOWED_ORIGIN_REGEX") or "").strip()),
+            "MP_ACCESS_TOKEN": bool((os.getenv("MP_ACCESS_TOKEN") or "").strip()),
+            "MP_PUBLIC_KEY": bool((os.getenv("MP_PUBLIC_KEY") or "").strip()),
+            "PUSH_VAPID_PUBLIC_KEY": bool((os.getenv("PUSH_VAPID_PUBLIC_KEY") or "").strip()),
+            "PUSH_VAPID_PRIVATE_KEY": bool((os.getenv("PUSH_VAPID_PRIVATE_KEY") or "").strip()),
+            "PUSH_VAPID_CLAIMS_SUB": bool((os.getenv("PUSH_VAPID_CLAIMS_SUB") or "").strip()),
+            "SMTP_HOST": bool((os.getenv("SMTP_HOST") or "").strip()),
+            "SMTP_PORT": bool((os.getenv("SMTP_PORT") or "").strip()),
+            "SMTP_USER": bool((os.getenv("SMTP_USER") or "").strip()),
+            "SMTP_PASS": bool((os.getenv("SMTP_PASS") or "").strip()),
+            "SMTP_FROM": bool((os.getenv("SMTP_FROM") or "").strip()),
+            "SMTP_TLS": bool((os.getenv("SMTP_TLS") or "").strip()),
+            "SMTP_SSL": bool((os.getenv("SMTP_SSL") or "").strip()),
+            "TERMS_URL": bool((os.getenv("TERMS_URL") or "").strip()),
+            "PRIVACY_URL": bool((os.getenv("PRIVACY_URL") or "").strip()),
+            "SUPER_ADMIN_NOME": bool((os.getenv("SUPER_ADMIN_NOME") or "").strip()),
+            "SUPER_ADMIN_LOGIN": bool((os.getenv("SUPER_ADMIN_LOGIN") or "").strip()),
+            "SUPER_ADMIN_SENHA": bool((os.getenv("SUPER_ADMIN_SENHA") or "").strip()),
+            "DEFAULT_RESTAURANTE_NOME": bool((os.getenv("DEFAULT_RESTAURANTE_NOME") or "").strip()),
+            "DEFAULT_RESTAURANTE_SLUG": bool((os.getenv("DEFAULT_RESTAURANTE_SLUG") or "").strip()),
+            "DEFAULT_RESTAURANTE_EMAIL": bool((os.getenv("DEFAULT_RESTAURANTE_EMAIL") or "").strip()),
+            "DEFAULT_RESTAURANTE_SENHA": bool((os.getenv("DEFAULT_RESTAURANTE_SENHA") or "").strip()),
+            "DEFAULT_RESTAURANTE_PLAN_TYPE": bool((os.getenv("DEFAULT_RESTAURANTE_PLAN_TYPE") or "").strip()),
+        },
+    }
+
+
 @app.get("/api/public/push/config")
 def obter_push_config_publica():
     return {
