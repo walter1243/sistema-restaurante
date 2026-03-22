@@ -2590,9 +2590,12 @@
                 return;
             }
 
-            const conf = alvo === 'logo'
-                ? { title: 'Ajustar logo', ratio: 900 / 270, largura: 900, altura: 270 }
-                : { title: 'Ajustar capa', ratio: 1600 / 720, largura: 1600, altura: 720 };
+            let conf = { title: 'Ajustar capa', ratio: 1600 / 720, largura: 1600, altura: 720 };
+            if (alvo === 'logo') {
+                conf = { title: 'Ajustar logo', ratio: 900 / 270, largura: 900, altura: 270 };
+            } else if (alvo === 'produto') {
+                conf = { title: 'Ajustar foto do produto', ratio: 1, largura: 1024, altura: 1024 };
+            }
 
             cropEditorEstado = {
                 alvo,
@@ -2658,6 +2661,8 @@
             const base64 = canvas.toDataURL('image/jpeg', 0.92);
             if (cropEditorEstado.alvo === 'logo') {
                 atualizarPreviewLogo(base64);
+            } else if (cropEditorEstado.alvo === 'produto') {
+                atualizarPreviewImagemProduto(base64);
             } else {
                 atualizarPreviewCapa(base64);
             }
@@ -3567,11 +3572,7 @@
                     document.getElementById('produto-horario-inicio').value = produto.horario_inicio || '';
                     document.getElementById('produto-horario-fim').value = produto.horario_fim || '';
                     
-                    if (produto.imagem) {
-                        const preview = document.getElementById('imagem-preview');
-                        preview.innerHTML = `<img src="${produto.imagem}">`;
-                        preview.dataset.base64 = produto.imagem;
-                    }
+                    atualizarPreviewImagemProduto(produto.imagem || '');
                 }
             } else {
                 document.getElementById('produto-nome').value = '';
@@ -3586,8 +3587,7 @@
                 document.getElementById('produto-horario-inicio').value = '';
                 document.getElementById('produto-horario-fim').value = '';
                 document.getElementById('nova-categoria').value = '';
-                document.getElementById('imagem-preview').innerHTML = '<i class="fas fa-image"></i>';
-                document.getElementById('imagem-preview').removeAttribute('data-base64');
+                atualizarPreviewImagemProduto('');
             }
 
             if (id !== null) {
@@ -3607,6 +3607,20 @@
             const input = document.getElementById('produto-imagem');
             if (!input) return;
             input.click();
+        }
+
+        function atualizarPreviewImagemProduto(imagem = '') {
+            const preview = document.getElementById('imagem-preview');
+            if (!preview) return;
+            if (imagem) {
+                preview.innerHTML = `<img src="${imagem}">`;
+                preview.dataset.base64 = imagem;
+                preview.classList.remove('empty');
+            } else {
+                preview.innerHTML = '<i class="fas fa-image"></i>';
+                preview.removeAttribute('data-base64');
+                preview.classList.add('empty');
+            }
         }
 
         function carregarImagem(file) {
@@ -3672,11 +3686,7 @@
             }
 
             try {
-                const base64Leve = await converterImagemParaBase64Leve(file);
-                const preview = document.getElementById('imagem-preview');
-                preview.innerHTML = `<img src="${base64Leve}">`;
-                preview.dataset.base64 = base64Leve;
-                preview.classList.remove('empty');
+                abrirEditorRecorte({ file, alvo: 'produto' });
             } catch (erro) {
                 alert(erro?.message || 'Não foi possível processar a imagem selecionada.');
                 event.target.value = '';
@@ -4166,6 +4176,12 @@
             }
 
             return '';
+        }
+
+        function formatarCoordenadasEntrega(endereco = {}) {
+            const coords = extrairCoordenadasEndereco(endereco || {});
+            if (!coords) return '';
+            return `${Number(coords.lat).toFixed(6)}, ${Number(coords.lon).toFixed(6)}`;
         }
 
         function extrairCoordenadasEndereco(endereco = {}) {
@@ -5284,6 +5300,7 @@
                 const ehDelivery = tipoEntrega === 'delivery';
                 const statusPedidoLower = String(p.status || '').toLowerCase();
                 const enderecoTexto = formatarEnderecoEntrega(p.endereco_entrega || {});
+                const coordenadasTexto = formatarCoordenadasEntrega(p.endereco_entrega || {});
                 const corFluxo = ehDelivery ? '#3b82f6' : '#10b981';
                 const chipFluxoBg = ehDelivery ? '#dbeafe' : '#dcfce7';
                 const chipFluxoTxt = ehDelivery ? '#1d4ed8' : '#166534';
@@ -5334,6 +5351,7 @@
                                 <div><strong>Cliente:</strong> ${p.cliente_nome || 'Não informado'}</div>
                                 <div><strong>Telefone:</strong> ${p.cliente_telefone || 'Não informado'}</div>
                                 <div><strong>Endereço:</strong> ${enderecoTexto || 'Não informado'}</div>
+                                <div><strong>Coordenadas exatas:</strong> ${coordenadasTexto || 'Não informado'}</div>
                             </div>
                         ` : ''}
                         <div style="background: #f8fafc; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.75rem; font-size: 0.875rem;">

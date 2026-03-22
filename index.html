@@ -240,23 +240,35 @@
         .delivery-float-btn:hover { filter: brightness(0.94); transform: translateY(-1px); }
         .delivery-float-btn.active { background: #1e40af; }
 
-        .delivery-panel { position: fixed; right: 1rem; top: 8rem; width: min(360px, calc(100% - 2rem)); max-height: calc(100vh - 9.5rem); overflow-y: auto; background: #fff; border: 1px solid #dbe4ef; border-radius: 0.85rem; box-shadow: 0 16px 40px rgba(15,23,42,0.2); z-index: 97; display: none; }
+        .delivery-panel { position: fixed; right: 1rem; top: 8rem; width: min(380px, calc(100% - 2rem)); max-height: calc(100vh - 9.5rem); overflow-y: auto; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); border: 1px solid #dbe4ef; border-radius: 0.85rem; box-shadow: 0 16px 40px rgba(15,23,42,0.2); z-index: 97; display: none; }
         .delivery-panel.open { display: block; animation: fadeIn 0.2s; }
         .delivery-panel-header { display:flex; justify-content:space-between; align-items:center; padding:0.9rem 1rem; border-bottom:1px solid #e2e8f0; position: sticky; top: 0; background: #fff; }
         .delivery-panel-title { font-weight: 700; color: #1e293b; font-size: 0.92rem; }
         .delivery-panel-body { padding: 0.9rem 1rem 1rem; }
+        .delivery-hero { margin-bottom: 0.65rem; padding: 0.7rem 0.75rem; border: 1px solid #dbeafe; background: linear-gradient(135deg, #eff6ff, #ecfeff); border-radius: 0.65rem; }
+        .delivery-hero-title { font-size: 0.83rem; font-weight: 800; color: #1e40af; letter-spacing: 0.01em; }
+        .delivery-hero-sub { font-size: 0.74rem; color: #475569; margin-top: 0.2rem; }
         .delivery-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
         .delivery-grid .full { grid-column: 1 / -1; }
         .delivery-input { width:100%; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0.58rem 0.65rem; font-size:0.86rem; }
         .delivery-input:focus { outline: none; border-color: var(--theme-primary); box-shadow: 0 0 0 3px var(--theme-primary-soft); }
         .delivery-label { display:block; margin-bottom:0.3rem; font-size:0.76rem; font-weight:700; color:#334155; text-transform: uppercase; letter-spacing: 0.04em; }
+        .delivery-gps-card { display:flex; gap:0.55rem; align-items:flex-start; padding:0.6rem; border:1px solid #cbd5e1; background:#fff; border-radius:0.58rem; }
+        .delivery-gps-card.is-ready { border-color:#86efac; background:linear-gradient(135deg,#f0fdf4,#ecfeff); }
+        .delivery-gps-icon { width:28px; height:28px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#e2e8f0; color:#475569; margin-top:0.15rem; }
+        .delivery-gps-card.is-ready .delivery-gps-icon { background:#22c55e; color:#fff; }
+        .delivery-gps-title { font-size:0.76rem; font-weight:800; color:#334155; margin-bottom:0.35rem; text-transform:uppercase; letter-spacing:0.03em; }
+        .delivery-gps-note { font-size:0.72rem; color:#64748b; margin-top:0.35rem; }
         .delivery-mode { display:flex; gap:0.45rem; margin-bottom:0.7rem; }
         .delivery-mode button { flex:1; border:1px solid #cbd5e1; background:#fff; color:#334155; font-weight:700; border-radius:999px; padding:0.42rem 0.6rem; font-size:0.75rem; cursor:pointer; }
         .delivery-mode button.active { border-color: var(--theme-primary); color: var(--theme-primary); background: var(--theme-primary-soft); }
-        .delivery-hint { font-size:0.74rem; color:#64748b; margin-top:0.45rem; }
+        .delivery-hint { font-size:0.74rem; color:#64748b; margin-top:0.45rem; padding:0.55rem 0.6rem; border:1px solid #dbeafe; border-radius:0.55rem; background:#f8fbff; }
         .delivery-panel-actions { display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-top:0.8rem; }
         .delivery-panel-actions button { min-height: 44px; }
         .delivery-panel-actions button.full { grid-column: 1 / -1; }
+        .delivery-panel-actions .btn-block.secondary { background: linear-gradient(135deg, #334155, #0f172a); color: #fff; }
+        .delivery-panel-actions .btn-block.secondary:hover { filter: brightness(1.05); }
+        .delivery-panel-actions .btn-block.primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
         .delivery-chip { display:inline-flex; align-items:center; gap:0.35rem; padding:0.22rem 0.6rem; border-radius:999px; background:#dbeafe; color:#1e40af; font-size:0.72rem; font-weight:700; }
         /* ===== MODAL PEDIDO CONFIRMADO ===== */
         .modal-confirmado { position: fixed; inset: 0; background: rgba(15,23,42,0.72); z-index: 200; display: none; align-items: center; justify-content: center; padding: 1rem; }
@@ -335,6 +347,10 @@
                 <button id="btn-modo-delivery" onclick="definirModoEntrega('delivery')">Delivery</button>
             </div>
             <div id="delivery-form-wrap" style="display:none;">
+                <div class="delivery-hero">
+                    <div class="delivery-hero-title">Entrega com localização exata</div>
+                    <div class="delivery-hero-sub">Capture seu ponto no mapa uma vez. Depois o sistema reutiliza neste aparelho.</div>
+                </div>
                 <div class="delivery-grid">
                     <div class="full">
                         <label class="delivery-label">Nome do cliente</label>
@@ -344,42 +360,24 @@
                         <label class="delivery-label">WhatsApp</label>
                         <input class="delivery-input" id="delivery-telefone" placeholder="(11) 99999-9999">
                     </div>
-                    <div>
-                        <label class="delivery-label">Rua</label>
-                        <input class="delivery-input" id="delivery-rua" placeholder="Rua">
-                    </div>
-                    <div>
-                        <label class="delivery-label">Número</label>
-                        <input class="delivery-input" id="delivery-numero" placeholder="123">
-                    </div>
-                    <div>
-                        <label class="delivery-label">Bairro</label>
-                        <input class="delivery-input" id="delivery-bairro" placeholder="Bairro">
-                    </div>
-                    <div>
-                        <label class="delivery-label">Cidade</label>
-                        <input class="delivery-input" id="delivery-cidade" placeholder="Cidade">
-                    </div>
-                    <div>
-                        <label class="delivery-label">UF</label>
-                        <input class="delivery-input" id="delivery-uf" placeholder="UF">
-                    </div>
-                    <div>
-                        <label class="delivery-label">Complemento</label>
-                        <input class="delivery-input" id="delivery-complemento" placeholder="Apto, bloco...">
-                    </div>
                     <div class="full">
-                        <label class="delivery-label">Referência</label>
-                        <input class="delivery-input" id="delivery-referencia" placeholder="Ponto de referência">
+                        <div class="delivery-gps-card" id="delivery-gps-card">
+                            <div class="delivery-gps-icon"><i class="fas fa-location-dot"></i></div>
+                            <div style="flex:1;min-width:0;">
+                                <div class="delivery-gps-title">Localização exata (GPS)</div>
+                                <input class="delivery-input" id="delivery-localizacao-resumo" readonly placeholder="Toque em Capturar localização exata">
+                                <div class="delivery-gps-note" id="delivery-gps-note">Nenhuma localização capturada ainda.</div>
+                            </div>
+                        </div>
                     </div>
                     <input type="hidden" id="delivery-latitude">
                     <input type="hidden" id="delivery-longitude">
                 </div>
                 <div class="delivery-panel-actions">
-                    <button class="btn-block secondary" onclick="usarMinhaLocalizacaoDelivery()"><i class="fas fa-location-crosshairs"></i> Minha localização (opcional)</button>
-                    <button class="btn-block primary full" onclick="salvarDeliveryCliente(true, true)"><i class="fas fa-check"></i> Salvar Endereço</button>
+                    <button class="btn-block secondary" onclick="usarMinhaLocalizacaoDelivery()"><i class="fas fa-location-crosshairs"></i> Capturar localização exata</button>
+                    <button class="btn-block primary full" onclick="salvarDeliveryCliente(true, true)"><i class="fas fa-check"></i> Salvar localização</button>
                 </div>
-                <div class="delivery-hint" id="delivery-status-msg">Digite o endereço e clique em Salvar para validar no mapa. “Minha localização” é opcional.</div>
+                <div class="delivery-hint" id="delivery-status-msg">Delivery com GPS obrigatório: toque em “Capturar localização exata”.</div>
             </div>
             <div class="delivery-hint" id="delivery-indisponivel-msg" style="display:none;">Este restaurante não habilitou delivery no momento.</div>
         </div>
@@ -757,8 +755,32 @@
             const msg = document.getElementById('delivery-status-msg');
             if (!msg) return;
 
-            msg.textContent = 'Digite o endereço e clique em “Salvar Endereço” para validar no mapa. “Minha localização” é opcional.';
+            msg.textContent = 'Delivery com GPS obrigatório: toque em "Capturar localização exata".';
             msg.style.color = '#2563eb';
+        }
+
+        function atualizarResumoLocalizacaoDelivery() {
+            const campo = document.getElementById('delivery-localizacao-resumo');
+            const nota = document.getElementById('delivery-gps-note');
+            const card = document.getElementById('delivery-gps-card');
+            if (!campo) return;
+
+            const lat = Number(app.delivery.latitude);
+            const lon = Number(app.delivery.longitude);
+            if (!coordenadaValida(lat, lon)) {
+                campo.value = '';
+                if (nota) nota.textContent = 'Nenhuma localização capturada ainda.';
+                if (card) card.classList.remove('is-ready');
+                return;
+            }
+
+            const maps = String(app.delivery.maps_formatado || '').trim();
+            const coords = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            campo.value = maps ? `${maps} | ${coords}` : coords;
+            if (nota) {
+                nota.textContent = 'Localização salva neste aparelho. Você pode capturar novamente quando quiser.';
+            }
+            if (card) card.classList.add('is-ready');
         }
 
         function normalizarTextoGeoCliente(texto) {
@@ -793,6 +815,10 @@
             const cidadeItem = normalizarTextoGeoCliente(componentes.cidade || '');
             const ufItem = normalizarUfCliente(componentes.uf || '');
             const bairroItem = normalizarTextoGeoCliente(componentes.bairro || '');
+            const ruaNorm = normalizarTextoGeoCliente(restricoes.rua || '');
+            const numeroNorm = String(restricoes.numero || '').replace(/\D/g, '').trim();
+            const referenciaNorm = normalizarTextoGeoCliente(restricoes.referencia || restricoes.complemento || '');
+            const cidadeObrigatoria = !!String(restricoes.cidadeObrigatoria || '').trim();
 
             let score = 0;
             if (restricoes.uf) {
@@ -802,14 +828,75 @@
             if (restricoes.cidadeNorm) {
                 if (cidadeItem === restricoes.cidadeNorm) score += 35;
                 else if (formatado.includes(restricoes.cidadeNorm)) score += 20;
-                else score -= 30;
+                else score -= cidadeObrigatoria ? 120 : 30;
             }
             if (restricoes.bairroNorm) {
                 if (bairroItem === restricoes.bairroNorm) score += 15;
                 else if (formatado.includes(restricoes.bairroNorm)) score += 8;
             }
+            if (ruaNorm) {
+                if (formatado.includes(ruaNorm)) score += 24;
+                else score -= 22;
+            }
+            if (numeroNorm) {
+                if (formatado.includes(` ${numeroNorm}`) || formatado.includes(`,${numeroNorm}`) || formatado.endsWith(numeroNorm)) {
+                    score += 7;
+                }
+            }
+            if (referenciaNorm) {
+                if (formatado.includes(referenciaNorm)) score += 16;
+            }
 
             return score;
+        }
+
+        function resultadoCombinaCidadePreferida(item, cidadeNorm) {
+            const alvo = normalizarTextoGeoCliente(cidadeNorm || '');
+            if (!alvo) return true;
+            const componentes = item?.componentes || {};
+            const cidadeItem = normalizarTextoGeoCliente(componentes.cidade || '');
+            const formatado = normalizarTextoGeoCliente(item?.formatado || item?.display_name || '');
+            return cidadeItem === alvo || formatado.includes(alvo);
+        }
+
+        function resultadoCombinaReferenciaInterior(item, restricoes = {}) {
+            const referenciaNorm = normalizarTextoGeoCliente(restricoes.referencia || restricoes.complemento || '');
+            if (!referenciaNorm || referenciaNorm.length < 3) return false;
+
+            const formatado = normalizarTextoGeoCliente(item?.formatado || item?.display_name || '');
+            if (!formatado.includes(referenciaNorm)) return false;
+
+            const ufRestrita = normalizarUfCliente(restricoes.uf || '');
+            if (!ufRestrita) return true;
+            const ufItem = normalizarUfCliente(item?.componentes?.uf || '');
+            return !ufItem || ufItem === ufRestrita;
+        }
+
+        function construirConsultasGeocodificacaoDelivery() {
+            const rua = String(app.delivery.rua || '').trim();
+            const numero = String(app.delivery.numero || '').trim();
+            const bairro = String(app.delivery.bairro || '').trim();
+            const cidade = String(app.delivery.cidade || '').trim();
+            const uf = String(app.delivery.uf || '').trim().toUpperCase();
+            const complemento = String(app.delivery.complemento || '').trim();
+            const referencia = String(app.delivery.referencia || '').trim();
+
+            const ruaNumero = [rua, numero].filter(Boolean).join(', ');
+            const principal = [ruaNumero || rua, bairro, cidade, uf, 'Brasil'].filter(Boolean).join(', ');
+            const comReferencia = [ruaNumero || rua, bairro, complemento, referencia, cidade, uf, 'Brasil'].filter(Boolean).join(', ');
+            const somenteInterior = [ruaNumero || rua, referencia || complemento, cidade, uf, 'Brasil'].filter(Boolean).join(', ');
+
+            return Array.from(new Set([
+                comReferencia,
+                somenteInterior,
+                principal,
+                [ruaNumero || rua, cidade, uf, 'Brasil'].filter(Boolean).join(', '),
+                [rua, cidade, uf, 'Brasil'].filter(Boolean).join(', '),
+                [rua, bairro, cidade, 'Brasil'].filter(Boolean).join(', '),
+                [ruaNumero || rua, cidade, 'Brasil'].filter(Boolean).join(', '),
+                [ruaNumero || rua, uf, 'Brasil'].filter(Boolean).join(', '),
+                [ruaNumero || rua, 'Brasil'].filter(Boolean).join(', ')
+            ].map((v) => String(v || '').trim()).filter(Boolean)));
         }
 
         async function obterRespostaCardapioComFallback() {
@@ -1104,6 +1191,24 @@
             return `delivery_${app.slug}_${app.mesa}`;
         }
 
+        function chavePermissaoLocalizacaoDelivery() {
+            return `delivery_geo_permission_${app.slug}`;
+        }
+
+        function marcarPermissaoLocalizacaoSolicitada() {
+            try {
+                localStorage.setItem(chavePermissaoLocalizacaoDelivery(), '1');
+            } catch (_) {}
+        }
+
+        function permissaoLocalizacaoJaFoiSolicitada() {
+            try {
+                return localStorage.getItem(chavePermissaoLocalizacaoDelivery()) === '1';
+            } catch (_) {
+                return false;
+            }
+        }
+
         function inicializarPainelDelivery() {
             const dados = lerJsonLocalStorage(chaveDelivery(), {});
             app.tipoEntrega = dados.tipoEntrega || 'mesa';
@@ -1189,6 +1294,7 @@
                 if (el) el.value = app.delivery[campo] || '';
             });
             atualizarCamposCoordenadasDelivery();
+            atualizarResumoLocalizacaoDelivery();
         }
 
         function lerFormularioDelivery() {
@@ -1222,6 +1328,7 @@
             const coordsValidas = coordenadaValida(Number(app.delivery.latitude), Number(app.delivery.longitude));
             if (latEl) latEl.value = coordsValidas ? String(app.delivery.latitude) : '';
             if (lonEl) lonEl.value = coordsValidas ? String(app.delivery.longitude) : '';
+            atualizarResumoLocalizacaoDelivery();
         }
 
         function limparGeocodificacaoDelivery() {
@@ -1395,8 +1502,23 @@
             }
 
             const msg = document.getElementById('delivery-status-msg');
+
+            if (deliveryTemCoordenadasValidas()) {
+                const latSalva = Number(app.delivery.latitude);
+                const lonSalva = Number(app.delivery.longitude);
+                const linkSalvo = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latSalva},${lonSalva}`)}`;
+                if (msg) {
+                    msg.innerHTML = `Usando localização já salva. <a href="${linkSalvo}" target="_blank" style="color:#1d4ed8;text-decoration:underline;">Ver mapa</a>`;
+                    msg.style.color = '#065f46';
+                }
+                mostrarToastCustomizado('Localização já salva e pronta para uso.', 'sucesso');
+                return;
+            }
+
             if (msg) {
-                msg.textContent = 'Obtendo localização atual...';
+                msg.textContent = permissaoLocalizacaoJaFoiSolicitada()
+                    ? 'Obtendo localização atual...'
+                    : 'Solicitando permissão de localização...';
                 msg.style.color = '#2563eb';
             }
 
@@ -1409,6 +1531,7 @@
             });
 
             try {
+                marcarPermissaoLocalizacaoSolicitada();
                 const posicao = await obterPosicaoAtual();
                 const lat = Number(posicao?.coords?.latitude);
                 const lon = Number(posicao?.coords?.longitude);
@@ -1450,7 +1573,7 @@
                 mostrarToastCustomizado('Localização capturada, endereço preenchido e validado! 🎯', 'sucesso');
             } catch (erro) {
                 if (msg) {
-                    msg.textContent = 'Não foi possível obter sua localização. Verifique a permissão de GPS.';
+                    msg.textContent = 'Não foi possível obter sua localização. Permita o acesso ao GPS no navegador.';
                     msg.style.color = '#b91c1c';
                 }
                 mostrarToastCustomizado(erro?.message || 'Falha ao capturar localização.', 'erro');
@@ -1546,22 +1669,17 @@
             document.getElementById('btn-modo-delivery')?.classList.toggle('active', app.tipoEntrega === 'delivery');
             const wrap = document.getElementById('delivery-form-wrap');
             if (wrap) wrap.style.display = app.tipoEntrega === 'delivery' && ativoDelivery ? 'block' : 'none';
-            
-            // Pedir permissão de localização ao mudar para delivery
-            if (app.tipoEntrega === 'delivery' && navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    () => { /* sucesso silencioso */ },
-                    () => {
-                        const msg = document.getElementById('delivery-status-msg');
-                        if (msg) {
-                            msg.textContent = '📍 Ative a localização do seu telefone para usar "Minha localização" (mais fácil)';
-                            msg.style.color = '#f59e0b';
-                        }
-                    },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                );
+
+            if (app.tipoEntrega === 'delivery') {
+                const msg = document.getElementById('delivery-status-msg');
+                if (msg) {
+                    msg.textContent = deliveryTemCoordenadasValidas()
+                        ? 'Localização já salva para este dispositivo.'
+                        : 'Toque em "Capturar localização exata" para liberar e capturar seu GPS (somente na primeira vez).';
+                    msg.style.color = deliveryTemCoordenadasValidas() ? '#065f46' : '#2563eb';
+                }
             }
-            
+
             atualizarChipModoEntrega();
             if (salvar) salvarDeliveryCliente(false, false);
         }
@@ -1641,6 +1759,29 @@
             try {
                 lerFormularioDelivery();
                 const msg = document.getElementById('delivery-status-msg');
+                const latAtual = Number(app.delivery.latitude);
+                const lonAtual = Number(app.delivery.longitude);
+
+                if (coordenadaValida(latAtual, lonAtual)) {
+                    app.delivery.maps_valido = true;
+                    if (!String(app.delivery.maps_formatado || '').trim()) {
+                        app.delivery.maps_formatado = `${latAtual},${lonAtual}`;
+                    }
+                    atualizarCamposCoordenadasDelivery();
+                    const link = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latAtual},${lonAtual}`)}`;
+                    if (msg) {
+                        msg.innerHTML = `Localização GPS validada com precisão. <a href="${link}" target="_blank" style="color:#1d4ed8;text-decoration:underline;">Ver mapa</a>`;
+                        msg.style.color = '#065f46';
+                    }
+                    return true;
+                }
+
+                if (msg) {
+                    msg.textContent = 'Para delivery, capture a localização exata pelo GPS antes de salvar.';
+                    msg.style.color = '#b91c1c';
+                }
+                return false;
+
                 const endereco = montarEnderecoCompletoDelivery() || enderecoDeliveryTexto();
                 const latAntes = Number(app.delivery.latitude);
                 const lonAntes = Number(app.delivery.longitude);
@@ -1689,22 +1830,29 @@
                 const restricoes = obterRestricoesDeliveryRestaurante();
                 const cidadeFormulario = String(app.delivery.cidade || '').trim();
                 const ufFormulario = String(app.delivery.uf || '').trim().toUpperCase();
+                const consultasPrioritarias = construirConsultasGeocodificacaoDelivery();
+                const restricoesBusca = {
+                    bairro: app.delivery.bairro || restricoes.bairro,
+                    cidade: cidadeFormulario || restricoes.cidade,
+                    uf: ufFormulario || restricoes.uf,
+                    rua: app.delivery.rua || '',
+                    numero: app.delivery.numero || '',
+                    complemento: app.delivery.complemento || '',
+                    referencia: app.delivery.referencia || '',
+                };
+                restricoesBusca.bairroNorm = normalizarTextoGeoCliente(restricoesBusca.bairro || '');
+                restricoesBusca.cidadeNorm = normalizarTextoGeoCliente(restricoesBusca.cidade || '');
+                restricoesBusca.cidadeObrigatoria = cidadeFormulario;
 
                 const geocodificarViaNominatim = async (textoEndereco) => {
                     try {
-                        const ruaNumero = [app.delivery.rua, app.delivery.numero].filter(Boolean).join(', ');
-                        const ruaCidadeUf = [app.delivery.rua, app.delivery.cidade, app.delivery.uf, 'Brasil'].filter(Boolean).join(', ');
-                        const ruaCidade = [app.delivery.rua, app.delivery.cidade, 'Brasil'].filter(Boolean).join(', ');
-                        const consultas = [];
-                        consultas.push([textoEndereco, cidadeFormulario, ufFormulario, 'Brasil'].filter(Boolean).join(', '));
-                        consultas.push([textoEndereco, cidadeFormulario, 'Brasil'].filter(Boolean).join(', '));
-                        consultas.push([textoEndereco, ufFormulario, 'Brasil'].filter(Boolean).join(', '));
-                        if (ruaNumero) consultas.push([ruaNumero, cidadeFormulario, ufFormulario, 'Brasil'].filter(Boolean).join(', '));
-                        if (ruaCidadeUf) consultas.push(ruaCidadeUf);
-                        if (ruaCidade) consultas.push(ruaCidade);
-                        consultas.push([textoEndereco, 'Brasil'].filter(Boolean).join(', '));
-
-                        const unicas = Array.from(new Set(consultas.map(v => String(v || '').trim()).filter(Boolean)));
+                        const unicas = Array.from(new Set([
+                            ...consultasPrioritarias,
+                            [textoEndereco, cidadeFormulario, ufFormulario, 'Brasil'].filter(Boolean).join(', '),
+                            [textoEndereco, cidadeFormulario, 'Brasil'].filter(Boolean).join(', '),
+                            [textoEndereco, ufFormulario, 'Brasil'].filter(Boolean).join(', '),
+                            [textoEndereco, 'Brasil'].filter(Boolean).join(', ')
+                        ].map(v => String(v || '').trim()).filter(Boolean)));
                         const candidatos = [];
 
                         for (const consulta of unicas) {
@@ -1738,16 +1886,10 @@
 
                         if (!candidatos.length) return null;
 
-                        const referenciaScore = {
-                            bairro: restricoes.bairro,
-                            cidade: cidadeFormulario || restricoes.cidade,
-                            uf: ufFormulario || restricoes.uf,
-                            bairroNorm: normalizarTextoGeoCliente(restricoes.bairro || ''),
-                            cidadeNorm: normalizarTextoGeoCliente(cidadeFormulario || restricoes.cidade || ''),
-                        };
-
-                        candidatos.sort((a, b) => pontuarResultadoGeoCliente(b, referenciaScore) - pontuarResultadoGeoCliente(a, referenciaScore));
-                        const melhor = candidatos[0];
+                        candidatos.sort((a, b) => pontuarResultadoGeoCliente(b, restricoesBusca) - pontuarResultadoGeoCliente(a, restricoesBusca));
+                        const melhor = candidatos.find((item) => resultadoCombinaReferenciaInterior(item, restricoesBusca))
+                            || candidatos.find((item) => resultadoCombinaCidadePreferida(item, restricoesBusca.cidadeNorm))
+                            || candidatos[0];
                         if (!coordenadaValida(Number(melhor?.lat), Number(melhor?.lon))) return null;
 
                         return {
@@ -1784,10 +1926,12 @@
                 // Tenta Google REST API se chave disponível
                 if (apiKey) {
                     try {
-                        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco)}&region=br&language=pt-BR&key=${encodeURIComponent(apiKey)}`;
-                        const res = await fetch(url);
-                        const data = await res.json().catch(() => ({}));
-                        if (data.status === 'OK' && data.results?.length) {
+                        for (const consulta of consultasPrioritarias) {
+                            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(consulta)}&region=br&language=pt-BR&key=${encodeURIComponent(apiKey)}`;
+                            const res = await fetch(url);
+                            const data = await res.json().catch(() => ({}));
+                            if (data.status !== 'OK' || !data.results?.length) continue;
+
                             const candidatosGoogle = data.results.map((item) => ({
                                 lat: Number(item?.geometry?.location?.lat),
                                 lon: Number(item?.geometry?.location?.lng),
@@ -1796,13 +1940,16 @@
                                 componentes: extrairComponentesEnderecoGoogle(item?.address_components || []),
                             })).filter((item) => coordenadaValida(item.lat, item.lon));
 
-                            candidatosGoogle.sort((a, b) => pontuarResultadoGeoCliente(b, restricoes) - pontuarResultadoGeoCliente(a, restricoes));
-                            const primeiro = candidatosGoogle[0] || {};
+                            if (!candidatosGoogle.length) continue;
+                            candidatosGoogle.sort((a, b) => pontuarResultadoGeoCliente(b, restricoesBusca) - pontuarResultadoGeoCliente(a, restricoesBusca));
+                            const melhorGoogle = candidatosGoogle.find((item) => resultadoCombinaReferenciaInterior(item, restricoesBusca))
+                                || candidatosGoogle.find((item) => resultadoCombinaCidadePreferida(item, restricoesBusca.cidadeNorm))
+                                || candidatosGoogle[0] || {};
                             const aprovado = aplicarResultado({
-                                lat: Number(primeiro?.lat),
-                                lon: Number(primeiro?.lon),
-                                formatado: String(primeiro.formatado || endereco).trim(),
-                                place_id: String(primeiro.place_id || '').trim(),
+                                lat: Number(melhorGoogle?.lat),
+                                lon: Number(melhorGoogle?.lon),
+                                formatado: String(melhorGoogle.formatado || consulta || endereco).trim(),
+                                place_id: String(melhorGoogle.place_id || '').trim(),
                             }, 'Google Geocoding API');
                             if (aprovado) return true;
                         }
@@ -1853,25 +2000,31 @@
             lerFormularioDelivery();
 
             if (app.tipoEntrega === 'delivery' && validarAntesDeSalvar) {
-                const camposMinimos = [app.delivery.rua, app.delivery.cidade, app.delivery.uf];
+                const camposMinimos = [app.delivery.nome, app.delivery.telefone];
                 if (camposMinimos.some(v => !String(v || '').trim())) {
                     const msg = document.getElementById('delivery-status-msg');
                     if (msg) {
-                        msg.textContent = 'Preencha rua, cidade e UF antes de salvar.';
+                        msg.textContent = 'Preencha nome e WhatsApp antes de salvar.';
                         msg.style.color = '#b91c1c';
                     }
-                    mostrarToastCustomizado('Preencha rua, cidade e UF antes de salvar o delivery.', 'erro');
+                    mostrarToastCustomizado('Preencha nome e WhatsApp antes de salvar o delivery.', 'erro');
+                    return false;
+                }
+
+                if (!deliveryTemCoordenadasValidas()) {
+                    const msg = document.getElementById('delivery-status-msg');
+                    if (msg) {
+                        msg.textContent = 'Capture a localização exata pelo GPS para continuar.';
+                        msg.style.color = '#b91c1c';
+                    }
+                    mostrarToastCustomizado('Capture a localização exata pelo GPS.', 'erro');
                     return false;
                 }
 
                 const validado = await validarEnderecoDelivery();
                 if (!validado) {
-                    mostrarToastCustomizado('Não foi possível validar o endereço digitado. Revise os dados e tente novamente.', 'erro');
+                    mostrarToastCustomizado('Não foi possível validar a localização GPS.', 'erro');
                     return false;
-                }
-
-                if (!deliveryTemCoordenadasValidas()) {
-                    mostrarToastCustomizado('Endereço salvo sem GPS. Toque em “Minha localização” para aumentar a precisão.', 'aviso');
                 }
             }
 
@@ -1883,7 +2036,7 @@
             if (fecharPainel) fecharPainelDelivery();
             atualizarChipModoEntrega();
             if (app.tipoEntrega === 'delivery' && validarAntesDeSalvar) {
-                mostrarToastCustomizado('Endereço salvo.', 'sucesso');
+                mostrarToastCustomizado('Localização salva com sucesso.', 'sucesso');
             }
             return true;
         }
@@ -2364,11 +2517,17 @@
             `).join('');
 
             if (app.tipoEntrega === 'delivery') {
+                const lat = Number(app.delivery.latitude);
+                const lon = Number(app.delivery.longitude);
+                const localizacaoTexto = coordenadaValida(lat, lon)
+                    ? `${lat.toFixed(6)}, ${lon.toFixed(6)}`
+                    : 'Não capturada';
                 const entregaInfo = `<div class="revisao-section" style="margin-top:0.8rem;">
                     <div class="revisao-label"><i class="fas fa-motorcycle"></i> Entrega Delivery</div>
                     <div style="font-size:0.86rem;color:#1e293b;"><strong>Cliente:</strong> ${app.delivery.nome || 'Não informado'}</div>
                     <div style="font-size:0.86rem;color:#1e293b;margin-top:0.2rem;"><strong>Telefone:</strong> ${app.delivery.telefone || 'Não informado'}</div>
-                    <div style="font-size:0.86rem;color:#1e293b;margin-top:0.2rem;"><strong>Endereço:</strong> ${enderecoDeliveryTexto() || 'Não informado'}</div>
+                    <div style="font-size:0.86rem;color:#1e293b;margin-top:0.2rem;"><strong>Localização:</strong> ${app.delivery.maps_formatado || 'GPS sem endereço textual'}</div>
+                    <div style="font-size:0.86rem;color:#1e293b;margin-top:0.2rem;"><strong>Coordenadas:</strong> ${localizacaoTexto}</div>
                 </div>`;
                 container.insertAdjacentHTML('beforeend', entregaInfo);
             }
@@ -2456,14 +2615,15 @@
 
             if (app.tipoEntrega === 'delivery') {
                 lerFormularioDelivery();
-                const obrigatorios = [app.delivery.nome, app.delivery.telefone, app.delivery.rua, app.delivery.numero, app.delivery.bairro, app.delivery.cidade, app.delivery.uf];
+                const obrigatorios = [app.delivery.nome, app.delivery.telefone];
                 if (obrigatorios.some(v => !v)) {
-                    mostrarToastCustomizado('Preencha os dados de delivery', 'erro');
+                    mostrarToastCustomizado('Preencha nome e WhatsApp para o delivery', 'erro');
                     return;
                 }
 
                 if (!deliveryTemCoordenadasValidas()) {
-                    mostrarToastCustomizado('Endereço salvo sem GPS. Para maior precisão, use “Minha localização”.', 'aviso');
+                    mostrarToastCustomizado('Capture a localização exata pelo GPS antes de finalizar.', 'erro');
+                    return;
                 }
             }
 
@@ -2484,6 +2644,7 @@
                     maps_formatado: app.delivery.maps_formatado || '',
                     latitude: coordenadaValida(Number(app.delivery.latitude), Number(app.delivery.longitude)) ? Number(app.delivery.latitude) : null,
                     longitude: coordenadaValida(Number(app.delivery.latitude), Number(app.delivery.longitude)) ? Number(app.delivery.longitude) : null,
+                    gps_exato_cliente: true,
                     place_id: app.delivery.place_id || ''
                 }
                 : {};

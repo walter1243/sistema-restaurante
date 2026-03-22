@@ -1322,6 +1322,23 @@ def _normalizar_endereco_entrega(endereco: dict | None) -> dict:
     except (TypeError, ValueError):
         lat, lon = None, None
 
+    gps_exato_cliente = bool(
+        endereco_normalizado.get("gps_exato_cliente")
+        or endereco_normalizado.get("gps_exato")
+    )
+
+    if gps_exato_cliente and _coordenada_valida(lat, lon):
+        endereco_normalizado["latitude"] = lat
+        endereco_normalizado["longitude"] = lon
+        endereco_normalizado["lat"] = lat
+        endereco_normalizado["lng"] = lon
+        endereco_normalizado["lon"] = lon
+        endereco_normalizado["maps_valido"] = True
+        endereco_normalizado["gps_exato_cliente"] = True
+        if not str(endereco_normalizado.get("maps_formatado") or "").strip():
+            endereco_normalizado["maps_formatado"] = f"{lat:.6f},{lon:.6f}"
+        return endereco_normalizado
+
     cidade_ref = str(endereco_normalizado.get("cidade") or "").strip()
     uf_ref = str(endereco_normalizado.get("uf") or "").strip()
 
@@ -1394,19 +1411,6 @@ def _validar_endereco_delivery(endereco: dict) -> None:
     if not isinstance(endereco, dict):
         raise HTTPException(status_code=400, detail="Endereço de entrega inválido")
 
-    campos_minimos = [
-        str(endereco.get("rua") or "").strip(),
-        str(endereco.get("numero") or "").strip(),
-        str(endereco.get("bairro") or "").strip(),
-        str(endereco.get("cidade") or "").strip(),
-        str(endereco.get("uf") or "").strip(),
-    ]
-    if any(not valor for valor in campos_minimos):
-        raise HTTPException(
-            status_code=400,
-            detail="Endereço de delivery incompleto. Preencha rua, número, bairro, cidade e UF.",
-        )
-
     lat_bruta = endereco.get("latitude", endereco.get("lat"))
     lon_bruta = endereco.get("longitude", endereco.get("lng", endereco.get("lon")))
     try:
@@ -1418,7 +1422,7 @@ def _validar_endereco_delivery(endereco: dict) -> None:
     if not _coordenada_valida(lat, lon):
         raise HTTPException(
             status_code=400,
-            detail="Endereço de delivery sem coordenadas válidas. Confirme o endereço no mapa antes de enviar.",
+            detail="Delivery exige localização GPS válida. Capture a localização exata antes de enviar.",
         )
 
 
