@@ -1040,13 +1040,7 @@
                         } catch (_) {}
                         app._retryCardapioPendente = false;
                     }
-                    if (!app.preview && produtosApi.length === 0 && produtosLocais.length > 0) {
-                        // Evita "sumiço" visual quando a API responde vazia por instabilidade momentânea.
-                        app.produtos = produtosLocais;
-                        mostrarToastCustomizado('Conexao instavel: mantendo produtos salvos no aparelho.', 'aviso');
-                    } else {
-                        app.produtos = produtosApi;
-                    }
+                    app.produtos = produtosApi;
                     carregouApi = true;
                     localStorage.setItem('ultimo_slug_publico', app.slug);
                     localStorage.setItem('ultimo_slug_admin', app.slug);
@@ -1156,8 +1150,12 @@
                 }
             }
 
-            if (carregouApi && Array.isArray(app.produtos) && app.produtos.length) {
-                localStorage.setItem(`produtos_${app.slug}`, JSON.stringify(app.produtos));
+            if (carregouApi && Array.isArray(app.produtos)) {
+                if (app.produtos.length) {
+                    localStorage.setItem(`produtos_${app.slug}`, JSON.stringify(app.produtos));
+                } else {
+                    localStorage.removeItem(`produtos_${app.slug}`);
+                }
             }
             if (app.restaurante && Object.keys(app.restaurante).length > 0) {
                 localStorage.setItem(`restaurante_publico_${app.slug}`, JSON.stringify(app.restaurante));
