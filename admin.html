@@ -1886,6 +1886,8 @@
         let ultimoTotalPendentesDeliveryNav = null;
         let navDeliveryBadgePulseTimer = null;
         let listenersGlobaisRegistrados = false;
+        let ultimaAssinaturaPedidos = '';
+        let ultimaAssinaturaEntregadores = '';
 
         let API_URL = window.resolveApiBase
             ? window.resolveApiBase()
@@ -3353,30 +3355,69 @@
             if (!planoPermitePedidosDelivery()) {
                 return;
             }
+
+            const assinaturaPedidosAtual = () => JSON.stringify(
+                (contexto.pedidos || []).map((p) => [
+                    Number(p?.id || 0),
+                    String(p?.status || ''),
+                    Number(p?.entregador_id || 0),
+                    String(p?.updated_at || p?.created_at || '')
+                ])
+            );
+
+            const assinaturaEntregadoresAtual = () => JSON.stringify(
+                (contexto.entregadores || []).map((e) => [
+                    Number(e?.id || 0),
+                    !!e?.ativo,
+                    !!e?.online,
+                    !!e?.disponivel,
+                    !!e?.em_entrega,
+                    Number(e?.corridas_abertas || 0),
+                    String(e?.ultima_atualizacao || '')
+                ])
+            );
+
+            if (!ultimaAssinaturaPedidos) {
+                ultimaAssinaturaPedidos = assinaturaPedidosAtual();
+            }
+            if (!ultimaAssinaturaEntregadores) {
+                ultimaAssinaturaEntregadores = assinaturaEntregadoresAtual();
+            }
+
             intervalPedidos = setInterval(async () => {
+                if (document.hidden || navigator.onLine === false) return;
                 try {
-                    await carregarPedidos();
-                    renderizarPedidos();
-                    renderizarMesas();
-                    atualizarKPIsPedidos();
-                    atualizarPainelCorridaTempoReal();
+                    await carregarPedidos(true);
+                    const novaAssinatura = assinaturaPedidosAtual();
+                    if (novaAssinatura !== ultimaAssinaturaPedidos) {
+                        ultimaAssinaturaPedidos = novaAssinatura;
+                        renderizarPedidos();
+                        renderizarMesas();
+                        atualizarKPIsPedidos();
+                        atualizarPainelCorridaTempoReal();
+                    }
                 } catch (erro) {
                     console.warn('Falha no polling de pedidos:', erro?.message || erro);
                 }
-            }, 12000);
+            }, 20000);
 
             if (intervalEntregadores) {
                 clearInterval(intervalEntregadores);
             }
             intervalEntregadores = setInterval(async () => {
+                if (document.hidden || navigator.onLine === false) return;
                 try {
-                    await carregarEntregadores();
-                    renderizarEntregadores();
-                    atualizarPainelCorridaTempoReal();
+                    await carregarEntregadores(true);
+                    const novaAssinatura = assinaturaEntregadoresAtual();
+                    if (novaAssinatura !== ultimaAssinaturaEntregadores) {
+                        ultimaAssinaturaEntregadores = novaAssinatura;
+                        renderizarEntregadores();
+                        atualizarPainelCorridaTempoReal();
+                    }
                 } catch (erro) {
                     console.warn('Falha no polling de entregadores:', erro?.message || erro);
                 }
-            }, 15000);
+            }, 25000);
         }
 
         function mudarSecao(secao) {
@@ -4027,7 +4068,7 @@
         }
 
         // PEDIDOS
-        async function carregarPedidos() {
+        async function carregarPedidos(silencioso = false) {
             if (!planoPermitePedidosDelivery()) {
                 contexto.pedidos = [];
                 return;
@@ -4065,9 +4106,13 @@
                             const erroRetry = await res.json();
                             detalheRetry = String(erroRetry?.detail || erroRetry?.message || detalheRetry);
                         } catch (_) {}
-                        tratarRespostaTokenInvalido(detalheRetry);
+                        if (!silencioso) {
+                            tratarRespostaTokenInvalido(detalheRetry);
+                        }
                     } else {
-                        tratarRespostaTokenInvalido(detalhe);
+                        if (!silencioso) {
+                            tratarRespostaTokenInvalido(detalhe);
+                        }
                     }
                 }
             } catch (e) {
@@ -4313,7 +4358,7 @@
             return diff <= 300000;
         }
 
-        async function carregarEntregadores() {
+        async function carregarEntregadores(silencioso = false) {
             if (!planoPermitePedidosDelivery()) {
                 contexto.entregadores = [];
                 return;
@@ -4352,9 +4397,13 @@
                             const erroRetry = await res.json();
                             detalheRetry = String(erroRetry?.detail || erroRetry?.message || detalheRetry);
                         } catch (_) {}
-                        tratarRespostaTokenInvalido(detalheRetry);
+                        if (!silencioso) {
+                            tratarRespostaTokenInvalido(detalheRetry);
+                        }
                     } else {
-                        tratarRespostaTokenInvalido(detalhe);
+                        if (!silencioso) {
+                            tratarRespostaTokenInvalido(detalhe);
+                        }
                     }
                 }
             } catch (erro) {
