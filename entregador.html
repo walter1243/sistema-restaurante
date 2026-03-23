@@ -807,6 +807,48 @@
         }
         .leaflet-popup-tip { background: var(--card); }
         .leaflet-popup-content { margin: 10px 14px; font-size: 0.81rem; line-height: 1.5; }
+
+        /* ─── GPS Permission Modal ─── */
+        .gps-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.88);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .gps-modal-overlay.active { display: flex; }
+        .gps-modal-card {
+            background: var(--card);
+            border: 1px solid rgba(59,130,246,0.35);
+            border-radius: 18px;
+            padding: 2rem 1.5rem 1.5rem;
+            max-width: 360px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+        }
+        .gps-modal-icon { font-size: 3rem; line-height: 1; }
+        .gps-modal-title { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+        .gps-modal-msg { font-size: 0.88rem; color: var(--muted); line-height: 1.6; }
+        .gps-modal-denied {
+            background: rgba(239,68,68,0.12);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 10px;
+            padding: 0.7rem 1rem;
+            font-size: 0.82rem;
+            color: #fca5a5;
+            line-height: 1.5;
+            display: none;
+        }
+        .gps-modal-denied.visible { display: block; }
+        .gps-modal-skip { font-size: 0.78rem; color: var(--muted); cursor: pointer; padding: 0.3rem; text-decoration: underline; opacity: 0.7; }
+        .gps-modal-skip:hover { opacity: 1; }
     </style>
 </head>
 <body>
@@ -815,6 +857,21 @@
 <div id="loading-overlay">
     <div class="spinner"></div>
     <div class="loading-text" id="loading-text">Inicializando painel...</div>
+</div>
+
+<!-- GPS Permission Modal -->
+<div id="gps-modal" class="gps-modal-overlay" role="dialog" aria-modal="true">
+    <div class="gps-modal-card">
+        <div class="gps-modal-icon">📍</div>
+        <h2 class="gps-modal-title">Ativar Localização GPS</h2>
+        <p class="gps-modal-msg">Para rastrear sua entrega e traçar a rota no mapa, preciso acessar sua localização em tempo real.</p>
+        <div id="gps-modal-denied" class="gps-modal-denied">
+            Permissão negada pelo navegador.<br>
+            Acesse as <strong>configurações do navegador</strong> → Privacidade → Localização → permita este site. Depois recarregue a página.
+        </div>
+        <button id="btn-ativar-gps" class="btn btn-map" onclick="pedirPermissaoGPS()">📡 Ativar GPS agora</button>
+        <span class="gps-modal-skip" onclick="fecharModalGPS()">Agora não</span>
+    </div>
 </div>
 
 <!-- Top bar -->
@@ -2129,16 +2186,36 @@ function atualizarHudRota() {
     const distEl = document.getElementById('hud-distancia');
     const tempoEl = document.getElementById('hud-tempo');
     const cameraEl = document.getElementById('hud-modo-camera');
+
+    // Distância em tempo real: driver→cliente (Haversine) quando GPS ativo
+    const driverLat = Array.isArray(app.driverLatLon) ? Number(app.driverLatLon[0]) : NaN;
+    const driverLon = Array.isArray(app.driverLatLon) ? Number(app.driverLatLon[1]) : NaN;
+    const hasDriver = coordenadaValida(driverLat, driverLon);
+    const hasDestino = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon));
+
     if (baseEl) {
-        baseEl.textContent = 'Restaurante → Cliente';
+        baseEl.textContent = hasDriver ? 'Você → Cliente' : 'Restaurante → Cliente';
     }
+
+    let distMetros = null;
+    let durSegundos = null;
+
+    if (hasDriver && hasDestino) {
+        // Cálculo live: posição atual do entregador até o destino
+        const distDireta = distanciaHaversineMetros(driverLat, driverLon, Number(app.destino.lat), Number(app.destino.lon));
+        distMetros = distDireta * 1.28;
+        durSegundos = (distMetros / 1000) / 28 * 3600;
+    } else {
+        // Fallback: restaurante→cliente (calculado via API de rota)
+        distMetros = app.resumoDistanciaMetros;
+        durSegundos = app.resumoDuracaoSegundos;
+    }
+
     if (distEl) {
-        const d = Number(app.resumoDistanciaMetros);
-        distEl.textContent = Number.isFinite(d) && d > 0 ? fmtDist(d) : '--';
+        distEl.textContent = Number.isFinite(distMetros) && distMetros > 0 ? fmtDist(distMetros) : '--';
     }
     if (tempoEl) {
-        const s = Number(app.resumoDuracaoSegundos);
-        tempoEl.textContent = Number.isFinite(s) && s > 0 ? fmtDur(s) : '--';
+        tempoEl.textContent = Number.isFinite(durSegundos) && durSegundos > 0 ? fmtDur(durSegundos) : '--';
     }
     if (cameraEl) {
         const pausado = Date.now() < Number(app.pausaCameraAte || 0);
@@ -3537,6 +3614,7 @@ function atualizarMarcadorEntregadorNoMapa(lat, lon) {
     const latlng = [lat, lon];
     app.driverLatLon = latlng;
     registrarPontoTrajetoEntregador(lat, lon);
+    atualizarHudRota(); // Atualiza distância e tempo restante em tempo real
 
     if (!app.mapaDisponivel || !app.mapa || !iconEntregador) return;
 
@@ -3645,7 +3723,10 @@ async function carregarCorrida() {
         /* Endereços */
         const textoDestino = data.endereco_entrega ? enderecoParaTexto(data.endereco_entrega) : '';
         const textoOrigem = String(data.endereco_restaurante || '').trim();
-        app.enderecoOrigemTexto = textoOrigem;
+        const cidadeOrigem = String(data.restaurante_cidade || '').trim();
+        const ufOrigem = String(data.restaurante_uf || '').trim();
+        // Endereço completo melhora geocodificação (Nominatim acha cidade pequena mais facilmente)
+        app.enderecoOrigemTexto = [textoOrigem, cidadeOrigem, ufOrigem].filter(Boolean).join(', ');
         app.enderecoDestinoTexto = textoDestino;
 
         const coordDestinoPayload =
@@ -3728,7 +3809,10 @@ async function atualizarStatusPedidoAtual() {
         atualizarResumoPedido(data);
 
         const enderecoRestaurante = String(data?.restaurante?.endereco || '').trim();
-        app.enderecoOrigemTexto = enderecoRestaurante;
+        const cidadeRestaurante = String(data?.restaurante?.cidade || '').trim();
+        const ufRestaurante = String(data?.restaurante?.uf || '').trim();
+        // Endereço completo para melhor geocodificação em cidades pequenas
+        app.enderecoOrigemTexto = [enderecoRestaurante, cidadeRestaurante, ufRestaurante].filter(Boolean).join(', ');
         atualizarTravaCidadeRestaurante(data?.restaurante?.cidade || app.restauranteCidadeTrava, data?.restaurante?.uf || app.restauranteUfTrava);
         const gKey = String(data?.restaurante?.google_maps_api_key || '').trim();
         app.googleMapsApiKey = obterGoogleMapsApiKeyEntregador(gKey, app.googleMapsApiKey);
@@ -3957,6 +4041,61 @@ function pararRastreamento() {
     setStatus('Rastreamento pausado.', 'aviso');
 }
 
+/* ═══ GPS PERMISSION MODAL ═══ */
+async function verificarEPedirPermissaoGPS() {
+    if (!navigator.geolocation) return;
+
+    // Se permissão já concedida, não mostra modal
+    if (navigator.permissions) {
+        try {
+            const perm = await navigator.permissions.query({ name: 'geolocation' });
+            if (perm.state === 'granted') return;
+        } catch (_) {}
+    }
+
+    // Mostra modal apenas se ainda não foi pedido nesta sessão
+    const jaAskeyNaSessao = sessionStorage.getItem('gps_asked');
+    if (jaAskeyNaSessao) return;
+
+    const modal = document.getElementById('gps-modal');
+    if (modal) modal.classList.add('active');
+}
+
+function pedirPermissaoGPS() {
+    const btn = document.getElementById('btn-ativar-gps');
+    const denied = document.getElementById('gps-modal-denied');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Aguardando...'; }
+    if (denied) denied.classList.remove('visible');
+
+    sessionStorage.setItem('gps_asked', '1');
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const lat = Number(pos.coords.latitude);
+            const lon = Number(pos.coords.longitude);
+            const acc = Number(pos.coords.accuracy);
+            if (coordenadaValida(lat, lon)) {
+                atualizarMarcadorEntregadorNoMapa(lat, lon);
+                enviarLocalizacao(lat, lon, acc);
+                setStatus(`GPS ativo · ${Math.round(acc)}m de precisão`, 'ok');
+            }
+            fecharModalGPS();
+        },
+        (err) => {
+            if (btn) { btn.disabled = false; btn.textContent = '📡 Tentar novamente'; }
+            if (err.code === 1 && denied) {
+                denied.classList.add('visible');
+            }
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+}
+
+function fecharModalGPS() {
+    const modal = document.getElementById('gps-modal');
+    if (modal) modal.classList.remove('active');
+}
+
 /* ═══ BOOT ═══ */
 async function boot() {
     try {
@@ -3988,6 +4127,9 @@ async function boot() {
             iniciarMapa();
             atualizarBlocoLocalizacao();
         }
+
+        // Pede permissão GPS ao entregador na primeira vez que abre o app
+        verificarEPedirPermissaoGPS();
 
         if (app.modoEspera) {
             setBadge('Aguardando', 'aguardando');
