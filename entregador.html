@@ -691,6 +691,11 @@
             white-space: nowrap;
             box-shadow: 0 8px 22px rgba(2, 6, 23, 0.42);
         }
+        button.map-hud-chip {
+            cursor: pointer;
+            font-family: inherit;
+            appearance: none;
+        }
         .map-hud-chip strong {
             color: #93c5fd;
             margin-right: 0.2rem;
@@ -1001,6 +1006,7 @@
     <div class="map-hud-chip"><strong>Dist</strong><span id="hud-distancia">--</span></div>
     <div class="map-hud-chip"><strong>Tempo</strong><span id="hud-tempo">--</span></div>
     <div class="map-hud-chip"><strong>Status</strong><span id="hud-modo-camera">Seguindo</span></div>
+    <button type="button" class="map-hud-chip" id="btn-som-toggle" onclick="alternarSomNavegacao()"><strong>Som</strong><span id="hud-som">ON</span></button>
 </div>
 
 <!-- Wait screen (sem pedido ativo) -->
@@ -1051,6 +1057,7 @@ const GPS_ACCURACY_MAX_METROS = 200;
 const DESVIO_RECALCULO_METROS = 70;
 const STORAGE_MOTOBOY = 'entregador_painel_sessao';
 const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
+const STORAGE_SOM_NAV = 'entregador_som_nav_ativo';
 const AUTO_ABRIR_CORRIDA = false;
 
 function lerVinculoRestauranteAtivo() {
@@ -1385,6 +1392,8 @@ const app = {
     instrucaoNavegacaoAtual: '',
     ultimaInstrucaoFalada: '',
     ultimoAudioNavegacaoTs: 0,
+    somNavegacaoAtivo: localStorage.getItem(STORAGE_SOM_NAV) !== '0',
+    rotaAutoRefreshId: null,
 };
 
 if (app.token || app.slug) {
@@ -2258,6 +2267,45 @@ function atualizarHudRota() {
         const pausado = Date.now() < Number(app.pausaCameraAte || 0);
         cameraEl.textContent = pausado ? 'Manual' : 'Seguindo';
     }
+    atualizarHudSom();
+}
+
+function atualizarHudSom() {
+    const somEl = document.getElementById('hud-som');
+    const btnSom = document.getElementById('btn-som-toggle');
+    const ativo = !!app.somNavegacaoAtivo;
+    if (somEl) somEl.textContent = ativo ? 'ON' : 'OFF';
+    if (btnSom) btnSom.style.opacity = ativo ? '1' : '0.72';
+}
+
+function alternarSomNavegacao() {
+    app.somNavegacaoAtivo = !app.somNavegacaoAtivo;
+    try {
+        localStorage.setItem(STORAGE_SOM_NAV, app.somNavegacaoAtivo ? '1' : '0');
+    } catch (_) {}
+    atualizarHudSom();
+    setStatus(app.somNavegacaoAtivo ? 'Som da navegação ativado.' : 'Som da navegação desativado.', 'ok');
+}
+
+function iniciarAutoRefreshRota() {
+    if (app.rotaAutoRefreshId) return;
+    app.rotaAutoRefreshId = setInterval(async () => {
+        if (String(app.statusPedido || '').toLowerCase() !== 'em_entrega') return;
+        const temDestino = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon));
+        const temOrigem = (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon)))
+            || (Array.isArray(app.driverLatLon) && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1])));
+        if (!temDestino || !temOrigem) {
+            try { await atualizarStatusPedidoAtual(); } catch (_) {}
+            return;
+        }
+        await atualizarRotaEntregadorDestino(false, true);
+    }, 3500);
+}
+
+function pararAutoRefreshRota() {
+    if (!app.rotaAutoRefreshId) return;
+    clearInterval(app.rotaAutoRefreshId);
+    app.rotaAutoRefreshId = null;
 }
 
 function pausarCameraPorInteracao(ms = 12000) {
@@ -2284,12 +2332,12 @@ function centralizarCameraCorrida(force = false) {
                 [Number(app.driverLatLon[0]), Number(app.driverLatLon[1])],
                 [Number(app.destino.lat), Number(app.destino.lon)]
             ]),
-            { padding: [60, 60], maxZoom: 16 }
+            { padding: [60, 60], maxZoom: 19 }
         );
     } else if (temDestino) {
-        app.mapa.setView([Number(app.destino.lat), Number(app.destino.lon)], 16, { animate: true });
+        app.mapa.setView([Number(app.destino.lat), Number(app.destino.lon)], 19, { animate: true });
     } else if (temDriver) {
-        app.mapa.setView([Number(app.driverLatLon[0]), Number(app.driverLatLon[1])], 16, { animate: true });
+        app.mapa.setView([Number(app.driverLatLon[0]), Number(app.driverLatLon[1])], 19, { animate: true });
     }
 
     app.ultimaCentralizacaoMapa = Date.now();
@@ -2326,6 +2374,7 @@ function mostrarFeedbackEspera(texto = '') {
 }
 
 function tocarAlertaSonoro() {
+    if (!app.somNavegacaoAtivo) return;
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
@@ -2430,7 +2479,9 @@ function configurarListenerPushEmTela() {
         if (navigator.vibrate) {
             try { navigator.vibrate([240, 120, 240]); } catch (_) {}
         }
-        tocarAlertaSonoro();
+        if (app.somNavegacaoAtivo) {
+            tocarAlertaSonoro();
+        }
         setBadge('Novo pedido', 'novo');
         setStatus('Entrega recebida. Abra para iniciar.', 'destaque');
     });
@@ -2457,7 +2508,7 @@ function alertarNovoPedido(pedido) {
     if (navigator.vibrate) {
         try { navigator.vibrate([280, 140, 280, 140, 320]); } catch (_) {}
     }
-    if (app.audioLiberado || document.visibilityState === 'visible') {
+    if ((app.audioLiberado || document.visibilityState === 'visible') && app.somNavegacaoAtivo) {
         tocarAlertaSonoro();
     }
 
@@ -2487,6 +2538,7 @@ function atualizarUrlModoEspera() {
 }
 
 function voltarParaTelaEspera() {
+    pararAutoRefreshRota();
     limparContextoRota({ manterMarcadorEntregador: false });
     app.pedidoId = '-';
     app.pedidoContextoId = 0;
@@ -2620,6 +2672,7 @@ async function abrirTelaEntrega() {
         await carregarCorrida();
     } catch (_) {}
 
+    iniciarAutoRefreshRota();
     await garantirRotaAoAceitarCorrida();
 }
 
@@ -2969,6 +3022,7 @@ async function iniciarCorrida() {
         marcarPedidoAceito(true);
         atualizarAcoesCorrida();
         iniciarRastreamento();
+        iniciarAutoRefreshRota();
         setStatus('Corrida iniciada. Enviando localização em tempo real para cliente e restaurante.', 'ok');
     } catch (erro) {
         setStatus(erro.message || 'Não foi possível iniciar corrida.', 'erro');
@@ -2997,6 +3051,7 @@ async function finalizarCorrida() {
 
         await atualizarStatusPedidoEntregador('entregue');
         marcarPedidoAceito(false);
+        pararAutoRefreshRota();
         pararRastreamento();
         atualizarAcoesCorrida();
         setStatus('Pedido entregue com sucesso. Voltando para espera...', 'ok');
@@ -3016,6 +3071,7 @@ async function finalizarCorrida() {
 
         if (conflitoFinalizacao) {
             marcarPedidoAceito(false);
+            pararAutoRefreshRota();
             pararRastreamento();
             setStatus('Pedido já finalizado no sistema. Voltando para espera...', 'aviso');
             setTimeout(() => {
@@ -3482,7 +3538,7 @@ function mapearManobraParaPt(maneuver = '', instrucao = '') {
 
 function falarInstrucaoNavegacao(instrucao = '') {
     const texto = String(instrucao || '').trim();
-    if (!texto || !('speechSynthesis' in window)) return;
+    if (!texto || !('speechSynthesis' in window) || !app.somNavegacaoAtivo) return;
 
     const agora = Date.now();
     if (app.ultimaInstrucaoFalada === texto && (agora - Number(app.ultimoAudioNavegacaoTs || 0) < 15000)) {
@@ -4314,6 +4370,7 @@ function fecharModalGPS() {
 async function boot() {
     try {
         inicializarElementosUI();
+        atualizarHudSom();
         configurarAutocompleteCodigoCadastro();
         atualizarCabecalhoEntregador({
             nome: 'Entregador',
@@ -4356,6 +4413,7 @@ async function boot() {
             }
         } else {
             await carregarCorrida();
+            iniciarAutoRefreshRota();
         }
     } catch (_) {
         setStatus('Falha ao inicializar painel. Abra o login e tente novamente.', 'erro');
@@ -4371,7 +4429,10 @@ async function boot() {
 }
 
 boot();
-window.addEventListener('beforeunload', pararRastreamento);
+window.addEventListener('beforeunload', () => {
+    pararAutoRefreshRota();
+    pararRastreamento();
+});
 window.addEventListener('resize', () => {
     if (app.mapaDisponivel && app.mapa) {
         setTimeout(() => {
