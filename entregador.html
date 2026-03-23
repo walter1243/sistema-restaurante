@@ -1382,6 +1382,9 @@ const app = {
     ultimaCidadeTravaGeocodificada: '',
     ultimoCodigoCadastro: '',
     ultimaMensagemCodigo: '',
+    instrucaoNavegacaoAtual: '',
+    ultimaInstrucaoFalada: '',
+    ultimoAudioNavegacaoTs: 0,
 };
 
 if (app.token || app.slug) {
@@ -2608,16 +2611,39 @@ async function abrirTelaEntrega() {
     if (app.mapaDisponivel && app.mapa && app.slug) {
         try {
             await atualizarStatusPedidoAtual();
-            await atualizarRotaEntregadorDestino(true);
+            await atualizarRotaEntregadorDestino(true, true);
             centralizarCameraCorrida(true);
         } catch (_) {}
     }
 
-    setTimeout(async () => {
-        try {
-            await carregarCorrida();
-        } catch (_) {}
-    }, 120);
+    try {
+        await carregarCorrida();
+    } catch (_) {}
+
+    await garantirRotaAoAceitarCorrida();
+}
+
+async function garantirRotaAoAceitarCorrida() {
+    for (let tentativa = 0; tentativa < 6; tentativa += 1) {
+        const temDestino = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon));
+        const temOrigem = app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon));
+        const temDriver = Array.isArray(app.driverLatLon)
+            && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]));
+
+        if (temDestino && (temOrigem || temDriver)) {
+            await atualizarRotaEntregadorDestino(true, true);
+            centralizarCameraCorrida(true);
+            if (camadaRota) {
+                setStatus('Rota calculada. Navegação ativa.', 'ok');
+                return;
+            }
+        }
+
+        try { await atualizarStatusPedidoAtual(); } catch (_) {}
+        await new Promise((resolve) => setTimeout(resolve, 700));
+    }
+
+    setStatus('Ainda calculando rota... confirme se o endereço do cliente está válido.', 'aviso');
 }
 
 async function fetchComTimeout(url, options = {}, timeoutMs = 12000) {
@@ -3317,10 +3343,20 @@ async function buscarRotaGoogle(latA, lonA, latB, lonB) {
                         resolve(null);
                         return;
                     }
+
+                    const steps = Array.isArray(leg?.steps) ? leg.steps : [];
+                    const primeiroPasso = steps.find((s) => {
+                        const m = String(s?.maneuver || '').toLowerCase();
+                        return m && !['depart', 'arrive'].includes(m);
+                    }) || steps[0] || null;
+                    const instrucaoRaw = limparHtmlInstrucao(primeiroPasso?.instructions || '');
+                    const instrucao = mapearManobraParaPt(primeiroPasso?.maneuver || '', instrucaoRaw);
+
                     resolve({
                         geojson,
                         dist: Number(leg?.distance?.value || 0),
                         dur: Number(leg?.duration?.value || 0),
+                        instrucao,
                     });
                 }
             );
@@ -3333,13 +3369,29 @@ async function buscarRotaGoogle(latA, lonA, latB, lonB) {
 async function buscarRotaOsrm(latA, lonA, latB, lonB) {
     try {
         const r = await fetchComAbortTimeout(
-            `https://router.project-osrm.org/route/v1/driving/${lonA},${latA};${lonB},${latB}?overview=full&geometries=geojson`,
+            `https://router.project-osrm.org/route/v1/driving/${lonA},${latA};${lonB},${latB}?overview=full&geometries=geojson&steps=true`,
             {},
             8000
         );
         const d = await r.json();
-        if (d.code === 'Ok' && d.routes.length > 0)
-            return { geojson: d.routes[0].geometry, dist: d.routes[0].distance, dur: d.routes[0].duration };
+        if (d.code === 'Ok' && d.routes.length > 0) {
+            const route = d.routes[0] || {};
+            const leg = Array.isArray(route?.legs) ? route.legs[0] : null;
+            const steps = Array.isArray(leg?.steps) ? leg.steps : [];
+            const primeiroPasso = steps.find((s) => {
+                const t = String(s?.maneuver?.type || '').toLowerCase();
+                return t && !['depart', 'arrive'].includes(t);
+            }) || steps[0] || null;
+            const tipo = String(primeiroPasso?.maneuver?.type || '').toLowerCase();
+            const mod = String(primeiroPasso?.maneuver?.modifier || '').toLowerCase();
+            const instrucao = mapearManobraParaPt(`${tipo}_${mod}`, primeiroPasso?.name || '');
+            return {
+                geojson: route.geometry,
+                dist: route.distance,
+                dur: route.duration,
+                instrucao,
+            };
+        }
     } catch (_) {}
     return null;
 }
@@ -3405,6 +3457,48 @@ function fmtDur(s) {
     const h = Math.floor(min / 60);
     const m = min % 60;
     return m ? `${h}h ${m}min` : `${h}h`;
+}
+
+function limparHtmlInstrucao(texto = '') {
+    return String(texto || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function mapearManobraParaPt(maneuver = '', instrucao = '') {
+    const m = String(maneuver || '').toLowerCase();
+    const i = String(instrucao || '').toLowerCase();
+
+    if (m.includes('left') || i.includes('esquerd')) return 'Vire à esquerda';
+    if (m.includes('right') || i.includes('direit')) return 'Vire à direita';
+    if (m.includes('uturn') || i.includes('retorno')) return 'Faça o retorno';
+    if (m.includes('roundabout') || i.includes('rotatória')) return 'Na rotatória, siga a saída indicada';
+    if (m.includes('merge')) return 'Mantenha-se na via';
+    if (m.includes('depart')) return 'Siga em frente';
+    if (m.includes('arrive')) return 'Você chegou ao destino';
+    return 'Siga em frente';
+}
+
+function falarInstrucaoNavegacao(instrucao = '') {
+    const texto = String(instrucao || '').trim();
+    if (!texto || !('speechSynthesis' in window)) return;
+
+    const agora = Date.now();
+    if (app.ultimaInstrucaoFalada === texto && (agora - Number(app.ultimoAudioNavegacaoTs || 0) < 15000)) {
+        return;
+    }
+
+    try {
+        const u = new SpeechSynthesisUtterance(texto);
+        u.lang = 'pt-BR';
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+        app.ultimaInstrucaoFalada = texto;
+        app.ultimoAudioNavegacaoTs = agora;
+    } catch (_) {}
 }
 
 /* ─── Traçado da rota (entregador → destino) ─── */
@@ -3572,6 +3666,12 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
                 .addTo(app.mapa)
                 .bindPopup(`<b>${fromDriver ? 'Rota ativa' : 'Rota estimada'}</b><br>📏 ${fmtDist(ida.dist)}`);
 
+            const instrucaoAtual = String(ida?.instrucao || '').trim();
+            if (instrucaoAtual) {
+                app.instrucaoNavegacaoAtual = instrucaoAtual;
+                falarInstrucaoNavegacao(instrucaoAtual);
+            }
+
             if (forceFit || recalculoForcado) {
                 const resumoDist = Number.isFinite(Number(ida?.dist)) && Number(ida.dist) > 0 ? fmtDist(Number(ida.dist)) : null;
                 const resumoDur = Number.isFinite(Number(ida?.dur)) && Number(ida.dur) > 0 ? fmtDur(Number(ida.dur)) : null;
@@ -3584,7 +3684,7 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
                 try {
                     const lb = camadaRota.getBounds();
                     if (lb && lb.isValid()) {
-                        app.mapa.fitBounds(lb, { paddingTopLeft: [14, 100], paddingBottomRight: [14, 80], maxZoom: 17 });
+                        app.mapa.fitBounds(lb, { paddingTopLeft: [14, 100], paddingBottomRight: [14, 80], maxZoom: 19 });
                         app.ultimaCentralizacaoMapa = Date.now();
                         return; // sai para não cair no fitBounds genérico abaixo
                     }
@@ -3613,21 +3713,21 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
         if (from) {
             const distanciaExtrema = distanciaHaversineMetros(from.lat, from.lon, to.lat, to.lon);
             if (Number.isFinite(distanciaExtrema) && distanciaExtrema > 80000 && app.driverLatLon) {
-                app.mapa.setView(app.driverLatLon, 14, { animate: true });
+                app.mapa.setView(app.driverLatLon, 18, { animate: true });
                 setStatus('Destino com localização imprecisa. Ajuste o endereço do cliente para traçar rota correta.', 'aviso');
             } else {
                 app.mapa.fitBounds(
                     L.latLngBounds([[from.lat, from.lon], [to.lat, to.lon]]),
-                    { padding: [45, 45], maxZoom: 16 }
+                    { padding: [45, 45], maxZoom: 19 }
                 );
             }
         } else if (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))) {
             app.mapa.fitBounds(
                 L.latLngBounds([[app.origem.lat, app.origem.lon], [to.lat, to.lon]]),
-                { padding: [45, 45], maxZoom: 16 }
+                { padding: [45, 45], maxZoom: 19 }
             );
         } else {
-            app.mapa.setView([to.lat, to.lon], 16, { animate: true });
+            app.mapa.setView([to.lat, to.lon], 19, { animate: true });
         }
     }
 }
@@ -3637,11 +3737,11 @@ function centralizarMapa() {
     if (!app.mapaDisponivel || !app.mapa) return;
 
     if (app.driverLatLon) {
-        app.mapa.setView(app.driverLatLon, 16, { animate: true });
+        app.mapa.setView(app.driverLatLon, 19, { animate: true });
     } else if (app.origem && app.destino) {
         app.mapa.fitBounds(
             L.latLngBounds([app.origem.lat, app.origem.lon], [app.destino.lat, app.destino.lon]),
-            { padding: [50, 50] }
+            { padding: [50, 50], maxZoom: 19 }
         );
     }
 }
