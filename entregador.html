@@ -849,6 +849,36 @@
         .gps-modal-denied.visible { display: block; }
         .gps-modal-skip { font-size: 0.78rem; color: var(--muted); cursor: pointer; padding: 0.3rem; text-decoration: underline; opacity: 0.7; }
         .gps-modal-skip:hover { opacity: 1; }
+
+        /* ─── Botão GPS flutuante no mapa ─── */
+        .btn-gps-fab {
+            position: fixed;
+            right: 14px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
+            z-index: 1500;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(8, 15, 28, 0.92);
+            border: 1.5px solid rgba(96, 165, 250, 0.45);
+            color: #93c5fd;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 8px 22px rgba(2,6,23,0.5);
+            transition: background 0.18s, border-color 0.18s;
+            touch-action: manipulation;
+        }
+        .btn-gps-fab.ativo {
+            background: rgba(22, 163, 74, 0.22);
+            border-color: rgba(34, 197, 94, 0.7);
+            color: #86efac;
+        }
+        .btn-gps-fab:active { transform: scale(0.93); }
+        body.waiting .btn-gps-fab { display: none; }
     </style>
 </head>
 <body>
@@ -962,6 +992,10 @@
 
 <!-- Map -->
 <div id="map"></div>
+
+<!-- Botão GPS flutuante minimalista -->
+<button id="btn-gps-fab" class="btn-gps-fab" title="Ativar/Centralizar GPS" onclick="toggleGpsFab()">📍</button>
+
 <div class="map-hud" id="map-hud" aria-live="polite">
     <div class="map-hud-chip"><strong>Base</strong><span id="hud-base">Restaurante → Cliente</span></div>
     <div class="map-hud-chip"><strong>Dist</strong><span id="hud-distancia">--</span></div>
@@ -3376,6 +3410,7 @@ function fmtDur(s) {
 /* ─── Traçado da rota (entregador → destino) ─── */
 let camadaRota = null;
 let camadaTrajeto = null;
+let camadaTrajetoDecor = null; // linha branca pontilhada sobre o rastro vermelho
 let marcadorDestino = null;
 let marcadorOrigem = null;
 let rotaRequestSeq = 0;
@@ -3387,13 +3422,25 @@ function atualizarCamadaTrajetoEntregador() {
         try { app.mapa.removeLayer(camadaTrajeto); } catch (_) {}
         camadaTrajeto = null;
     }
+    if (camadaTrajetoDecor) {
+        try { app.mapa.removeLayer(camadaTrajetoDecor); } catch (_) {}
+        camadaTrajetoDecor = null;
+    }
 
     if (!Array.isArray(app.trajetoPontos) || app.trajetoPontos.length < 2) return;
 
+    // Mesmo estilo do rastreio_entrega.html: vermelho grosso + branco pontilhado
     camadaTrajeto = L.polyline(app.trajetoPontos, {
-        color: '#60a5fa',
-        weight: 4,
-        opacity: 0.92,
+        color: '#ea1d2c',
+        weight: 6,
+        opacity: 0.9,
+        lineJoin: 'round',
+    }).addTo(app.mapa);
+    camadaTrajetoDecor = L.polyline(app.trajetoPontos, {
+        color: '#ffffff',
+        weight: 2,
+        opacity: 0.65,
+        dashArray: '10 10',
     }).addTo(app.mapa);
 }
 
@@ -3449,6 +3496,10 @@ function limparContextoRota({ manterMarcadorEntregador = false } = {}) {
     if (camadaTrajeto) {
         try { app.mapa.removeLayer(camadaTrajeto); } catch (_) {}
         camadaTrajeto = null;
+    }
+    if (camadaTrajetoDecor) {
+        try { app.mapa.removeLayer(camadaTrajetoDecor); } catch (_) {}
+        camadaTrajetoDecor = null;
     }
     if (marcadorDestino) {
         try { app.mapa.removeLayer(marcadorDestino); } catch (_) {}
@@ -3517,7 +3568,7 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
 
         if (ida) {
             app.ultimaRotaGeojson = ida.geojson || null;
-            camadaRota = L.geoJSON(ida.geojson, { style: { color: '#ef4444', weight: 5, opacity: 0.92 } })
+            camadaRota = L.geoJSON(ida.geojson, { style: { color: '#ef4444', weight: 6, opacity: 0.92 } })
                 .addTo(app.mapa)
                 .bindPopup(`<b>${fromDriver ? 'Rota ativa' : 'Rota estimada'}</b><br>📏 ${fmtDist(ida.dist)}`);
 
@@ -3529,6 +3580,15 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
                 } else if (resumoDist) {
                     setStatus(`Rota traçada: ${resumoDist}.`, 'ok');
                 }
+                // Faz zoom nos bounds reais da rota (mostra as ruas do percurso)
+                try {
+                    const lb = camadaRota.getBounds();
+                    if (lb && lb.isValid()) {
+                        app.mapa.fitBounds(lb, { paddingTopLeft: [14, 100], paddingBottomRight: [14, 80], maxZoom: 17 });
+                        app.ultimaCentralizacaoMapa = Date.now();
+                        return; // sai para não cair no fitBounds genérico abaixo
+                    }
+                } catch (_) {}
             }
         } else {
             app.ultimaRotaGeojson = {
@@ -4030,6 +4090,7 @@ function iniciarRastreamento() {
 
     setBadge('Rastreando', 'ok');
     setStatus('Rastreamento ativo. Não feche esta tela.', 'ok');
+    atualizarEstadoBotaoGps();
 }
 
 function pararRastreamento() {
@@ -4039,6 +4100,7 @@ function pararRastreamento() {
     }
     setBadge('Pausado', 'aguardando');
     setStatus('Rastreamento pausado.', 'aviso');
+    atualizarEstadoBotaoGps();
 }
 
 /* ═══ GPS PERMISSION MODAL ═══ */
@@ -4059,6 +4121,58 @@ async function verificarEPedirPermissaoGPS() {
 
     const modal = document.getElementById('gps-modal');
     if (modal) modal.classList.add('active');
+}
+
+function toggleGpsFab() {
+    const fab = document.getElementById('btn-gps-fab');
+    if (app.watchId !== null) {
+        // GPS já ativo — centraliza o mapa na posição atual
+        if (Array.isArray(app.driverLatLon) && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]))) {
+            app.pausaCameraAte = 0; // remove pausa de interação manual
+            app.mapa?.setView(app.driverLatLon, 17, { animate: true });
+        }
+        return;
+    }
+    // GPS não ativo — pede permissão e inicia
+    sessionStorage.setItem('gps_asked', '1');
+    if (fab) { fab.textContent = '⏳'; fab.disabled = true; }
+    fecharModalGPS();
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const lat = Number(pos.coords.latitude);
+            const lon = Number(pos.coords.longitude);
+            const acc = Number(pos.coords.accuracy);
+            if (coordenadaValida(lat, lon)) {
+                atualizarMarcadorEntregadorNoMapa(lat, lon);
+                enviarLocalizacao(lat, lon, acc);
+                if (statusPermiteRastreamento(app.statusPedido)) iniciarRastreamento();
+            }
+            atualizarEstadoBotaoGps();
+        },
+        () => {
+            if (fab) { fab.textContent = '📍'; fab.disabled = false; }
+            const denied = document.getElementById('gps-modal-denied');
+            const modal = document.getElementById('gps-modal');
+            if (modal) modal.classList.add('active');
+            if (denied) denied.classList.add('visible');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+}
+
+function atualizarEstadoBotaoGps() {
+    const fab = document.getElementById('btn-gps-fab');
+    if (!fab) return;
+    fab.disabled = false;
+    if (app.watchId !== null) {
+        fab.textContent = '🎯';
+        fab.classList.add('ativo');
+        fab.title = 'GPS ativo — toque para centralizar';
+    } else {
+        fab.textContent = '📍';
+        fab.classList.remove('ativo');
+        fab.title = 'Ativar GPS';
+    }
 }
 
 function pedirPermissaoGPS() {
@@ -4130,6 +4244,7 @@ async function boot() {
 
         // Pede permissão GPS ao entregador na primeira vez que abre o app
         verificarEPedirPermissaoGPS();
+        atualizarEstadoBotaoGps();
 
         if (app.modoEspera) {
             setBadge('Aguardando', 'aguardando');
