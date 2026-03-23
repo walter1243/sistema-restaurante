@@ -1438,6 +1438,8 @@ const app = {
     somNavegacaoAtivo: localStorage.getItem(STORAGE_SOM_NAV) !== '0',
     rotaAutoRefreshId: null,
     tileLayerAtiva: null,
+    rotaCalculoEmAndamento: false,
+    rotaAtualizacaoPendente: null,
 };
 
 if (app.token || app.slug) {
@@ -3179,70 +3181,15 @@ function iniciarMapa() {
     app.mapaDisponivel = true;
     inicializarIconesMapa();
 
-    const tileProviders = [
-        {
-            name: 'OSM',
-            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            options: { maxZoom: 19, subdomains: 'abc' },
-        },
-        {
-            name: 'CARTO Light',
-            url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-            options: { maxZoom: 19, subdomains: 'abcd' },
-        },
-        {
-            name: 'CARTO Voyager',
-            url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-            options: { maxZoom: 19, subdomains: 'abcd' },
-        },
-    ];
-
-    const tentarProvider = (idx = 0) => {
-        if (!app.mapa) return;
-
-        if (app.tileLayerAtiva) {
-            try { app.mapa.removeLayer(app.tileLayerAtiva); } catch (_) {}
-            app.tileLayerAtiva = null;
-        }
-
-        const cfg = tileProviders[idx];
-        if (!cfg) {
-            setStatus('Sem conexão com servidor de mapa. Verifique internet/dados.', 'erro');
-            return;
-        }
-
-        let carregou = false;
-        let erros = 0;
-        const layer = L.tileLayer(cfg.url, cfg.options || {});
-
-        const fallback = () => {
-            if (carregou) return;
-            const prox = idx + 1;
-            if (prox < tileProviders.length) {
-                setStatus(`Mapa: alternando provedor (${cfg.name} indisponível)...`, 'aviso');
-                tentarProvider(prox);
-            } else {
-                setStatus('Mapa indisponível no momento. Tente novamente em instantes.', 'erro');
-            }
-        };
-
-        const timer = setTimeout(fallback, 4500);
-        layer.on('tileload', () => {
-            carregou = true;
-            clearTimeout(timer);
-        });
-        layer.on('tileerror', () => {
-            erros += 1;
-            if (!carregou && erros >= 6) {
-                clearTimeout(timer);
-                fallback();
-            }
-        });
-        layer.addTo(app.mapa);
-        app.tileLayerAtiva = layer;
-    };
-
-    tentarProvider(0);
+    const layer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        subdomains: 'abc'
+    });
+    layer.on('tileerror', () => {
+        setStatus('Mapa com instabilidade de conexão. Recarregando os tiles...', 'aviso');
+    });
+    layer.addTo(app.mapa);
+    app.tileLayerAtiva = layer;
 
     setTimeout(() => {
         try { app.mapa.invalidateSize(); } catch (_) {}
@@ -3810,122 +3757,145 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
     if (!app.destino || !coordenadaValida(Number(app.destino.lat), Number(app.destino.lon))) return;
     const to = { lat: Number(app.destino.lat), lon: Number(app.destino.lon) };
 
-    if (!marcadorDestino) {
-        marcadorDestino = L.marker([to.lat, to.lon], { icon: iconDestino })
-            .addTo(app.mapa)
-            .bindPopup(`<b>Destino da entrega</b><br><span style="color:#94a3b8;font-size:0.75rem;">${app.enderecoDestinoTexto || ''}</span>`);
-    } else {
-        marcadorDestino.setLatLng([to.lat, to.lon]);
+    if (app.rotaCalculoEmAndamento) {
+        const pendente = app.rotaAtualizacaoPendente || { forceFit: false, recalculoForcado: false };
+        app.rotaAtualizacaoPendente = {
+            forceFit: !!(pendente.forceFit || forceFit),
+            recalculoForcado: !!(pendente.recalculoForcado || recalculoForcado),
+        };
+        return;
     }
 
-    if (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))) {
-        if (!marcadorOrigem) {
-            marcadorOrigem = L.marker([app.origem.lat, app.origem.lon], { icon: iconRestaurante })
+    app.rotaCalculoEmAndamento = true;
+
+    try {
+
+        if (!marcadorDestino) {
+            marcadorDestino = L.marker([to.lat, to.lon], { icon: iconDestino })
                 .addTo(app.mapa)
-                .bindPopup('<b>Restaurante</b>');
+                .bindPopup(`<b>Destino da entrega</b><br><span style="color:#94a3b8;font-size:0.75rem;">${app.enderecoDestinoTexto || ''}</span>`);
         } else {
-            marcadorOrigem.setLatLng([app.origem.lat, app.origem.lon]);
-        }
-    }
-
-    const temDriver = app.driverLatLon && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]));
-    const fromDriver = temDriver
-        ? { lat: Number(app.driverLatLon[0]), lon: Number(app.driverLatLon[1]) }
-        : null;
-    const fromOrigem = app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))
-        ? { lat: Number(app.origem.lat), lon: Number(app.origem.lon) }
-        : null;
-    const from = fromDriver || fromOrigem;
-
-    if (from) {
-        const rotaSeqLocal = ++rotaRequestSeq;
-        const agora = Date.now();
-        const podeAplicarThrottle = !!camadaRota;
-        if (podeAplicarThrottle && !forceFit && !recalculoForcado && (agora - (app.ultimoCalculoRota || 0) < 4000)) return;
-        app.ultimoCalculoRota = agora;
-
-        const ida = await buscarRota(from.lat, from.lon, to.lat, to.lon);
-        if (rotaSeqLocal !== rotaRequestSeq) return;
-
-        if (camadaRota) {
-            app.mapa.removeLayer(camadaRota);
-            camadaRota = null;
+            marcadorDestino.setLatLng([to.lat, to.lon]);
         }
 
-        if (ida) {
-            app.ultimaRotaGeojson = ida.geojson || null;
-            camadaRota = L.geoJSON(ida.geojson, { style: { color: '#ef4444', weight: 6, opacity: 0.92 } })
-                .addTo(app.mapa)
-                .bindPopup(`<b>${fromDriver ? 'Rota ativa' : 'Rota estimada'}</b><br>📏 ${fmtDist(ida.dist)}`);
-
-            const instrucaoAtual = String(ida?.instrucao || '').trim();
-            if (instrucaoAtual) {
-                app.instrucaoNavegacaoAtual = instrucaoAtual;
-                falarInstrucaoNavegacao(instrucaoAtual);
-            }
-
-            if (forceFit || recalculoForcado) {
-                const resumoDist = Number.isFinite(Number(ida?.dist)) && Number(ida.dist) > 0 ? fmtDist(Number(ida.dist)) : null;
-                const resumoDur = Number.isFinite(Number(ida?.dur)) && Number(ida.dur) > 0 ? fmtDur(Number(ida.dur)) : null;
-                if (resumoDist && resumoDur) {
-                    setStatus(`Rota traçada: ${resumoDist} · ${resumoDur}.`, 'ok');
-                } else if (resumoDist) {
-                    setStatus(`Rota traçada: ${resumoDist}.`, 'ok');
-                }
-                // Faz zoom nos bounds reais da rota (mostra as ruas do percurso)
-                try {
-                    const lb = camadaRota.getBounds();
-                    if (lb && lb.isValid()) {
-                        app.mapa.fitBounds(lb, { paddingTopLeft: [14, 100], paddingBottomRight: [14, 80], maxZoom: 19 });
-                        app.ultimaCentralizacaoMapa = Date.now();
-                        return; // sai para não cair no fitBounds genérico abaixo
-                    }
-                } catch (_) {}
-            }
-        } else {
-            app.ultimaRotaGeojson = {
-                type: 'LineString',
-                coordinates: [[from.lon, from.lat], [to.lon, to.lat]],
-            };
-            camadaRota = L.polyline(
-                [[from.lat, from.lon], [to.lat, to.lon]],
-                { color: '#ef4444', weight: 4, opacity: 0.85, dashArray: '8 6' }
-            ).addTo(app.mapa);
-            if (forceFit || recalculoForcado) {
-                setStatus('Rota viária indisponível agora. Exibindo linha direta temporária.', 'aviso');
-            }
-        }
-    } else {
-        rotaRequestSeq += 1;
-        if (camadaRota) {
-            app.mapa.removeLayer(camadaRota);
-            camadaRota = null;
-        }
-        app.ultimaRotaGeojson = null;
-        if (forceFit || recalculoForcado) {
-            setStatus('Aguardando GPS para calcular rota.', 'aviso');
-        }
-    }
-
-    if (forceFit) {
-        if (from) {
-            const distanciaExtrema = distanciaHaversineMetros(from.lat, from.lon, to.lat, to.lon);
-            if (Number.isFinite(distanciaExtrema) && distanciaExtrema > 80000 && app.driverLatLon) {
-                app.mapa.setView(app.driverLatLon, 18, { animate: true });
-                setStatus('Destino com localização imprecisa. Ajuste o endereço do cliente para traçar rota correta.', 'aviso');
+        if (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))) {
+            if (!marcadorOrigem) {
+                marcadorOrigem = L.marker([app.origem.lat, app.origem.lon], { icon: iconRestaurante })
+                    .addTo(app.mapa)
+                    .bindPopup('<b>Restaurante</b>');
             } else {
+                marcadorOrigem.setLatLng([app.origem.lat, app.origem.lon]);
+            }
+        }
+
+        const temDriver = app.driverLatLon && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]));
+        const fromDriver = temDriver
+            ? { lat: Number(app.driverLatLon[0]), lon: Number(app.driverLatLon[1]) }
+            : null;
+        const fromOrigem = app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))
+            ? { lat: Number(app.origem.lat), lon: Number(app.origem.lon) }
+            : null;
+        const from = fromDriver || fromOrigem;
+
+        if (from) {
+            const rotaSeqLocal = ++rotaRequestSeq;
+            const agora = Date.now();
+            const podeAplicarThrottle = !!camadaRota;
+            if (podeAplicarThrottle && !forceFit && !recalculoForcado && (agora - (app.ultimoCalculoRota || 0) < 4000)) return;
+            app.ultimoCalculoRota = agora;
+
+            const ida = await buscarRota(from.lat, from.lon, to.lat, to.lon);
+            if (rotaSeqLocal !== rotaRequestSeq) return;
+
+            if (camadaRota) {
+                app.mapa.removeLayer(camadaRota);
+                camadaRota = null;
+            }
+
+            if (ida) {
+                app.ultimaRotaGeojson = ida.geojson || null;
+                camadaRota = L.geoJSON(ida.geojson, { style: { color: '#ef4444', weight: 6, opacity: 0.92 } })
+                    .addTo(app.mapa)
+                    .bindPopup(`<b>${fromDriver ? 'Rota ativa' : 'Rota estimada'}</b><br>📏 ${fmtDist(ida.dist)}`);
+
+                const instrucaoAtual = String(ida?.instrucao || '').trim();
+                if (instrucaoAtual) {
+                    app.instrucaoNavegacaoAtual = instrucaoAtual;
+                    falarInstrucaoNavegacao(instrucaoAtual);
+                }
+
+                if (forceFit || recalculoForcado) {
+                    const resumoDist = Number.isFinite(Number(ida?.dist)) && Number(ida.dist) > 0 ? fmtDist(Number(ida.dist)) : null;
+                    const resumoDur = Number.isFinite(Number(ida?.dur)) && Number(ida.dur) > 0 ? fmtDur(Number(ida.dur)) : null;
+                    if (resumoDist && resumoDur) {
+                        setStatus(`Rota traçada: ${resumoDist} · ${resumoDur}.`, 'ok');
+                    } else if (resumoDist) {
+                        setStatus(`Rota traçada: ${resumoDist}.`, 'ok');
+                    }
+                    // Faz zoom nos bounds reais da rota (mostra as ruas do percurso)
+                    try {
+                        const lb = camadaRota.getBounds();
+                        if (lb && lb.isValid()) {
+                            app.mapa.fitBounds(lb, { paddingTopLeft: [14, 100], paddingBottomRight: [14, 80], maxZoom: 19 });
+                            app.ultimaCentralizacaoMapa = Date.now();
+                            return; // sai para não cair no fitBounds genérico abaixo
+                        }
+                    } catch (_) {}
+                }
+            } else {
+                app.ultimaRotaGeojson = {
+                    type: 'LineString',
+                    coordinates: [[from.lon, from.lat], [to.lon, to.lat]],
+                };
+                camadaRota = L.polyline(
+                    [[from.lat, from.lon], [to.lat, to.lon]],
+                    { color: '#ef4444', weight: 4, opacity: 0.85, dashArray: '8 6' }
+                ).addTo(app.mapa);
+                if (forceFit || recalculoForcado) {
+                    setStatus('Rota viária indisponível agora. Exibindo linha direta temporária.', 'aviso');
+                }
+            }
+        } else {
+            rotaRequestSeq += 1;
+            if (camadaRota) {
+                app.mapa.removeLayer(camadaRota);
+                camadaRota = null;
+            }
+            app.ultimaRotaGeojson = null;
+            if (forceFit || recalculoForcado) {
+                setStatus('Aguardando GPS para calcular rota.', 'aviso');
+            }
+        }
+
+        if (forceFit) {
+            if (from) {
+                const distanciaExtrema = distanciaHaversineMetros(from.lat, from.lon, to.lat, to.lon);
+                if (Number.isFinite(distanciaExtrema) && distanciaExtrema > 80000 && app.driverLatLon) {
+                    app.mapa.setView(app.driverLatLon, 18, { animate: true });
+                    setStatus('Destino com localização imprecisa. Ajuste o endereço do cliente para traçar rota correta.', 'aviso');
+                } else {
+                    app.mapa.fitBounds(
+                        L.latLngBounds([[from.lat, from.lon], [to.lat, to.lon]]),
+                        { padding: [45, 45], maxZoom: 19 }
+                    );
+                }
+            } else if (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))) {
                 app.mapa.fitBounds(
-                    L.latLngBounds([[from.lat, from.lon], [to.lat, to.lon]]),
+                    L.latLngBounds([[app.origem.lat, app.origem.lon], [to.lat, to.lon]]),
                     { padding: [45, 45], maxZoom: 19 }
                 );
+            } else {
+                app.mapa.setView([to.lat, to.lon], 19, { animate: true });
             }
-        } else if (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))) {
-            app.mapa.fitBounds(
-                L.latLngBounds([[app.origem.lat, app.origem.lon], [to.lat, to.lon]]),
-                { padding: [45, 45], maxZoom: 19 }
-            );
-        } else {
-            app.mapa.setView([to.lat, to.lon], 19, { animate: true });
+        }
+    } finally {
+        app.rotaCalculoEmAndamento = false;
+        if (app.rotaAtualizacaoPendente) {
+            const pendente = app.rotaAtualizacaoPendente;
+            app.rotaAtualizacaoPendente = null;
+            setTimeout(() => {
+                atualizarRotaEntregadorDestino(!!pendente.forceFit, !!pendente.recalculoForcado);
+            }, 0);
         }
     }
 }
@@ -4054,13 +4024,20 @@ async function carregarCorrida() {
         atualizarResumoPedido(data);
         atualizarAcoesCorrida();
 
-        if (['pronto', 'em_entrega'].includes(String(app.statusPedido || '').toLowerCase()) && !app.pedidoAceito) {
-            await iniciarCorrida();
-        } else if (String(app.statusPedido || '').toLowerCase() === 'em_entrega' && app.watchId === null) {
+        if (String(app.statusPedido || '').toLowerCase() === 'em_entrega' && app.pedidoAceito && app.watchId === null) {
             iniciarRastreamento();
         }
 
         await atualizarStatusPedidoAtual();
+        const statusAtual = String(app.statusPedido || '').toLowerCase();
+        const corridaAtiva = statusAtual === 'em_entrega';
+        if (!corridaAtiva) {
+            marcarPedidoAceito(false);
+            setStatus('Sem corrida ativa no momento. Voltando para a tela de espera.', 'aviso');
+            voltarParaTelaEspera();
+            esconderLoading();
+            return;
+        }
 
         if (!app.driverLatLon && navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -4290,7 +4267,6 @@ async function enviarLocalizacao(lat, lon, prec) {
     /* Atualiza marcador */
     atualizarMarcadorEntregadorNoMapa(lat, lon);
     await verificarDesvioERecalcularRota(lat, lon);
-    await atualizarRotaEntregadorDestino();
 
     const ultimaPosicaoEl = document.getElementById('ultima-posicao');
     if (ultimaPosicaoEl) {
