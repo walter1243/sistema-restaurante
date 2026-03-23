@@ -1,6 +1,7 @@
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from decimal import Decimal
+import asyncio
 import importlib
 import json
 import math
@@ -39,7 +40,7 @@ DEFAULT_RESTAURANTE_EMAIL = (os.getenv("DEFAULT_RESTAURANTE_EMAIL") or "solar@re
 DEFAULT_RESTAURANTE_SENHA = (os.getenv("DEFAULT_RESTAURANTE_SENHA") or "solar1234").strip()
 DEFAULT_RESTAURANTE_PLAN_TYPE = (os.getenv("DEFAULT_RESTAURANTE_PLAN_TYPE") or "standard").strip().lower()
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
@@ -623,6 +624,82 @@ class SuperAdminAuthPayload(BaseModel):
 
 
 app = FastAPI(title="SaaS Restaurante - Multi-tenancy por coluna")
+
+
+class RastreamentoWsHub:
+    def __init__(self):
+        self._conexoes_por_pedido: dict[int, set[WebSocket]] = {}
+        self._lock = asyncio.Lock()
+
+    async def conectar(self, pedido_id: int, websocket: WebSocket) -> None:
+        await websocket.accept()
+        async with self._lock:
+            bucket = self._conexoes_por_pedido.setdefault(int(pedido_id), set())
+            bucket.add(websocket)
+
+    async def desconectar(self, pedido_id: int, websocket: WebSocket) -> None:
+        async with self._lock:
+            bucket = self._conexoes_por_pedido.get(int(pedido_id))
+            if not bucket:
+                return
+            bucket.discard(websocket)
+            if not bucket:
+                self._conexoes_por_pedido.pop(int(pedido_id), None)
+
+    async def publicar(self, pedido_id: int, payload: dict) -> None:
+        async with self._lock:
+            conexoes = list(self._conexoes_por_pedido.get(int(pedido_id), set()))
+
+        if not conexoes:
+            return
+
+        desconectar: list[WebSocket] = []
+        for ws in conexoes:
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                desconectar.append(ws)
+
+        if desconectar:
+            async with self._lock:
+                bucket = self._conexoes_por_pedido.get(int(pedido_id), set())
+                for ws in desconectar:
+                    bucket.discard(ws)
+                if not bucket and int(pedido_id) in self._conexoes_por_pedido:
+                    self._conexoes_por_pedido.pop(int(pedido_id), None)
+
+
+rastreamento_ws_hub = RastreamentoWsHub()
+
+
+@app.websocket("/api/public/ws/pedidos/{pedido_id}/rastreamento")
+async def websocket_rastreamento_pedido(websocket: WebSocket, pedido_id: int, slug: str = Query("")):
+    # Endpoint público para o link do cliente acompanhar a entrega em tempo real.
+    db = SessionLocal()
+    try:
+        pedido = db.get(Pedido, pedido_id)
+        if not pedido or (pedido.tipo_entrega or "").lower() != "delivery":
+            await websocket.close(code=1008, reason="Pedido inválido para rastreamento")
+            return
+
+        slug_normalizado = str(slug or "").strip().lower()
+        if slug_normalizado:
+            restaurante = db.query(Restaurante).filter(Restaurante.restaurante_id == pedido.restaurante_id).first()
+            if not restaurante or restaurante.slug != slug_normalizado:
+                await websocket.close(code=1008, reason="Slug inválido")
+                return
+    finally:
+        db.close()
+
+    await rastreamento_ws_hub.conectar(pedido_id, websocket)
+    try:
+        while True:
+            # Mantém a conexão viva. Cliente pode enviar ping opcional.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await rastreamento_ws_hub.desconectar(pedido_id, websocket)
+    except Exception:
+        await rastreamento_ws_hub.desconectar(pedido_id, websocket)
 
 app.add_middleware(
     CORSMiddleware,
@@ -4976,6 +5053,7 @@ def atualizar_status_pedido_entregador_publico(
 def atualizar_localizacao_entregador(
     token_rastreamento: str,
     payload: EntregadorLocalizacaoPayload,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     entregador = db.query(Entregador).filter(Entregador.token_rastreamento == token_rastreamento).first()
@@ -5007,6 +5085,21 @@ def atualizar_localizacao_entregador(
         )
 
     db.commit()
+
+    if pedido_ativo:
+        atualizado_em = entregador.ultima_atualizacao.isoformat() if entregador.ultima_atualizacao else None
+        background_tasks.add_task(
+            rastreamento_ws_hub.publicar,
+            int(pedido_ativo.id),
+            {
+                "tipo": "localizacao_entregador",
+                "pedido_id": int(pedido_ativo.id),
+                "lat": float(payload.latitude),
+                "lon": float(payload.longitude),
+                "precisao": float(payload.precisao or 0),
+                "atualizado_em": atualizado_em,
+            },
+        )
 
     return {"ok": True, "id": entregador.id, "atualizado_em": entregador.ultima_atualizacao.isoformat()}
 
@@ -5198,6 +5291,7 @@ def atualizar_status_pedido_admin(
 def atualizar_localizacao_pedido(
     pedido_id: int,
     payload: PedidoLocalizacaoUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     pedido = db.get(Pedido, pedido_id)
@@ -5229,6 +5323,20 @@ def atualizar_localizacao_pedido(
     entregador.ultima_precisao = payload.precisao
     entregador.ultima_atualizacao = datetime.utcnow()
     db.commit()
+
+    atualizado_em = entregador.ultima_atualizacao.isoformat() if entregador.ultima_atualizacao else None
+    background_tasks.add_task(
+        rastreamento_ws_hub.publicar,
+        int(pedido.id),
+        {
+            "tipo": "localizacao_entregador",
+            "pedido_id": int(pedido.id),
+            "lat": float(payload.latitude),
+            "lon": float(payload.longitude),
+            "precisao": float(payload.precisao or 0),
+            "atualizado_em": atualizado_em,
+        },
+    )
 
     return {
         "ok": True,

@@ -198,8 +198,63 @@
             ultimaRotaKey: '',
             restauranteCidadeTrava: '',
             restauranteUfTrava: '',
-            centroCidadeTrava: null
+            centroCidadeTrava: null,
+            ws: null,
+            wsConnected: false,
+            wsReconnectTimer: null,
+            ultimoRestaurante: null,
+            ultimoDestino: null,
+            ultimoCalculoRotaRealtimeMs: 0,
+            ultimoRefreshViaWsMs: 0,
+            markerMotoAnimRaf: null
         };
+
+        function wsBaseFromApi(apiBase) {
+            const base = String(apiBase || '').trim();
+            if (!base) return '';
+            if (base.startsWith('https://')) return `wss://${base.slice(8).replace(/\/$/, '')}`;
+            if (base.startsWith('http://')) return `ws://${base.slice(7).replace(/\/$/, '')}`;
+            return '';
+        }
+
+        function atualizarMarcadorMotoSuaveGoogle(destino) {
+            if (!estado.markerMoto || !destino || typeof requestAnimationFrame !== 'function') {
+                return;
+            }
+
+            const atual = estado.markerMoto.position;
+            const fromLat = Number(atual?.lat ?? atual?.lat?.() ?? destino.lat);
+            const fromLng = Number(atual?.lng ?? atual?.lng?.() ?? destino.lng);
+            if (!coordenadaValida(fromLat, fromLng)) {
+                estado.markerMoto.position = destino;
+                return;
+            }
+
+            if (estado.markerMotoAnimRaf) {
+                cancelAnimationFrame(estado.markerMotoAnimRaf);
+                estado.markerMotoAnimRaf = null;
+            }
+
+            const toLat = Number(destino.lat);
+            const toLng = Number(destino.lng);
+            const inicio = performance.now();
+            const duracao = 650;
+
+            const step = (agora) => {
+                const t = Math.min(1, (agora - inicio) / duracao);
+                const eased = 1 - Math.pow(1 - t, 3);
+                const lat = fromLat + (toLat - fromLat) * eased;
+                const lng = fromLng + (toLng - fromLng) * eased;
+                estado.markerMoto.position = { lat, lng };
+                if (t < 1) {
+                    estado.markerMotoAnimRaf = requestAnimationFrame(step);
+                } else {
+                    estado.markerMotoAnimRaf = null;
+                }
+            };
+
+            estado.markerMotoAnimRaf = requestAnimationFrame(step);
+        }
 
         function statusLegivel(status) {
             const mapa = {
@@ -505,33 +560,53 @@
 
         function atualizarMarkers({ restaurante, entregador, destino }) {
             if (estado.modoMapa !== 'google') return;
-            limparMarkers();
 
             if (restaurante) {
-                estado.markerRestaurante = new google.maps.marker.AdvancedMarkerElement({
-                    map: estado.map,
-                    position: restaurante,
-                    content: criarMarkerCustom('https://cdn-icons-png.flaticon.com/512/3081/3081559.png', 38),
-                    title: 'Restaurante'
-                });
+                if (!estado.markerRestaurante) {
+                    estado.markerRestaurante = new google.maps.marker.AdvancedMarkerElement({
+                        map: estado.map,
+                        position: restaurante,
+                        content: criarMarkerCustom('https://cdn-icons-png.flaticon.com/512/3081/3081559.png', 38),
+                        title: 'Restaurante'
+                    });
+                } else {
+                    estado.markerRestaurante.position = restaurante;
+                }
+            } else if (estado.markerRestaurante) {
+                estado.markerRestaurante.map = null;
+                estado.markerRestaurante = null;
             }
 
             if (destino) {
-                estado.markerCasa = new google.maps.marker.AdvancedMarkerElement({
-                    map: estado.map,
-                    position: destino,
-                    content: criarMarkerCustom('https://cdn-icons-png.flaticon.com/512/1946/1946488.png', 40),
-                    title: 'Casa do cliente'
-                });
+                if (!estado.markerCasa) {
+                    estado.markerCasa = new google.maps.marker.AdvancedMarkerElement({
+                        map: estado.map,
+                        position: destino,
+                        content: criarMarkerCustom('https://cdn-icons-png.flaticon.com/512/1946/1946488.png', 40),
+                        title: 'Casa do cliente'
+                    });
+                } else {
+                    estado.markerCasa.position = destino;
+                }
+            } else if (estado.markerCasa) {
+                estado.markerCasa.map = null;
+                estado.markerCasa = null;
             }
 
             if (entregador) {
-                estado.markerMoto = new google.maps.marker.AdvancedMarkerElement({
-                    map: estado.map,
-                    position: entregador,
-                    content: criarMarkerCustom('https://cdn-icons-png.flaticon.com/512/3198/3198336.png', 46),
-                    title: 'Entregador'
-                });
+                if (!estado.markerMoto) {
+                    estado.markerMoto = new google.maps.marker.AdvancedMarkerElement({
+                        map: estado.map,
+                        position: entregador,
+                        content: criarMarkerCustom('https://cdn-icons-png.flaticon.com/512/3198/3198336.png', 46),
+                        title: 'Entregador'
+                    });
+                } else {
+                    atualizarMarcadorMotoSuaveGoogle(entregador);
+                }
+            } else if (estado.markerMoto) {
+                estado.markerMoto.map = null;
+                estado.markerMoto = null;
             }
         }
 
@@ -585,6 +660,97 @@
             );
         }
 
+        function fecharWsRastreamento() {
+            if (estado.wsReconnectTimer) {
+                clearTimeout(estado.wsReconnectTimer);
+                estado.wsReconnectTimer = null;
+            }
+            if (estado.ws) {
+                try { estado.ws.close(); } catch (_) {}
+                estado.ws = null;
+            }
+            estado.wsConnected = false;
+        }
+
+        function agendarReconexaoWs() {
+            if (estado.wsReconnectTimer) return;
+            estado.wsReconnectTimer = setTimeout(() => {
+                estado.wsReconnectTimer = null;
+                conectarWsRastreamento();
+            }, 2500);
+        }
+
+        function processarEventoLocalizacaoTempoReal(evt) {
+            const lat = Number(evt?.lat);
+            const lng = Number(evt?.lon);
+            if (!coordenadaValida(lat, lng)) return;
+
+            const entregador = { lat, lng };
+            const restaurante = estado.ultimoRestaurante;
+            const destino = estado.ultimoDestino;
+
+            if (estado.modoMapa === 'google') {
+                atualizarMarkers({ restaurante, entregador, destino });
+                if (destino) {
+                    const agora = Date.now();
+                    if (agora - Number(estado.ultimoCalculoRotaRealtimeMs || 0) > 8000) {
+                        rotaPorRuas(entregador || restaurante, [], destino);
+                        estado.ultimoCalculoRotaRealtimeMs = agora;
+                    } else {
+                        atualizarEtaAproximado(entregador, destino);
+                    }
+                }
+                ajustarBounds(entregador, destino, restaurante);
+            } else if (estado.modoMapa === 'leaflet' && destino) {
+                atualizarEtaAproximado(entregador, destino);
+            }
+
+            // Mantém consistência de status/endereço com fallback via polling em baixa frequência.
+            const agoraRefresh = Date.now();
+            if (agoraRefresh - Number(estado.ultimoRefreshViaWsMs || 0) > 12000) {
+                estado.ultimoRefreshViaWsMs = agoraRefresh;
+                buscarRastreamento();
+            }
+        }
+
+        function conectarWsRastreamento() {
+            if (!slug || !pedidoId) return;
+            if (estado.ws && (estado.ws.readyState === WebSocket.OPEN || estado.ws.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
+            const wsBase = wsBaseFromApi(API_URL);
+            if (!wsBase) return;
+
+            const url = `${wsBase}/api/public/ws/pedidos/${pedidoId}/rastreamento?slug=${encodeURIComponent(slug)}`;
+            try {
+                estado.ws = new WebSocket(url);
+            } catch (_) {
+                agendarReconexaoWs();
+                return;
+            }
+
+            estado.ws.onopen = () => {
+                estado.wsConnected = true;
+            };
+            estado.ws.onmessage = (msg) => {
+                try {
+                    const evt = JSON.parse(msg.data || '{}');
+                    if (evt?.tipo === 'localizacao_entregador') {
+                        processarEventoLocalizacaoTempoReal(evt);
+                    }
+                } catch (_) {}
+            };
+            estado.ws.onerror = () => {
+                estado.wsConnected = false;
+            };
+            estado.ws.onclose = () => {
+                estado.wsConnected = false;
+                estado.ws = null;
+                agendarReconexaoWs();
+            };
+        }
+
         async function buscarRastreamento() {
             if (!slug || !pedidoId) {
                 document.getElementById('status-pedido').textContent = 'Link inválido';
@@ -626,6 +792,8 @@
                 }
 
                 let restaurante = await geocodificarEndereco(data?.restaurante?.endereco || '');
+                estado.ultimoRestaurante = restaurante;
+                estado.ultimoDestino = destino;
 
                 if (estado.modoMapa === 'google') {
                     atualizarMarkers({ restaurante, entregador, destino });
@@ -823,6 +991,7 @@
 
             buscarRastreamento();
             estado.poller = setInterval(buscarRastreamento, 6000);
+            conectarWsRastreamento();
         }
 
         window.gm_authFailure = function () {
@@ -831,6 +1000,7 @@
             if (!estado.poller) {
                 estado.poller = setInterval(buscarRastreamento, 6000);
             }
+            conectarWsRastreamento();
         };
 
         function iniciarPollingRastreamento() {
@@ -844,6 +1014,7 @@
                 initLeafletFallback();
                 buscarRastreamento();
                 iniciarPollingRastreamento();
+                conectarWsRastreamento();
                 return;
             }
 
@@ -860,6 +1031,7 @@
                 initLeafletFallback();
                 buscarRastreamento();
                 iniciarPollingRastreamento();
+                conectarWsRastreamento();
             };
             window.initMap = initMap;
             document.head.appendChild(script);
@@ -896,10 +1068,14 @@
                 initLeafletFallback();
                 buscarRastreamento();
                 iniciarPollingRastreamento();
+                conectarWsRastreamento();
             }
         }
 
         iniciarAplicacaoReal();
+        window.addEventListener('beforeunload', () => {
+            fecharWsRastreamento();
+        });
     </script>
 </body>
 </html>
