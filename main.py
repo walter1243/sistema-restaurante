@@ -2518,6 +2518,62 @@ def startup_event():
                 conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN plano VARCHAR(30) DEFAULT 'basic'")
             if "plan_type" not in colunas_restaurantes_global:
                 conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN plan_type VARCHAR(20) DEFAULT 'basic'")
+            if "cnpj" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN cnpj VARCHAR(30) DEFAULT ''")
+            if "total_mesas" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN total_mesas INTEGER DEFAULT 10")
+            if "delivery_ativo" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN delivery_ativo BOOLEAN DEFAULT FALSE")
+            if "delivery_endereco_origem" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN delivery_endereco_origem VARCHAR(255) DEFAULT ''")
+            if "delivery_bairro" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN delivery_bairro VARCHAR(120) DEFAULT ''")
+            if "delivery_cidade" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN delivery_cidade VARCHAR(120) DEFAULT ''")
+            if "delivery_uf" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN delivery_uf VARCHAR(2) DEFAULT ''")
+            if "delivery_google_maps_api_key" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN delivery_google_maps_api_key VARCHAR(255) DEFAULT ''")
+            if "delivery_whatsapp_entregador" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN delivery_whatsapp_entregador VARCHAR(30) DEFAULT ''")
+            if "whatsapp_api_ativo" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN whatsapp_api_ativo BOOLEAN DEFAULT FALSE")
+            if "whatsapp_phone_number_id" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN whatsapp_phone_number_id VARCHAR(80) DEFAULT ''")
+            if "whatsapp_access_token" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN whatsapp_access_token VARCHAR(255) DEFAULT ''")
+            if "whatsapp_verify_token" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN whatsapp_verify_token VARCHAR(120) DEFAULT ''")
+            if "categorias_json" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN categorias_json JSON DEFAULT '[]'")
+            if "categoria_horarios_json" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN categoria_horarios_json JSON DEFAULT '{}'")
+            if "capa_cardapio_base64" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN capa_cardapio_base64 TEXT DEFAULT ''")
+            if "capa_posicao" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN capa_posicao VARCHAR(20) DEFAULT 'center'")
+            if "logo_base64" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN logo_base64 TEXT DEFAULT ''")
+            if "logo_posicao" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN logo_posicao VARCHAR(20) DEFAULT 'center'")
+            if "tema_cor_primaria" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN tema_cor_primaria VARCHAR(20) DEFAULT '#3b82f6'")
+            if "tema_cor_secundaria" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN tema_cor_secundaria VARCHAR(20) DEFAULT '#10b981'")
+            if "tema_cor_destaque" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN tema_cor_destaque VARCHAR(20) DEFAULT '#1e293b'")
+            if "estilo_botao" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN estilo_botao VARCHAR(20) DEFAULT 'rounded'")
+            if "foto_perfil_base64" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN foto_perfil_base64 TEXT DEFAULT ''")
+            if "reset_senha_token" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN reset_senha_token VARCHAR(120)")
+            if "reset_senha_expira_em" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN reset_senha_expira_em TIMESTAMP")
+            if "data_assinatura" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN data_assinatura DATE DEFAULT CURRENT_DATE")
+            if "validade_assinatura" not in colunas_restaurantes_global:
+                conn.exec_driver_sql("ALTER TABLE restaurantes ADD COLUMN validade_assinatura DATE DEFAULT (CURRENT_DATE + INTERVAL '30 days')")
 
     if DATABASE_URL.startswith("sqlite"):
         with engine.begin() as conn:
