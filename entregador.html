@@ -2629,6 +2629,8 @@ async function abrirTelaEntrega() {
             await atualizarStatusPedidoEntregador('em_entrega');
         }
         marcarPedidoAceito(true);
+        // Garante origem em tempo real já no aceite.
+        iniciarRastreamento();
 
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -2683,6 +2685,27 @@ async function garantirRotaAoAceitarCorrida() {
         const temDriver = Array.isArray(app.driverLatLon)
             && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]));
 
+        if (!temDriver && navigator.geolocation) {
+            try {
+                await new Promise((resolve) => {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                            const lat = Number(pos?.coords?.latitude);
+                            const lon = Number(pos?.coords?.longitude);
+                            const acc = Number(pos?.coords?.accuracy);
+                            if (coordenadaValida(lat, lon)) {
+                                atualizarMarcadorEntregadorNoMapa(lat, lon);
+                                enviarLocalizacao(lat, lon, acc);
+                            }
+                            resolve(true);
+                        },
+                        () => resolve(false),
+                        { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+                    );
+                });
+            } catch (_) {}
+        }
+
         if (temDestino && (temOrigem || temDriver)) {
             await atualizarRotaEntregadorDestino(true, true);
             centralizarCameraCorrida(true);
@@ -2693,6 +2716,9 @@ async function garantirRotaAoAceitarCorrida() {
         }
 
         try { await atualizarStatusPedidoAtual(); } catch (_) {}
+        if (tentativa === 2) {
+            setStatus('Calculando rota... capturando GPS e endereço do destino.', 'aviso');
+        }
         await new Promise((resolve) => setTimeout(resolve, 700));
     }
 
@@ -3755,6 +3781,9 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
                 [[from.lat, from.lon], [to.lat, to.lon]],
                 { color: '#ef4444', weight: 4, opacity: 0.85, dashArray: '8 6' }
             ).addTo(app.mapa);
+            if (forceFit || recalculoForcado) {
+                setStatus('Rota viária indisponível agora. Exibindo linha direta temporária.', 'aviso');
+            }
         }
     } else {
         rotaRequestSeq += 1;
@@ -3763,6 +3792,9 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
             camadaRota = null;
         }
         app.ultimaRotaGeojson = null;
+        if (forceFit || recalculoForcado) {
+            setStatus('Aguardando GPS para calcular rota.', 'aviso');
+        }
     }
 
     if (forceFit) {
