@@ -1,5 +1,5 @@
 (function () {
-    const RENDER_PRIMARY_API_URL = 'https://sistema-restaurante-api.onrender.com';
+    const RENDER_PRIMARY_API_URL = 'https://sistema-restaurante-f87o.onrender.com';
     const RESTAURANT_SLUG = '';
     const host = String(window.location.hostname || '').toLowerCase();
     const runningOnVercel = host.endsWith('.vercel.app');
