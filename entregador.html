@@ -700,6 +700,18 @@
             color: #93c5fd;
             margin-right: 0.2rem;
         }
+        @media (max-width: 560px) {
+            .map-hud {
+                flex-wrap: wrap;
+                justify-content: center;
+                overflow: visible;
+                gap: 0.3rem;
+            }
+            .map-hud-chip {
+                font-size: 0.66rem;
+                padding: 0.24rem 0.48rem;
+            }
+        }
         body.waiting .map-hud {
             display: none;
         }
@@ -884,6 +896,35 @@
         }
         .btn-gps-fab:active { transform: scale(0.93); }
         body.waiting .btn-gps-fab { display: none; }
+
+        .btn-som-fab {
+            position: fixed;
+            right: 14px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 138px);
+            z-index: 1500;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(8, 15, 28, 0.92);
+            border: 1.5px solid rgba(96, 165, 250, 0.45);
+            color: #93c5fd;
+            font-size: 1.05rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 8px 22px rgba(2,6,23,0.5);
+            transition: background 0.18s, border-color 0.18s;
+            touch-action: manipulation;
+        }
+        .btn-som-fab.ativo {
+            background: rgba(22, 163, 74, 0.22);
+            border-color: rgba(34, 197, 94, 0.7);
+            color: #86efac;
+        }
+        .btn-som-fab:active { transform: scale(0.93); }
+        body.waiting .btn-som-fab { display: none; }
     </style>
 </head>
 <body>
@@ -1001,12 +1042,14 @@
 <!-- Botão GPS flutuante minimalista -->
 <button id="btn-gps-fab" class="btn-gps-fab" title="Ativar/Centralizar GPS" onclick="toggleGpsFab()">📍</button>
 
+<!-- Botão Som flutuante -->
+<button id="btn-som-toggle" class="btn-som-fab" title="Som da navegação" onclick="alternarSomNavegacao()"><span id="hud-som">🔊</span></button>
+
 <div class="map-hud" id="map-hud" aria-live="polite">
     <div class="map-hud-chip"><strong>Base</strong><span id="hud-base">Restaurante → Cliente</span></div>
     <div class="map-hud-chip"><strong>Dist</strong><span id="hud-distancia">--</span></div>
     <div class="map-hud-chip"><strong>Tempo</strong><span id="hud-tempo">--</span></div>
     <div class="map-hud-chip"><strong>Status</strong><span id="hud-modo-camera">Seguindo</span></div>
-    <button type="button" class="map-hud-chip" id="btn-som-toggle" onclick="alternarSomNavegacao()"><strong>Som</strong><span id="hud-som">ON</span></button>
 </div>
 
 <!-- Wait screen (sem pedido ativo) -->
@@ -1394,6 +1437,7 @@ const app = {
     ultimoAudioNavegacaoTs: 0,
     somNavegacaoAtivo: localStorage.getItem(STORAGE_SOM_NAV) !== '0',
     rotaAutoRefreshId: null,
+    tileLayerAtiva: null,
 };
 
 if (app.token || app.slug) {
@@ -2274,8 +2318,12 @@ function atualizarHudSom() {
     const somEl = document.getElementById('hud-som');
     const btnSom = document.getElementById('btn-som-toggle');
     const ativo = !!app.somNavegacaoAtivo;
-    if (somEl) somEl.textContent = ativo ? 'ON' : 'OFF';
-    if (btnSom) btnSom.style.opacity = ativo ? '1' : '0.72';
+    if (somEl) somEl.textContent = ativo ? '🔊' : '🔇';
+    if (btnSom) {
+        btnSom.classList.toggle('ativo', ativo);
+        btnSom.style.opacity = ativo ? '1' : '0.78';
+        btnSom.title = ativo ? 'Som ligado' : 'Som desligado';
+    }
 }
 
 function alternarSomNavegacao() {
@@ -3131,8 +3179,70 @@ function iniciarMapa() {
     app.mapaDisponivel = true;
     inicializarIconesMapa();
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
-     .addTo(app.mapa);
+    const tileProviders = [
+        {
+            name: 'OSM',
+            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            options: { maxZoom: 19, subdomains: 'abc' },
+        },
+        {
+            name: 'CARTO Light',
+            url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            options: { maxZoom: 19, subdomains: 'abcd' },
+        },
+        {
+            name: 'CARTO Voyager',
+            url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            options: { maxZoom: 19, subdomains: 'abcd' },
+        },
+    ];
+
+    const tentarProvider = (idx = 0) => {
+        if (!app.mapa) return;
+
+        if (app.tileLayerAtiva) {
+            try { app.mapa.removeLayer(app.tileLayerAtiva); } catch (_) {}
+            app.tileLayerAtiva = null;
+        }
+
+        const cfg = tileProviders[idx];
+        if (!cfg) {
+            setStatus('Sem conexão com servidor de mapa. Verifique internet/dados.', 'erro');
+            return;
+        }
+
+        let carregou = false;
+        let erros = 0;
+        const layer = L.tileLayer(cfg.url, cfg.options || {});
+
+        const fallback = () => {
+            if (carregou) return;
+            const prox = idx + 1;
+            if (prox < tileProviders.length) {
+                setStatus(`Mapa: alternando provedor (${cfg.name} indisponível)...`, 'aviso');
+                tentarProvider(prox);
+            } else {
+                setStatus('Mapa indisponível no momento. Tente novamente em instantes.', 'erro');
+            }
+        };
+
+        const timer = setTimeout(fallback, 4500);
+        layer.on('tileload', () => {
+            carregou = true;
+            clearTimeout(timer);
+        });
+        layer.on('tileerror', () => {
+            erros += 1;
+            if (!carregou && erros >= 6) {
+                clearTimeout(timer);
+                fallback();
+            }
+        });
+        layer.addTo(app.mapa);
+        app.tileLayerAtiva = layer;
+    };
+
+    tentarProvider(0);
 
     setTimeout(() => {
         try { app.mapa.invalidateSize(); } catch (_) {}
