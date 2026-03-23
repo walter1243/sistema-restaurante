@@ -3388,6 +3388,7 @@ function extrairLatLonEndereco(endereco) {
 /* ═══ ROTA (Google Directions + fallback OSRM) ═══ */
 let googleDirectionsReady = false;
 let googleDirectionsLoading = null;
+const GOOGLE_DIRECTIONS_TIMEOUT_MS = 4500;
 
 async function carregarGoogleDirectionsApi() {
     const key = obterGoogleMapsApiKeyEntregador(app.googleMapsApiKey);
@@ -3402,13 +3403,31 @@ async function carregarGoogleDirectionsApi() {
     }
 
     googleDirectionsLoading = new Promise((resolve) => {
+        let finalizado = false;
+        const resolverSeguro = (valor) => {
+            if (finalizado) return;
+            finalizado = true;
+            resolve(!!valor);
+        };
+
+        const timerTimeout = setTimeout(() => {
+            resolverSeguro(false);
+        }, GOOGLE_DIRECTIONS_TIMEOUT_MS);
+
         const scriptId = 'google-directions-api-entregador';
         const existente = document.getElementById(scriptId);
         if (existente) {
+            const inicio = Date.now();
             const wait = () => {
                 if (window.google?.maps?.DirectionsService) {
                     googleDirectionsReady = true;
-                    resolve(true);
+                    clearTimeout(timerTimeout);
+                    resolverSeguro(true);
+                    return;
+                }
+                if (Date.now() - inicio > GOOGLE_DIRECTIONS_TIMEOUT_MS) {
+                    clearTimeout(timerTimeout);
+                    resolverSeguro(false);
                 } else {
                     setTimeout(wait, 200);
                 }
@@ -3420,7 +3439,8 @@ async function carregarGoogleDirectionsApi() {
         const callbackName = '__gmDirectionsReadyEntregador';
         window[callbackName] = () => {
             googleDirectionsReady = true;
-            resolve(true);
+            clearTimeout(timerTimeout);
+            resolverSeguro(true);
         };
 
         const script = document.createElement('script');
@@ -3428,7 +3448,10 @@ async function carregarGoogleDirectionsApi() {
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&callback=${callbackName}`;
         script.async = true;
         script.defer = true;
-        script.onerror = () => resolve(false);
+        script.onerror = () => {
+            clearTimeout(timerTimeout);
+            resolverSeguro(false);
+        };
         document.head.appendChild(script);
     });
 
