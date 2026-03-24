@@ -4871,12 +4871,32 @@ def obter_entregador_publico(
         "restaurante_uf": (restaurante.delivery_uf if restaurante else "") or "",
     }
 
-    pedido_ativo = db.query(Pedido).filter(
+    pedidos_em_entrega = db.query(Pedido).filter(
         Pedido.restaurante_id == entregador.restaurante_id,
         Pedido.entregador_id == entregador.id,
         Pedido.tipo_entrega == "delivery",
         Pedido.status.in_(["em_entrega"]),
-    ).order_by(Pedido.id.desc()).first()
+    ).order_by(Pedido.created_at.asc(), Pedido.id.asc()).all()
+
+    pedidos_prontos_fila = db.query(Pedido).filter(
+        Pedido.restaurante_id == entregador.restaurante_id,
+        Pedido.entregador_id == entregador.id,
+        Pedido.tipo_entrega == "delivery",
+        Pedido.status.in_(["pronto"]),
+    ).order_by(Pedido.created_at.asc(), Pedido.id.asc()).all()
+
+    pedido_ativo = pedidos_em_entrega[0] if pedidos_em_entrega else None
+
+    fila_completa = [*pedidos_em_entrega, *pedidos_prontos_fila]
+    resp["pedidos_fila"] = [
+        {
+            "id": p.id,
+            "status": p.status,
+            "cliente_nome": p.cliente_nome,
+            "cliente_telefone": p.cliente_telefone,
+        }
+        for p in fila_completa
+    ]
 
     if pedido_ativo:
         resp["pedido_ativo"] = {
@@ -4888,7 +4908,7 @@ def obter_entregador_publico(
     else:
         resp["pedido_ativo"] = None
 
-    resp["disponivel"] = resp["pedido_ativo"] is None
+    resp["disponivel"] = len(fila_completa) == 0
     resp["status_operacao"] = "disponivel" if resp["disponivel"] else "ocupado"
 
     # Se pedido_id fornecido, retorna endereços da corrida
@@ -5067,15 +5087,16 @@ def atualizar_localizacao_entregador(
     entregador.ultima_precisao = payload.precisao
     entregador.ultima_atualizacao = datetime.utcnow()
 
-    pedido_ativo = db.query(Pedido).filter(
+    pedidos_ativos = db.query(Pedido).filter(
         Pedido.restaurante_id == entregador.restaurante_id,
         Pedido.entregador_id == entregador.id,
         Pedido.tipo_entrega == "delivery",
         Pedido.status.in_(["em_entrega"]),
-    ).order_by(Pedido.created_at.desc()).first()
-    if pedido_ativo:
-        pedido_ativo.lat_entregador = payload.latitude
-        pedido_ativo.long_entregador = payload.longitude
+    ).order_by(Pedido.created_at.asc(), Pedido.id.asc()).all()
+    if pedidos_ativos:
+        for pedido_ativo in pedidos_ativos:
+            pedido_ativo.lat_entregador = payload.latitude
+            pedido_ativo.long_entregador = payload.longitude
     else:
         _backfill_deliveries_sem_entregador(
             db,
@@ -5086,20 +5107,21 @@ def atualizar_localizacao_entregador(
 
     db.commit()
 
-    if pedido_ativo:
+    if pedidos_ativos:
         atualizado_em = entregador.ultima_atualizacao.isoformat() if entregador.ultima_atualizacao else None
-        background_tasks.add_task(
-            rastreamento_ws_hub.publicar,
-            int(pedido_ativo.id),
-            {
-                "tipo": "localizacao_entregador",
-                "pedido_id": int(pedido_ativo.id),
-                "lat": float(payload.latitude),
-                "lon": float(payload.longitude),
-                "precisao": float(payload.precisao or 0),
-                "atualizado_em": atualizado_em,
-            },
-        )
+        for pedido_ativo in pedidos_ativos:
+            background_tasks.add_task(
+                rastreamento_ws_hub.publicar,
+                int(pedido_ativo.id),
+                {
+                    "tipo": "localizacao_entregador",
+                    "pedido_id": int(pedido_ativo.id),
+                    "lat": float(payload.latitude),
+                    "lon": float(payload.longitude),
+                    "precisao": float(payload.precisao or 0),
+                    "atualizado_em": atualizado_em,
+                },
+            )
 
     return {"ok": True, "id": entregador.id, "atualizado_em": entregador.ultima_atualizacao.isoformat()}
 
@@ -5159,16 +5181,6 @@ def atualizar_status_pedido_admin(
             raise HTTPException(status_code=404, detail="Entregador selecionado não encontrado")
         if not entregador_escolhido.ativo:
             raise HTTPException(status_code=400, detail="Entregador selecionado está inativo")
-
-        ocupado = db.query(Pedido).filter(
-            Pedido.restaurante_id == restaurante.restaurante_id,
-            Pedido.entregador_id == entregador_escolhido.id,
-            Pedido.tipo_entrega == "delivery",
-            Pedido.status.in_(["em_entrega"]),
-            Pedido.id != pedido.id,
-        ).first()
-        if ocupado:
-            raise HTTPException(status_code=409, detail="Entregador selecionado já está em outra entrega")
 
         pedido.entregador_id = entregador_escolhido.id
 
@@ -5794,15 +5806,6 @@ def despacho_automatico_delivery_admin(
             raise HTTPException(status_code=404, detail="Entregador selecionado não encontrado")
         if not entregador.ativo:
             raise HTTPException(status_code=400, detail="Entregador selecionado está inativo")
-        ocupado = db.query(Pedido).filter(
-            Pedido.restaurante_id == restaurante.restaurante_id,
-            Pedido.entregador_id == entregador.id,
-            Pedido.tipo_entrega == "delivery",
-            Pedido.status.in_(["em_entrega"]),
-            Pedido.id != pedido.id,
-        ).first()
-        if ocupado:
-            entregador = None
 
     if not entregador:
         entregador = _selecionar_entregador_automatico(

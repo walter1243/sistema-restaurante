@@ -1098,6 +1098,7 @@
 const params = new URLSearchParams(window.location.search);
 const GPS_ACCURACY_MAX_METROS = 200;
 const DESVIO_RECALCULO_METROS = 70;
+const DISTANCIA_MIN_FINALIZACAO_METROS = 120;
 const STORAGE_MOTOBOY = 'entregador_painel_sessao';
 const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
 const STORAGE_SOM_NAV = 'entregador_som_nav_ativo';
@@ -1414,6 +1415,7 @@ const app = {
     ultimoPedidoAlertado: null,
     audioLiberado: false,
     pedidoDisponivel: null,
+    pedidosFila: [],
     pushRegistrado: false,
     ultimoCalculoRota: 0,
     googleMapsApiKey: obterGoogleMapsApiKeyEntregador(),
@@ -2913,6 +2915,7 @@ async function verificarPedidoNovo() {
         const data = await res.json();
         app.falhasConsultaPedido = 0;
         app.ultimaFalhaConsultaMsg = '';
+        const filaPedidos = atualizarFilaPedidosEntregador(data);
 
         if (data?.slug && !app.slug) app.slug = String(data.slug);
         salvarSessaoMotoboy({ token: app.token, slug: app.slug || data?.slug || '' });
@@ -2923,7 +2926,7 @@ async function verificarPedidoNovo() {
             fotoBase64: app.fotoPerfilBase64,
         });
 
-        const pedidoAtivo = data?.pedido_ativo;
+        const pedidoAtivo = data?.pedido_ativo || filaPedidos[0] || null;
         const pedidoId = Number(pedidoAtivo?.id || 0);
         if (!pedidoId) {
             renderizarPedidoDisponivel(null);
@@ -2933,7 +2936,7 @@ async function verificarPedidoNovo() {
         }
 
         const statusPedidoAtivo = String(pedidoAtivo?.status || '').toLowerCase();
-        if (statusPedidoAtivo !== 'em_entrega') {
+        if (!['pronto', 'em_entrega'].includes(statusPedidoAtivo)) {
             renderizarPedidoDisponivel(null);
             setBadge('Aguardando', 'aguardando');
             setStatus('Aguardando o dono colocar o pedido em entrega...', 'aviso');
@@ -2943,9 +2946,14 @@ async function verificarPedidoNovo() {
         alertarNovoPedido(pedidoAtivo);
         renderizarPedidoDisponivel(pedidoAtivo);
         setBadge('Novo pedido', 'novo');
-        setStatus('Pedido em entrega recebido. Toque em “Aceitar entrega”.', 'destaque');
+        const pendentes = Math.max(0, Number(filaPedidos.length || 0) - 1);
+        if (pendentes > 0) {
+            setStatus(`Pedido #${pedidoId} pronto para rota. +${pendentes} na fila deste entregador.`, 'destaque');
+        } else {
+            setStatus(`Pedido #${pedidoId} pronto para rota. Toque em “Aceitar entrega”.`, 'destaque');
+        }
 
-        const pedidoPodeAbrirAutomatico = AUTO_ABRIR_CORRIDA && statusPedidoAtivo === 'em_entrega';
+        const pedidoPodeAbrirAutomatico = AUTO_ABRIR_CORRIDA && ['pronto', 'em_entrega'].includes(statusPedidoAtivo);
         const pedidoAindaNaoAberto = app.ultimoPedidoAutoAbertura !== pedidoId;
 
         if (pedidoPodeAbrirAutomatico && pedidoAindaNaoAberto) {
@@ -3027,6 +3035,46 @@ function statusLegivel(status) {
     return map[st] || (status || '-');
 }
 
+function atualizarFilaPedidosEntregador(payload = null) {
+    const lista = Array.isArray(payload?.pedidos_fila) ? payload.pedidos_fila : [];
+    app.pedidosFila = lista
+        .map((p) => ({
+            id: Number(p?.id || 0),
+            status: String(p?.status || '').toLowerCase(),
+            cliente_nome: String(p?.cliente_nome || '').trim(),
+            cliente_telefone: String(p?.cliente_telefone || '').trim(),
+        }))
+        .filter((p) => p.id > 0 && ['pronto', 'em_entrega'].includes(p.status));
+    return app.pedidosFila;
+}
+
+function obterProximoPedidoDaFila(excluirPedidoId = 0) {
+    const ignorar = Number(excluirPedidoId || 0);
+    return (app.pedidosFila || []).find((p) => Number(p.id) > 0 && Number(p.id) !== ignorar) || null;
+}
+
+function distanciaAteDestinoAtualMetros() {
+    const temDriver = Array.isArray(app.driverLatLon)
+        && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]));
+    const temDestino = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon));
+    if (!temDriver || !temDestino) return null;
+
+    return distanciaHaversineMetros(
+        Number(app.driverLatLon[0]),
+        Number(app.driverLatLon[1]),
+        Number(app.destino.lat),
+        Number(app.destino.lon)
+    );
+}
+
+function podeFinalizarPedidoAtual() {
+    const st = String(app.statusPedido || '').toLowerCase();
+    if (st !== 'em_entrega' || !app.pedidoAceito) return false;
+    const distancia = distanciaAteDestinoAtualMetros();
+    if (!Number.isFinite(distancia)) return false;
+    return distancia <= DISTANCIA_MIN_FINALIZACAO_METROS;
+}
+
 function atualizarTimeline(status) {
     return;
 }
@@ -3039,8 +3087,9 @@ function atualizarAcoesCorrida() {
     const emCorrida = st === 'em_entrega';
     const finalizado = ['entregue', 'cancelado', 'fechado'].includes(st);
 
-    btnFinalizarCorrida.disabled = !(emCorrida && app.pedidoAceito);
-    btnFinalizarCorrida.textContent = finalizado ? 'Corrida encerrada' : 'Pedido entregue';
+    const permitidoFinalizar = podeFinalizarPedidoAtual();
+    btnFinalizarCorrida.disabled = !(emCorrida && app.pedidoAceito && permitidoFinalizar);
+    btnFinalizarCorrida.textContent = finalizado ? 'Corrida encerrada' : (permitidoFinalizar ? 'Pedido entregue' : 'Chegue ao destino');
 
     if (finalizado) {
         btnFinalizarCorrida.disabled = true;
@@ -3136,11 +3185,39 @@ async function finalizarCorrida() {
             return;
         }
 
+        const distancia = distanciaAteDestinoAtualMetros();
+        if (!podeFinalizarPedidoAtual()) {
+            if (Number.isFinite(distancia)) {
+                setStatus(`Aproxime-se do destino para finalizar. Distância atual: ${fmtDist(distancia)}.`, 'aviso');
+            } else {
+                setStatus('Aguardando GPS/destino para liberar finalização da entrega.', 'aviso');
+            }
+            return;
+        }
+
         await atualizarStatusPedidoEntregador('entregue');
         marcarPedidoAceito(false);
         pararAutoRefreshRota();
         pararRastreamento();
         atualizarAcoesCorrida();
+
+        const pedidoFinalizadoId = Number(app.pedidoId || 0);
+        try {
+            const filaRes = await fetchComTimeout(`${API_URL}/api/public/entregadores/${encodeURIComponent(app.token)}`, {}, 12000);
+            if (filaRes.ok) {
+                const filaData = await filaRes.json();
+                atualizarFilaPedidosEntregador(filaData);
+            }
+        } catch (_) {}
+
+        const proximoPedido = obterProximoPedidoDaFila(pedidoFinalizadoId);
+        if (proximoPedido) {
+            app.pedidoDisponivel = proximoPedido;
+            setStatus(`Pedido #${proximoPedido.id} selecionado automaticamente. Iniciando próxima rota...`, 'ok');
+            await abrirTelaEntrega();
+            return;
+        }
+
         setStatus('Pedido entregue com sucesso. Voltando para espera...', 'ok');
         setTimeout(() => {
             voltarParaTelaEspera();
