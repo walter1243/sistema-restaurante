@@ -238,6 +238,7 @@ class Entregador(Base):
     foto_perfil_base64: Mapped[str] = mapped_column(String(1000000), default="")
     token_rastreamento: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    capacidade_bag: Mapped[int] = mapped_column(Integer, default=1)
     ultima_latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     ultima_longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     ultima_precisao: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -540,6 +541,7 @@ class EntregadorCreate(BaseModel):
     nome: str = Field(min_length=2, max_length=120)
     whatsapp: str = Field(min_length=8, max_length=30)
     senha: str = Field(min_length=4, max_length=120)
+    capacidade_bag: int = Field(default=1, ge=1, le=12)
 
 
 class EntregadorUpdate(BaseModel):
@@ -548,6 +550,7 @@ class EntregadorUpdate(BaseModel):
     email_login: str | None = None
     senha: str | None = Field(default=None, min_length=4, max_length=120)
     ativo: bool | None = None
+    capacidade_bag: int | None = Field(default=None, ge=1, le=12)
 
 
 class EntregadorLoginPayload(BaseModel):
@@ -988,6 +991,34 @@ def status_pedido_legivel(status: str) -> str:
         "fechado": "Fechado",
     }
     return mapa.get((status or "").lower(), status or "Atualizado")
+
+
+def _resumo_itens_pedido(itens: list | None, limite: int = 3) -> str:
+    if not isinstance(itens, list) or not itens:
+        return ""
+
+    partes: list[str] = []
+    for item in itens:
+        if not isinstance(item, dict):
+            continue
+        nome = str(item.get("nome") or "").strip()
+        if not nome:
+            continue
+        try:
+            qtd = int(float(item.get("quantidade", 1) or 1))
+        except (TypeError, ValueError):
+            qtd = 1
+        qtd = max(1, qtd)
+        partes.append(f"{qtd}x {nome}")
+
+    if not partes:
+        return ""
+    if len(partes) <= max(1, int(limite or 1)):
+        return " • ".join(partes)
+
+    limite_real = max(1, int(limite or 1))
+    extras = len(partes) - limite_real
+    return f"{' • '.join(partes[:limite_real])} • +{extras} item(ns)"
 
 
 def montar_texto_status_whatsapp(restaurante: Restaurante, pedido: Pedido, status: str) -> str:
@@ -1528,6 +1559,98 @@ def _marcar_entregador_online(
     return True
 
 
+def _normalizar_capacidade_bag(valor: int | None) -> int:
+    try:
+        capacidade = int(valor or 0)
+    except (TypeError, ValueError):
+        capacidade = 0
+    if capacidade <= 0:
+        capacidade = 1
+    return max(1, min(12, capacidade))
+
+
+def _capacidade_entregador(entregador: Entregador | None) -> int:
+    if not entregador:
+        return 1
+    return _normalizar_capacidade_bag(getattr(entregador, "capacidade_bag", 1))
+
+
+def _contar_corridas_abertas_entregador(
+    db: Session,
+    restaurante_id: str,
+    entregador_id: int,
+    ignorar_pedido_id: int | None = None,
+) -> int:
+    q = db.query(func.count(Pedido.id)).filter(
+        Pedido.restaurante_id == restaurante_id,
+        Pedido.entregador_id == entregador_id,
+        Pedido.tipo_entrega == "delivery",
+        Pedido.status.in_(["pronto", "em_entrega"]),
+    )
+    if ignorar_pedido_id:
+        q = q.filter(Pedido.id != ignorar_pedido_id)
+    return int(q.scalar() or 0)
+
+
+def _extrair_lat_lon_endereco(endereco: dict | None) -> tuple[float | None, float | None]:
+    if not isinstance(endereco, dict):
+        return None, None
+
+    lat_bruta = endereco.get("latitude", endereco.get("lat"))
+    lon_bruta = endereco.get("longitude", endereco.get("lng", endereco.get("lon")))
+    try:
+        lat = float(lat_bruta) if lat_bruta is not None else None
+        lon = float(lon_bruta) if lon_bruta is not None else None
+    except (TypeError, ValueError):
+        return None, None
+
+    if not _coordenada_valida(lat, lon):
+        return None, None
+    return lat, lon
+
+
+def _ordenar_fila_pedidos_por_proximidade(
+    pedidos: list[Pedido],
+    origem_lat: float | None,
+    origem_lon: float | None,
+) -> list[Pedido]:
+    if not pedidos:
+        return []
+    if not _coordenada_valida(origem_lat, origem_lon):
+        return list(pedidos)
+
+    restante = list(pedidos)
+    fila_ordenada: list[Pedido] = []
+    atual_lat = float(origem_lat)
+    atual_lon = float(origem_lon)
+
+    while restante:
+        melhor_idx = -1
+        melhor_distancia = None
+
+        for idx, pedido in enumerate(restante):
+            lat_pedido, lon_pedido = _extrair_lat_lon_endereco(pedido.endereco_entrega_json or {})
+            if not _coordenada_valida(lat_pedido, lon_pedido):
+                continue
+            distancia = _distancia_haversine_km(atual_lat, atual_lon, float(lat_pedido), float(lon_pedido))
+            if melhor_distancia is None or distancia < melhor_distancia:
+                melhor_distancia = distancia
+                melhor_idx = idx
+
+        if melhor_idx < 0:
+            fila_ordenada.extend(restante)
+            break
+
+        escolhido = restante.pop(melhor_idx)
+        fila_ordenada.append(escolhido)
+        novo_lat, novo_lon = _extrair_lat_lon_endereco(escolhido.endereco_entrega_json or {})
+        if _coordenada_valida(novo_lat, novo_lon):
+            atual_lat = float(novo_lat)
+            atual_lon = float(novo_lon)
+
+    return fila_ordenada
+
+
 def _selecionar_entregador_automatico(
     db: Session,
     restaurante_id: str,
@@ -1536,16 +1659,13 @@ def _selecionar_entregador_automatico(
 ) -> Entregador | None:
     limite_online = datetime.utcnow() - timedelta(minutes=5)
 
-    def entregador_disponivel(entregador_id: int) -> bool:
-        q = db.query(Pedido).filter(
-            Pedido.restaurante_id == restaurante_id,
-            Pedido.entregador_id == entregador_id,
-            Pedido.tipo_entrega == "delivery",
-            Pedido.status.in_(["em_entrega"]),
+    def corridas_abertas_entregador(entregador_id: int) -> int:
+        return _contar_corridas_abertas_entregador(
+            db,
+            restaurante_id,
+            entregador_id,
+            ignorar_pedido_id=ignorar_pedido_id,
         )
-        if ignorar_pedido_id:
-            q = q.filter(Pedido.id != ignorar_pedido_id)
-        return q.first() is None
 
     def entregador_online(entregador: Entregador | None) -> bool:
         return bool(
@@ -1555,13 +1675,16 @@ def _selecionar_entregador_automatico(
         )
 
     def entregador_apto(entregador: Entregador | None) -> bool:
+        if not entregador:
+            return False
+        corridas_abertas = corridas_abertas_entregador(entregador.id)
+        capacidade = _capacidade_entregador(entregador)
         return bool(
-            entregador
-            and entregador.restaurante_id == restaurante_id
+            entregador.restaurante_id == restaurante_id
             and entregador.ativo
             and str(entregador.token_rastreamento or "").strip()
             and entregador_online(entregador)
-            and entregador_disponivel(entregador.id)
+            and corridas_abertas < capacidade
         )
 
     if preferido_id:
@@ -1599,11 +1722,13 @@ def _selecionar_entregador_automatico(
         if entregador_id
     }
 
-    def ranking_distribuicao(entregador: Entregador) -> tuple[int, datetime, float, int]:
+    def ranking_distribuicao(entregador: Entregador) -> tuple[int, int, datetime, float, int]:
         ultima_corrida = ultimas_corridas.get(entregador.id)
         ultima_online = entregador.ultima_atualizacao or datetime.min
+        corridas_abertas = corridas_abertas_entregador(entregador.id)
         return (
             0 if ultima_corrida is None else 1,
+            corridas_abertas,
             ultima_corrida or datetime.min,
             -ultima_online.timestamp() if entregador.ultima_atualizacao else 0.0,
             entregador.id,
@@ -1611,8 +1736,6 @@ def _selecionar_entregador_automatico(
 
     candidatos.sort(key=ranking_distribuicao)
     return candidatos[0]
-
-    return None
 
 
 def _backfill_deliveries_sem_entregador(
@@ -2589,6 +2712,18 @@ def startup_event():
             if "imagem_base64" not in colunas_cardapio_global:
                 conn.exec_driver_sql("ALTER TABLE cardapio ADD COLUMN imagem_base64 VARCHAR(1000000) DEFAULT ''")
 
+        if "entregadores" in tabelas:
+            colunas_entregadores_global = {c["name"] for c in inspector.get_columns("entregadores")}
+            if "capacidade_bag" not in colunas_entregadores_global:
+                conn.exec_driver_sql("ALTER TABLE entregadores ADD COLUMN capacidade_bag INTEGER DEFAULT 1")
+            conn.exec_driver_sql(
+                """
+                UPDATE entregadores
+                SET capacidade_bag = 1
+                WHERE capacidade_bag IS NULL OR capacidade_bag <= 0
+                """
+            )
+
         if "restaurantes" in tabelas:
             colunas_restaurantes_global = {c["name"] for c in inspector.get_columns("restaurantes")}
             if "plano" not in colunas_restaurantes_global:
@@ -2791,6 +2926,15 @@ def startup_event():
                 conn.exec_driver_sql("ALTER TABLE entregadores ADD COLUMN foto_perfil_base64 VARCHAR(1000000) DEFAULT ''")
             if "push_subscriptions_json" not in colunas_entregadores:
                 conn.exec_driver_sql("ALTER TABLE entregadores ADD COLUMN push_subscriptions_json JSON DEFAULT '[]'")
+            if "capacidade_bag" not in colunas_entregadores:
+                conn.exec_driver_sql("ALTER TABLE entregadores ADD COLUMN capacidade_bag INTEGER DEFAULT 1")
+            conn.exec_driver_sql(
+                """
+                UPDATE entregadores
+                SET capacidade_bag = 1
+                WHERE capacidade_bag IS NULL OR capacidade_bag <= 0
+                """
+            )
 
             # Tabela pagamentos_pendentes — colunas opcionais adicionadas em migração
             tabelas_existentes = {
@@ -4479,19 +4623,26 @@ def listar_entregadores_admin(slug: str, token_acesso: str = Header(...), db: Se
 
     retorno = []
     for e in entregadores:
+        corridas_abertas = _contar_corridas_abertas_entregador(
+            db,
+            restaurante.restaurante_id,
+            e.id,
+        )
         pedidos_em_entrega = db.query(Pedido).filter(
             Pedido.restaurante_id == restaurante.restaurante_id,
             Pedido.entregador_id == e.id,
             Pedido.tipo_entrega == "delivery",
             Pedido.status.in_(["em_entrega"]),
         ).order_by(Pedido.created_at.asc()).all()
+        capacidade_bag = _capacidade_entregador(e)
+        vagas_bag = max(0, capacidade_bag - corridas_abertas)
 
         online = bool(
             e.ativo
             and e.ultima_atualizacao
             and e.ultima_atualizacao >= limite_online
         )
-        em_entrega = len(pedidos_em_entrega) > 0
+        em_entrega = corridas_abertas > 0
 
         retorno.append({
             "id": e.id,
@@ -4501,10 +4652,12 @@ def listar_entregadores_admin(slug: str, token_acesso: str = Header(...), db: Se
             "senha": e.senha_hash,
             "token_rastreamento": e.token_rastreamento,
             "ativo": e.ativo,
+            "capacidade_bag": capacidade_bag,
+            "vagas_bag": vagas_bag,
             "online": online,
             "em_entrega": em_entrega,
-            "disponivel": bool(e.ativo) and online and not em_entrega,
-            "corridas_abertas": len(pedidos_em_entrega),
+            "disponivel": bool(e.ativo) and online and vagas_bag > 0,
+            "corridas_abertas": corridas_abertas,
             "pedido_ativo_id": pedidos_em_entrega[0].id if pedidos_em_entrega else None,
             "status_operacao": (
                 "inativo" if not e.ativo else
@@ -4552,6 +4705,7 @@ def criar_entregador_admin(
         senha_hash=senha,
         token_rastreamento=secrets.token_urlsafe(24),
         ativo=True,
+        capacidade_bag=_normalizar_capacidade_bag(payload.capacidade_bag),
     )
     db.add(entregador)
     db.commit()
@@ -4562,6 +4716,7 @@ def criar_entregador_admin(
         "id": entregador.id,
         "nome": entregador.nome,
         "whatsapp": entregador.whatsapp,
+        "capacidade_bag": _capacidade_entregador(entregador),
         "login_telefone": entregador.whatsapp,
         "token_rastreamento": entregador.token_rastreamento,
     }
@@ -4590,6 +4745,8 @@ def atualizar_entregador_admin(
         entregador.nome = payload.nome.strip()
     if payload.ativo is not None:
         entregador.ativo = bool(payload.ativo)
+    if payload.capacidade_bag is not None:
+        entregador.capacidade_bag = _normalizar_capacidade_bag(payload.capacidade_bag)
 
     db.commit()
     return {"ok": True, "id": entregador.id}
@@ -4857,13 +5014,14 @@ def obter_entregador_publico(
         db,
         entregador.restaurante_id,
         preferido_id=entregador.id,
-        limite=1,
+        limite=_capacidade_entregador(entregador),
     )
 
     resp: dict = {
         "ok": True,
         "nome": entregador.nome,
         "ativo": entregador.ativo,
+        "capacidade_bag": _capacidade_entregador(entregador),
         "online": entregador_online,
         "slug": restaurante.slug if restaurante else "",
         "restaurante_nome": restaurante.nome_unidade if restaurante else "",
@@ -4885,15 +5043,22 @@ def obter_entregador_publico(
         Pedido.status.in_(["pronto"]),
     ).order_by(Pedido.created_at.asc(), Pedido.id.asc()).all()
 
-    pedido_ativo = pedidos_em_entrega[0] if pedidos_em_entrega else None
-
     fila_completa = [*pedidos_em_entrega, *pedidos_prontos_fila]
+    fila_completa = _ordenar_fila_pedidos_por_proximidade(
+        fila_completa,
+        entregador.ultima_latitude,
+        entregador.ultima_longitude,
+    )
+
+    pedido_ativo = next((p for p in fila_completa if str(p.status or "").lower() == "em_entrega"), None)
     resp["pedidos_fila"] = [
         {
             "id": p.id,
             "status": p.status,
             "cliente_nome": p.cliente_nome,
             "cliente_telefone": p.cliente_telefone,
+            "itens": p.itens or [],
+            "itens_resumo": _resumo_itens_pedido(p.itens),
         }
         for p in fila_completa
     ]
@@ -4904,6 +5069,8 @@ def obter_entregador_publico(
             "status": pedido_ativo.status,
             "cliente_nome": pedido_ativo.cliente_nome,
             "cliente_telefone": pedido_ativo.cliente_telefone,
+            "itens": pedido_ativo.itens or [],
+            "itens_resumo": _resumo_itens_pedido(pedido_ativo.itens),
         }
     else:
         resp["pedido_ativo"] = None
@@ -4923,6 +5090,8 @@ def obter_entregador_publico(
             resp["pedido_status"] = pedido.status
             resp["cliente_nome"] = pedido.cliente_nome
             resp["cliente_telefone"] = pedido.cliente_telefone
+            resp["itens"] = pedido.itens or []
+            resp["itens_resumo"] = _resumo_itens_pedido(pedido.itens)
 
     return resp
 
@@ -5102,7 +5271,7 @@ def atualizar_localizacao_entregador(
             db,
             entregador.restaurante_id,
             preferido_id=entregador.id,
-            limite=1,
+            limite=_capacidade_entregador(entregador),
         )
 
     db.commit()
@@ -5545,6 +5714,8 @@ def obter_rastreamento_pedido_publico(
             "status": pedido.status,
             "cliente_nome": pedido.cliente_nome,
             "cliente_telefone": pedido.cliente_telefone,
+            "itens": pedido.itens or [],
+            "itens_resumo": _resumo_itens_pedido(pedido.itens),
             "rastreamento_ativo": rastreamento_ativo,
         },
         "entregador": {
@@ -5806,6 +5977,21 @@ def despacho_automatico_delivery_admin(
             raise HTTPException(status_code=404, detail="Entregador selecionado não encontrado")
         if not entregador.ativo:
             raise HTTPException(status_code=400, detail="Entregador selecionado está inativo")
+        corridas_abertas = _contar_corridas_abertas_entregador(
+            db,
+            restaurante.restaurante_id,
+            entregador.id,
+            ignorar_pedido_id=pedido.id,
+        )
+        capacidade_bag = _capacidade_entregador(entregador)
+        if corridas_abertas >= capacidade_bag:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Entregador selecionado está com a bag cheia "
+                    f"({corridas_abertas}/{capacidade_bag})."
+                ),
+            )
 
     if not entregador:
         entregador = _selecionar_entregador_automatico(

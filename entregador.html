@@ -604,6 +604,9 @@
         body.waiting .floating-actions {
             display: none;
         }
+        body.waiting .pedido-info-fab {
+            display: none;
+        }
 
         .timeline {
             display: grid;
@@ -722,6 +725,82 @@
 
         .floating-actions.single {
             width: min(360px, calc(100% - 24px));
+        }
+
+        .pedido-info-fab {
+            position: fixed;
+            left: 50%;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 82px);
+            transform: translateX(-50%);
+            width: min(540px, calc(100% - 24px));
+            z-index: 1550;
+            background: rgba(8, 15, 28, 0.92);
+            border: 1px solid rgba(96, 165, 250, 0.38);
+            border-radius: 14px;
+            padding: 0.6rem 0.7rem;
+            box-shadow: 0 12px 28px rgba(2, 6, 23, 0.5);
+            display: grid;
+            gap: 0.35rem;
+        }
+        .pedido-info-fab.hidden {
+            display: none;
+        }
+        .pedido-info-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.6rem;
+        }
+        .pedido-info-title {
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: #dbeafe;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pedido-info-phone {
+            font-size: 0.72rem;
+            color: #bfdbfe;
+            white-space: nowrap;
+        }
+        .pedido-info-items {
+            font-size: 0.76rem;
+            color: #d1e4fb;
+            line-height: 1.35;
+            max-height: 2.9em;
+            overflow: hidden;
+        }
+        .pedido-info-actions {
+            display: flex;
+            gap: 0.45rem;
+            justify-content: flex-end;
+        }
+        .pedido-info-actions .btn {
+            min-height: 38px;
+            padding: 0.45rem 0.7rem;
+            font-size: 0.75rem;
+            border-radius: 10px;
+            box-shadow: none;
+        }
+        @media (max-width: 560px) {
+            .pedido-info-fab {
+                width: calc(100% - 18px);
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 74px);
+                padding: 0.52rem 0.58rem;
+            }
+            .pedido-info-top {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.22rem;
+            }
+            .pedido-info-actions {
+                width: 100%;
+            }
+            .pedido-info-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
         }
 
         /* ─── CUSTOM MARKERS ─── */
@@ -1087,6 +1166,17 @@
     <span id="status-msg">Pronto.</span>
 </div>
 
+<div class="pedido-info-fab hidden" id="pedido-info-fab">
+    <div class="pedido-info-top">
+        <div class="pedido-info-title" id="pedido-info-title">Pedido atual</div>
+        <div class="pedido-info-phone" id="pedido-info-phone">Telefone do cliente: -</div>
+    </div>
+    <div class="pedido-info-items" id="pedido-info-items">Itens do pedido aparecerão aqui.</div>
+    <div class="pedido-info-actions">
+        <button class="btn btn-map" id="btn-whatsapp-cliente" onclick="abrirWhatsAppCliente()">📱 Falar com cliente no WhatsApp</button>
+    </div>
+</div>
+
 <div class="floating-actions single" id="floating-actions">
     <button class="btn btn-stop" id="btn-finalizar-corrida" onclick="finalizarCorrida()">Pedido entregue</button>
 </div>
@@ -1099,6 +1189,7 @@ const params = new URLSearchParams(window.location.search);
 const GPS_ACCURACY_MAX_METROS = 200;
 const DESVIO_RECALCULO_METROS = 70;
 const DISTANCIA_MIN_FINALIZACAO_METROS = 120;
+const ZOOM_NAVEGACAO_FIXO = 18;
 const STORAGE_MOTOBOY = 'entregador_painel_sessao';
 const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
 const STORAGE_SOM_NAV = 'entregador_som_nav_ativo';
@@ -1416,6 +1507,9 @@ const app = {
     audioLiberado: false,
     pedidoDisponivel: null,
     pedidosFila: [],
+    pedidoClienteNome: '',
+    pedidoClienteTelefone: '',
+    pedidoItensResumo: '',
     pushRegistrado: false,
     ultimoCalculoRota: 0,
     googleMapsApiKey: obterGoogleMapsApiKeyEntregador(),
@@ -2377,6 +2471,26 @@ function pausarCameraPorInteracao(ms = 12000) {
     atualizarHudRota();
 }
 
+function corridaEmEntrega() {
+    return String(app.statusPedido || '').toLowerCase() === 'em_entrega';
+}
+
+function aplicarZoomFixoCorrida(recentralizar = false) {
+    if (!app.mapaDisponivel || !app.mapa) return;
+    if (!corridaEmEntrega()) return;
+
+    const zoomAlvo = Number(ZOOM_NAVEGACAO_FIXO) || 18;
+    const zoomAtual = Number(app.mapa.getZoom() || 0);
+    if (Math.abs(zoomAtual - zoomAlvo) > 0.01) {
+        app.mapa.setZoom(zoomAlvo, { animate: false });
+    }
+
+    if (recentralizar && Array.isArray(app.driverLatLon)
+        && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]))) {
+        app.mapa.panTo([Number(app.driverLatLon[0]), Number(app.driverLatLon[1])], { animate: true });
+    }
+}
+
 function centralizarCameraCorrida(force = false) {
     if (!app.mapaDisponivel || !app.mapa) return;
     const agora = Date.now();
@@ -2389,18 +2503,10 @@ function centralizarCameraCorrida(force = false) {
         && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]));
     const temDestino = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon));
 
-    if (temDriver && temDestino) {
-        app.mapa.fitBounds(
-            L.latLngBounds([
-                [Number(app.driverLatLon[0]), Number(app.driverLatLon[1])],
-                [Number(app.destino.lat), Number(app.destino.lon)]
-            ]),
-            { padding: [60, 60], maxZoom: 19 }
-        );
+    if (temDriver) {
+        app.mapa.setView([Number(app.driverLatLon[0]), Number(app.driverLatLon[1])], Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
     } else if (temDestino) {
-        app.mapa.setView([Number(app.destino.lat), Number(app.destino.lon)], 19, { animate: true });
-    } else if (temDriver) {
-        app.mapa.setView([Number(app.driverLatLon[0]), Number(app.driverLatLon[1])], 19, { animate: true });
+        app.mapa.setView([Number(app.destino.lat), Number(app.destino.lon)], Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
     }
 
     app.ultimaCentralizacaoMapa = Date.now();
@@ -2607,8 +2713,12 @@ function voltarParaTelaEspera() {
     app.pedidoContextoId = 0;
     app.statusPedido = '';
     app.pedidoDisponivel = null;
+    app.pedidoClienteNome = '';
+    app.pedidoClienteTelefone = '';
+    app.pedidoItensResumo = '';
     app.ultimoPedidoAlertado = null;
     marcarPedidoAceito(false);
+    atualizarPainelPedidoAtual();
 
     atualizarUrlModoEspera();
     definirModoEspera(true);
@@ -2645,15 +2755,20 @@ function renderizarPedidoDisponivel(pedido) {
         return;
     }
 
+    const itens = Array.isArray(pedido?.itens) ? pedido.itens : [];
     app.pedidoDisponivel = {
         id: pedidoId,
         status: String(pedido?.status || ''),
         cliente_nome: String(pedido?.cliente_nome || '').trim(),
+        cliente_telefone: String(pedido?.cliente_telefone || '').trim(),
+        itens,
+        itens_resumo: String(pedido?.itens_resumo || '').trim() || montarResumoItensPedido(itens),
     };
 
     const cliente = app.pedidoDisponivel.cliente_nome || 'Cliente';
+    const resumoItens = app.pedidoDisponivel.itens_resumo || 'Itens não informados';
     title.textContent = `Pedido #${pedidoId} saiu para entrega`;
-    sub.textContent = `${cliente} · toque em “Aceitar entrega” para abrir mapa e localização da corrida.`;
+    sub.textContent = `${cliente} · ${resumoItens}`;
 
     const btnAceitar = document.getElementById('btn-fazer-entrega');
     if (btnAceitar) {
@@ -2684,6 +2799,10 @@ async function abrirTelaEntrega() {
     app.pedidoId = String(pedidoId);
     app.pedidoContextoId = pedidoId;
     app.statusPedido = String(app.pedidoDisponivel?.status || app.statusPedido || '').toLowerCase();
+    app.pedidoClienteNome = String(app.pedidoDisponivel?.cliente_nome || app.pedidoClienteNome || '').trim();
+    app.pedidoClienteTelefone = String(app.pedidoDisponivel?.cliente_telefone || app.pedidoClienteTelefone || '').trim();
+    app.pedidoItensResumo = String(app.pedidoDisponivel?.itens_resumo || app.pedidoItensResumo || '').trim();
+    atualizarPainelPedidoAtual();
     limparContextoRota({ manterMarcadorEntregador: true });
     app.driverLatLon = null;
 
@@ -3035,15 +3154,87 @@ function statusLegivel(status) {
     return map[st] || (status || '-');
 }
 
+function normalizarTelefoneWhatsAppCliente(valor = '') {
+    const digitos = String(valor || '').replace(/\D/g, '');
+    if (!digitos) return '';
+    if (digitos.length <= 11) return `55${digitos}`;
+    return digitos;
+}
+
+function montarResumoItensPedido(itens = []) {
+    if (!Array.isArray(itens) || !itens.length) return '';
+    const partes = itens
+        .map((item) => {
+            const nome = String(item?.nome || '').trim();
+            if (!nome) return '';
+            const qtdNum = Number(item?.quantidade || 1);
+            const qtd = Number.isFinite(qtdNum) && qtdNum > 0 ? Math.round(qtdNum) : 1;
+            return `${qtd}x ${nome}`;
+        })
+        .filter(Boolean);
+    if (!partes.length) return '';
+    if (partes.length <= 3) return partes.join(' • ');
+    return `${partes.slice(0, 3).join(' • ')} • +${partes.length - 3} item(ns)`;
+}
+
+function atualizarPainelPedidoAtual() {
+    const box = document.getElementById('pedido-info-fab');
+    const titleEl = document.getElementById('pedido-info-title');
+    const phoneEl = document.getElementById('pedido-info-phone');
+    const itemsEl = document.getElementById('pedido-info-items');
+    const btnWpp = document.getElementById('btn-whatsapp-cliente');
+    if (!box || !titleEl || !phoneEl || !itemsEl || !btnWpp) return;
+
+    const pedidoNum = Number(app.pedidoId || 0);
+    const cliente = String(app.pedidoClienteNome || '').trim() || 'Cliente';
+    const telefoneBruto = String(app.pedidoClienteTelefone || '').trim();
+    const telefoneWpp = normalizarTelefoneWhatsAppCliente(telefoneBruto);
+    const itensResumo = String(app.pedidoItensResumo || '').trim();
+    const corridaAtiva = ['pronto', 'em_entrega'].includes(String(app.statusPedido || '').toLowerCase()) && pedidoNum > 0;
+
+    if (!corridaAtiva) {
+        box.classList.add('hidden');
+        return;
+    }
+
+    box.classList.remove('hidden');
+    titleEl.textContent = `Pedido #${pedidoNum} · ${cliente}`;
+    phoneEl.textContent = `Telefone do cliente: ${telefoneBruto || 'não informado'}`;
+    itemsEl.textContent = itensResumo || 'Itens não informados neste pedido.';
+
+    btnWpp.disabled = !telefoneWpp;
+    btnWpp.style.opacity = telefoneWpp ? '1' : '0.65';
+    btnWpp.textContent = telefoneWpp ? `📱 Falar no WhatsApp (${telefoneBruto || 'cliente'})` : '📱 WhatsApp indisponível';
+}
+
+function abrirWhatsAppCliente() {
+    const pedidoNum = Number(app.pedidoId || 0);
+    const cliente = String(app.pedidoClienteNome || '').trim() || 'Cliente';
+    const telefone = normalizarTelefoneWhatsAppCliente(app.pedidoClienteTelefone || '');
+    if (!telefone) {
+        setStatus('Telefone do cliente não disponível para WhatsApp.', 'aviso');
+        return;
+    }
+
+    const msg = `Olá, ${cliente}! Sou o entregador do pedido #${pedidoNum}. Estou a caminho para concluir sua entrega.`;
+    const link = `https://wa.me/${encodeURIComponent(telefone)}?text=${encodeURIComponent(msg)}`;
+    window.open(link, '_blank');
+}
+
 function atualizarFilaPedidosEntregador(payload = null) {
     const lista = Array.isArray(payload?.pedidos_fila) ? payload.pedidos_fila : [];
     app.pedidosFila = lista
-        .map((p) => ({
-            id: Number(p?.id || 0),
-            status: String(p?.status || '').toLowerCase(),
-            cliente_nome: String(p?.cliente_nome || '').trim(),
-            cliente_telefone: String(p?.cliente_telefone || '').trim(),
-        }))
+        .map((p) => {
+            const itens = Array.isArray(p?.itens) ? p.itens : [];
+            return {
+                id: Number(p?.id || 0),
+                status: String(p?.status || '').toLowerCase(),
+                cliente_nome: String(p?.cliente_nome || '').trim(),
+                cliente_telefone: String(p?.cliente_telefone || '').trim(),
+                itens,
+                itens_resumo: String(p?.itens_resumo || '').trim() || montarResumoItensPedido(itens),
+            };
+        })
         .filter((p) => p.id > 0 && ['pronto', 'em_entrega'].includes(p.status));
     return app.pedidosFila;
 }
@@ -3107,11 +3298,26 @@ function atualizarAcoesCorrida() {
 }
 
 function atualizarResumoPedido(data) {
-    const status = String(data?.pedido?.status || app.statusPedido || '').toLowerCase();
+    const pedidoPayload = data?.pedido || data?.pedido_ativo || {};
+    const status = String(pedidoPayload?.status || data?.pedido_status || app.statusPedido || '').toLowerCase();
     const pedidoStatus = document.getElementById('pedido-status');
     if (pedidoStatus) {
         pedidoStatus.textContent = statusLegivel(status);
     }
+
+    const clienteNome = String(pedidoPayload?.cliente_nome || data?.cliente_nome || app.pedidoClienteNome || '').trim();
+    const clienteTelefone = String(pedidoPayload?.cliente_telefone || data?.cliente_telefone || app.pedidoClienteTelefone || '').trim();
+    const itensArray = Array.isArray(pedidoPayload?.itens)
+        ? pedidoPayload.itens
+        : (Array.isArray(data?.itens) ? data.itens : []);
+    const itensResumo = String(pedidoPayload?.itens_resumo || data?.itens_resumo || '').trim() || montarResumoItensPedido(itensArray);
+
+    app.pedidoClienteNome = clienteNome;
+    app.pedidoClienteTelefone = clienteTelefone;
+    app.pedidoItensResumo = itensResumo;
+    app.statusPedido = status;
+
+    atualizarPainelPedidoAtual();
     atualizarTimeline(status);
 }
 
@@ -3288,6 +3494,11 @@ function iniciarMapa() {
 
     app.mapa.on('dragstart zoomstart', () => {
         pausarCameraPorInteracao(12000);
+    });
+    app.mapa.on('zoomend', () => {
+        if (corridaEmEntrega()) {
+            aplicarZoomFixoCorrida(false);
+        }
     });
 
     focarMapaNaCidadeTrava(13).catch(() => {});
@@ -4072,15 +4283,7 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
                     } else if (resumoDist) {
                         setStatus(`Rota traçada: ${resumoDist}.`, 'ok');
                     }
-                    // Faz zoom nos bounds reais da rota (mostra as ruas do percurso)
-                    try {
-                        const lb = camadaRota.getBounds();
-                        if (lb && lb.isValid()) {
-                            app.mapa.fitBounds(lb, { paddingTopLeft: [14, 100], paddingBottomRight: [14, 80], maxZoom: 19 });
-                            app.ultimaCentralizacaoMapa = Date.now();
-                            return; // sai para não cair no fitBounds genérico abaixo
-                        }
-                    } catch (_) {}
+                    aplicarZoomFixoCorrida(true);
                 }
             } else {
                 app.ultimaRotaGeojson = {
@@ -4108,25 +4311,15 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
         }
 
         if (forceFit) {
-            if (from) {
-                const distanciaExtrema = distanciaHaversineMetros(from.lat, from.lon, to.lat, to.lon);
-                if (Number.isFinite(distanciaExtrema) && distanciaExtrema > 80000 && app.driverLatLon) {
-                    app.mapa.setView(app.driverLatLon, 18, { animate: true });
-                    setStatus('Destino com localização imprecisa. Ajuste o endereço do cliente para traçar rota correta.', 'aviso');
-                } else {
-                    app.mapa.fitBounds(
-                        L.latLngBounds([[from.lat, from.lon], [to.lat, to.lon]]),
-                        { padding: [45, 45], maxZoom: 19 }
-                    );
-                }
-            } else if (app.origem && coordenadaValida(Number(app.origem.lat), Number(app.origem.lon))) {
-                app.mapa.fitBounds(
-                    L.latLngBounds([[app.origem.lat, app.origem.lon], [to.lat, to.lon]]),
-                    { padding: [45, 45], maxZoom: 19 }
-                );
+            if (Array.isArray(app.driverLatLon) && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]))) {
+                app.mapa.setView(app.driverLatLon, Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
+            } else if (from) {
+                app.mapa.setView([from.lat, from.lon], Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
             } else {
-                app.mapa.setView([to.lat, to.lon], 19, { animate: true });
+                app.mapa.setView([to.lat, to.lon], Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
             }
+            app.ultimaCentralizacaoMapa = Date.now();
+            aplicarZoomFixoCorrida(false);
         }
     } finally {
         app.rotaCalculoEmAndamento = false;
@@ -4145,7 +4338,10 @@ function centralizarMapa() {
     if (!app.mapaDisponivel || !app.mapa) return;
 
     if (app.driverLatLon) {
-        app.mapa.setView(app.driverLatLon, 19, { animate: true });
+        app.mapa.setView(app.driverLatLon, corridaEmEntrega() ? (Number(ZOOM_NAVEGACAO_FIXO) || 18) : 19, { animate: true });
+        if (corridaEmEntrega()) {
+            aplicarZoomFixoCorrida(false);
+        }
     } else if (app.origem && app.destino) {
         app.mapa.fitBounds(
             L.latLngBounds([app.origem.lat, app.origem.lon], [app.destino.lat, app.destino.lon]),
