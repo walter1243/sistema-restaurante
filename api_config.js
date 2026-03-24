@@ -7,7 +7,21 @@
         window.__APP_API_URL__
         || (runningOnVercel ? RENDER_PRIMARY_API_URL : window.location.origin)
     ).trim();
-    const CENTRAL_GOOGLE_MAPS_API_KEY = 'AIzaSyAzgtn7z086Idrvw6R_-zHI8vwOkkSTN4A';
+
+    function readNextPublicGoogleMapsApiKey() {
+        try {
+            if (typeof process !== 'undefined' && process?.env?.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) {
+                return String(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim();
+            }
+        } catch (_) {}
+
+        return String(
+            window.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+            || window.__NEXT_PUBLIC_GOOGLE_MAPS_API_KEY__
+            || window.__CENTRAL_GOOGLE_MAPS_API_KEY__
+            || ''
+        ).trim();
+    }
 
     function normalizeGoogleMapsApiKey(value) {
         const clean = String(value || '').trim().replace(/^['"]+|['"]+$/g, '');
@@ -17,12 +31,26 @@
         return clean;
     }
 
+    function isLikelyValidGoogleMapsApiKey(value) {
+        const clean = normalizeGoogleMapsApiKey(value);
+        if (!clean) return false;
+        return /^AIza[0-9A-Za-z_-]{20,}$/.test(clean);
+    }
+
+    const CENTRAL_GOOGLE_MAPS_API_KEY = normalizeGoogleMapsApiKey(readNextPublicGoogleMapsApiKey());
+
     function resolveGoogleMapsApiKey(...candidates) {
+        if (isLikelyValidGoogleMapsApiKey(CENTRAL_GOOGLE_MAPS_API_KEY)) {
+            return CENTRAL_GOOGLE_MAPS_API_KEY;
+        }
+
         for (const candidate of candidates) {
             const normalized = normalizeGoogleMapsApiKey(candidate);
-            if (normalized) return normalized;
+            if (!normalized) continue;
+            if (isLikelyValidGoogleMapsApiKey(normalized)) return normalized;
         }
-        return '';
+
+        return normalizeGoogleMapsApiKey(CENTRAL_GOOGLE_MAPS_API_KEY);
     }
 
     function isLocalHost(hostname) {
@@ -96,6 +124,7 @@
         window.APP_GOOGLE_MAPS_API_KEY,
         CENTRAL_GOOGLE_MAPS_API_KEY
     );
+    window.__CENTRAL_GOOGLE_MAPS_API_KEY__ = CENTRAL_GOOGLE_MAPS_API_KEY;
     window.__RESTAURANT_SLUG__ = String(
         window.__RESTAURANT_SLUG__
         || window.APP_RESTAURANT_SLUG
@@ -111,5 +140,6 @@
     window.getGoogleMapsApiKey = function (...candidates) {
         return resolveGoogleMapsApiKey(...candidates, window.__GOOGLE_MAPS_API_KEY__, CENTRAL_GOOGLE_MAPS_API_KEY);
     };
+    window.isLikelyValidGoogleMapsApiKey = isLikelyValidGoogleMapsApiKey;
     window.resolveApiBase = resolveApiBase;
 })();

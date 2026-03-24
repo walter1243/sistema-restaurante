@@ -1165,6 +1165,13 @@ const pedidoViaVinculoUrl = extrairParamDeUrl(vinculoAtivo.delivery_url || '', '
 const apiViaVinculoUrl = extrairParamDeUrl(vinculoAtivo.delivery_url || '', 'api');
 
 function obterBasesApiEntregador() {
+    const hostAtual = String(window.location.hostname || '').toLowerCase();
+    const emVercel = hostAtual.endsWith('.vercel.app');
+    if (emVercel) {
+        // Forca chamadas no mesmo origin para usar proxy /api da Vercel e evitar CORS.
+        return [window.location.origin.replace(/\/$/, '')];
+    }
+
     const queryApi = params.get('api') || '';
     const resolved = window.resolveApiBase ? window.resolveApiBase() : window.location.origin;
     const salvoApiBase = localStorage.getItem('api_base_url') || '';
@@ -1210,6 +1217,10 @@ function obterGoogleMapsApiKeyEntregador(...candidatos) {
     if (typeof window.getGoogleMapsApiKey === 'function') {
         return window.getGoogleMapsApiKey(...candidatos);
     }
+
+    const chaveCentral = String(window.__CENTRAL_GOOGLE_MAPS_API_KEY__ || '').trim();
+    if (chaveCentral) return chaveCentral;
+
     for (const candidato of candidatos) {
         const valor = String(candidato || '').trim().replace(/^['"]+|['"]+$/g, '');
         if (!valor) continue;
@@ -3209,6 +3220,66 @@ function iniciarMapa() {
 let iconRestaurante = null;
 let iconDestino = null;
 let iconEntregador = null;
+let animacaoMarkerEntregadorId = null;
+
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+function animarMarkerEntregadorSuave(destinoLatLng, duracaoMs = 850) {
+    if (!app.driverMarker || !Array.isArray(destinoLatLng)) return;
+
+    const atual = app.driverMarker.getLatLng();
+    const inicio = { lat: Number(atual?.lat), lon: Number(atual?.lng) };
+    const fim = { lat: Number(destinoLatLng[0]), lon: Number(destinoLatLng[1]) };
+
+    if (!coordenadaValida(inicio.lat, inicio.lon) || !coordenadaValida(fim.lat, fim.lon)) {
+        app.driverMarker.setLatLng(destinoLatLng);
+        return;
+    }
+
+    const dist = distanciaHaversineMetros(inicio.lat, inicio.lon, fim.lat, fim.lon);
+    if (!Number.isFinite(dist) || dist < 2) {
+        app.driverMarker.setLatLng(destinoLatLng);
+        return;
+    }
+
+    if (animacaoMarkerEntregadorId) {
+        cancelAnimationFrame(animacaoMarkerEntregadorId);
+        animacaoMarkerEntregadorId = null;
+    }
+
+    const inicioMs = performance.now();
+    const passo = (agora) => {
+        const tRaw = (agora - inicioMs) / duracaoMs;
+        const t = Math.max(0, Math.min(1, tRaw));
+        const easing = 1 - Math.pow(1 - t, 3);
+        const lat = lerp(inicio.lat, fim.lat, easing);
+        const lon = lerp(inicio.lon, fim.lon, easing);
+        app.driverMarker.setLatLng([lat, lon]);
+
+        if (t < 1) {
+            animacaoMarkerEntregadorId = requestAnimationFrame(passo);
+        } else {
+            animacaoMarkerEntregadorId = null;
+        }
+    };
+
+    animacaoMarkerEntregadorId = requestAnimationFrame(passo);
+}
+
+function tratarErroGeolocalizacao(err, contexto = 'GPS') {
+    const code = Number(err?.code || 0);
+    if (code === 1) {
+        setStatus(
+            `${contexto}: acesso a localizacao negado. Ative a permissao de Localizacao nas configuracoes do navegador e recarregue.`,
+            'erro'
+        );
+        return;
+    }
+    const msg = String(err?.message || '').trim();
+    setStatus(`${contexto}: ${msg || 'nao foi possivel obter localizacao agora.'}`, 'erro');
+}
 
 function inicializarIconesMapa() {
     if (typeof L === 'undefined') return;
@@ -3393,13 +3464,13 @@ const GOOGLE_DIRECTIONS_TIMEOUT_MS = 4500;
 async function carregarGoogleDirectionsApi() {
     const key = obterGoogleMapsApiKeyEntregador(app.googleMapsApiKey);
     if (!key) return false;
-    if (window.google?.maps?.DirectionsService) {
+    if (window.google?.maps) {
         googleDirectionsReady = true;
         return true;
     }
     if (googleDirectionsLoading) {
         await googleDirectionsLoading;
-        return !!window.google?.maps?.DirectionsService;
+        return !!window.google?.maps;
     }
 
     googleDirectionsLoading = new Promise((resolve) => {
@@ -3445,7 +3516,7 @@ async function carregarGoogleDirectionsApi() {
 
         const script = document.createElement('script');
         script.id = scriptId;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&callback=${callbackName}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry,routes&loading=async&callback=${callbackName}`;
         script.async = true;
         script.defer = true;
         script.onerror = () => {
@@ -3458,6 +3529,71 @@ async function carregarGoogleDirectionsApi() {
     const ok = await googleDirectionsLoading;
     googleDirectionsLoading = null;
     return !!ok;
+}
+
+function parseGoogleDurationToSeconds(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return Number(value);
+    const raw = String(value || '').trim();
+    if (!raw) return 0;
+    if (/^\d+(\.\d+)?s$/i.test(raw)) return Number(raw.replace(/s$/i, ''));
+    return 0;
+}
+
+function encodedPolylineToGeoJson(encoded) {
+    const poly = String(encoded || '').trim();
+    if (!poly || !window.google?.maps?.geometry?.encoding?.decodePath) return null;
+    try {
+        const path = window.google.maps.geometry.encoding.decodePath(poly);
+        const coordinates = path.map((p) => {
+            const lat = Number(p?.lat?.());
+            const lon = Number(p?.lng?.());
+            if (!coordenadaValida(lat, lon)) return null;
+            return [lon, lat];
+        }).filter(Boolean);
+        if (coordinates.length < 2) return null;
+        return { type: 'LineString', coordinates };
+    } catch (_) {
+        return null;
+    }
+}
+
+async function buscarRotaGoogleRoutesApi(latA, lonA, latB, lonB) {
+    if (!window.google?.maps?.routes?.Route?.computeRoutes) return null;
+    try {
+        const resposta = await window.google.maps.routes.Route.computeRoutes({
+            origin: { location: { latLng: { latitude: latA, longitude: lonA } } },
+            destination: { location: { latLng: { latitude: latB, longitude: lonB } } },
+            travelMode: 'DRIVE',
+            routingPreference: 'TRAFFIC_AWARE',
+            polylineEncoding: 'ENCODED_POLYLINE',
+            polylineQuality: 'HIGH_QUALITY',
+            languageCode: 'pt-BR',
+            regionCode: 'BR',
+        });
+
+        const route = Array.isArray(resposta?.routes) ? resposta.routes[0] : null;
+        if (!route) return null;
+
+        const leg = Array.isArray(route?.legs) ? route.legs[0] : null;
+        const geojson = encodedPolylineToGeoJson(route?.polyline?.encodedPolyline);
+        if (!geojson) return null;
+
+        const steps = Array.isArray(leg?.steps) ? leg.steps : [];
+        const primeiroPasso = steps.find((s) => {
+            const t = String(s?.navigationInstruction?.maneuver || '').toLowerCase();
+            return t && t !== 'depart' && t !== 'arrive';
+        }) || steps[0] || null;
+        const instrucao = String(primeiroPasso?.navigationInstruction?.instructions || '').trim();
+
+        return {
+            geojson,
+            dist: Number(route?.distanceMeters || leg?.distanceMeters || 0),
+            dur: parseGoogleDurationToSeconds(route?.duration || leg?.duration),
+            instrucao: instrucao || 'Siga em frente',
+        };
+    } catch (_) {
+        return null;
+    }
 }
 
 function converterOverviewPathParaGeoJson(path = []) {
@@ -3480,7 +3616,11 @@ function converterOverviewPathParaGeoJson(path = []) {
 
 async function buscarRotaGoogle(latA, lonA, latB, lonB) {
     const okApi = await carregarGoogleDirectionsApi();
-    if (!okApi || !window.google?.maps?.DirectionsService) return null;
+    if (!okApi || !window.google?.maps) return null;
+
+    const viaNovaApi = await buscarRotaGoogleRoutesApi(latA, lonA, latB, lonB);
+    if (viaNovaApi) return viaNovaApi;
+    if (!window.google?.maps?.DirectionsService) return null;
 
     return await new Promise((resolve) => {
         try {
@@ -3975,7 +4115,7 @@ function atualizarMarcadorEntregadorNoMapa(lat, lon) {
             .bindPopup('<b>Sua posição atual</b>');
         atualizarRotaEntregadorDestino(true);
     } else {
-        app.driverMarker.setLatLng(latlng);
+        animarMarkerEntregadorSuave(latlng);
         atualizarRotaEntregadorDestino();
     }
 
@@ -4381,7 +4521,7 @@ function iniciarRastreamento() {
 
             enviarLocalizacao(lat, lon, acc);
         },
-        err => setStatus(`GPS: ${err.message}`, 'erro'),
+        err => tratarErroGeolocalizacao(err, 'GPS em tempo real'),
         { enableHighAccuracy: true, maximumAge: 2000, timeout: 12000 }
     );
 
@@ -4497,6 +4637,7 @@ function pedirPermissaoGPS() {
             if (err.code === 1 && denied) {
                 denied.classList.add('visible');
             }
+            tratarErroGeolocalizacao(err, 'Permissao de GPS');
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
