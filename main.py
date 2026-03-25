@@ -3652,7 +3652,7 @@ def _tentar_enviar_email_acesso_automatico(
         return {"ok": True, "enviado": True, "detail": "E-mail já enviado"}
 
     agora = datetime.utcnow()
-    cooldown_segundos = 20
+    cooldown_segundos = 3
     if (not forcar) and pendente.email_ultima_tentativa_em and (agora - pendente.email_ultima_tentativa_em).total_seconds() < cooldown_segundos:
         return {"ok": False, "enviado": False, "detail": "Aguardando próxima tentativa automática"}
 
@@ -6289,6 +6289,24 @@ def contato_enterprise(slug: str = Query(...), db: Session = Depends(get_db)):
     if not wpp:
         raise HTTPException(status_code=503, detail="Contato enterprise não configurado ainda. Entre em contato diretamente com o suporte.")
     return {"ok": True, "whatsapp": wpp, "mensagem": "Contato direto com o dono da plataforma — exclusivo Enterprise."}
+
+
+@app.get("/api/public/contato-saas")
+def contato_saas_publico(db: Session = Depends(get_db)):
+    """Retorna WhatsApp público do dono da plataforma para contato comercial no site de vendas."""
+    cfg = db.get(ConfigSistema, "saas_wpp_enterprise")
+    wpp = (cfg.valor.strip() if cfg and cfg.valor else "").replace(" ", "").replace("-", "")
+    if not wpp:
+        return {
+            "ok": False,
+            "whatsapp": "",
+            "mensagem": "Contato comercial indisponível no momento.",
+        }
+    return {
+        "ok": True,
+        "whatsapp": wpp,
+        "mensagem": "Fale direto com o dono da plataforma.",
+    }
 
 
 @app.get("/api/super-admin/config-enterprise")
