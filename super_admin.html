@@ -2005,7 +2005,7 @@
             }
 
             try {
-                const { data: envData } = await getSuperAdminComFallback('/api/debug/env');
+                const { data: envData } = await getSuperAdminComFallback('/api/public/diagnostico-runtime');
                 const dbBackend = String(envData?.db_backend || '').toLowerCase();
                 if (dbBackend && dbBackend !== 'postgres') {
                     alertas.push({
