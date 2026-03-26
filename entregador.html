@@ -113,8 +113,8 @@
         body.waiting .bottom-panel {
             display: none;
         }
-        .leaflet-container { background: #0b1220; }
-        .leaflet-tile { filter: saturate(1.14) contrast(1.16) brightness(1.04); }
+        .leaflet-container { background: #dbe4ef; }
+        .leaflet-tile { filter: saturate(1.03) contrast(1.02) brightness(1.02); }
         .map-fallback {
             width: 100%;
             height: 100%;
@@ -3719,16 +3719,40 @@ function iniciarMapa() {
     app.mapaDisponivel = true;
     inicializarIconesMapa();
 
-    const layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 20,
-        subdomains: 'abcd',
-        detectRetina: true
-    });
-    layer.on('tileerror', () => {
-        setStatus('Mapa com instabilidade de conexão. Recarregando os tiles...', 'aviso');
-    });
-    layer.addTo(app.mapa);
-    app.tileLayerAtiva = layer;
+    const fontesTile = [
+        {
+            nome: 'OpenStreetMap',
+            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            options: { maxZoom: 20, subdomains: 'abc', detectRetina: true },
+        },
+        {
+            nome: 'CARTO Light',
+            url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            options: { maxZoom: 20, subdomains: 'abcd', detectRetina: true },
+        },
+    ];
+
+    const aplicarFonteTile = (indice = 0) => {
+        const fonte = fontesTile[indice] || fontesTile[0];
+        const layer = L.tileLayer(fonte.url, fonte.options);
+
+        layer.on('tileerror', () => {
+            if (indice + 1 < fontesTile.length) {
+                if (app.tileLayerAtiva) {
+                    try { app.mapa.removeLayer(app.tileLayerAtiva); } catch (_) {}
+                }
+                aplicarFonteTile(indice + 1);
+                setStatus(`Mapa instável em ${fonte.nome}. Alternando para ${fontesTile[indice + 1].nome}...`, 'aviso');
+                return;
+            }
+            setStatus('Mapa com instabilidade de conexão. Verifique a internet.', 'aviso');
+        });
+
+        layer.addTo(app.mapa);
+        app.tileLayerAtiva = layer;
+    };
+
+    aplicarFonteTile(0);
 
     setTimeout(() => {
         try { app.mapa.invalidateSize(); } catch (_) {}
@@ -4877,8 +4901,15 @@ async function atualizarStatusPedidoAtual() {
         const gKey = String(data?.restaurante?.google_maps_api_key || '').trim();
         app.googleMapsApiKey = obterGoogleMapsApiKeyEntregador(gKey, app.googleMapsApiKey);
 
-        const enderecoDestinoApi = enderecoParaTexto(data?.destino?.endereco || {});
-        app.enderecoDestinoTexto = enderecoDestinoApi;
+        const enderecoDestinoApi =
+            enderecoParaTexto(data?.destino?.endereco || {})
+            || enderecoParaTexto(data?.pedido?.endereco_entrega || {})
+            || enderecoParaTexto(data?.endereco_entrega || {})
+            || enderecoParaTexto(data?.pedido?.destino || {})
+            || enderecoParaTexto(data?.destino || {});
+        if (enderecoDestinoApi) {
+            app.enderecoDestinoTexto = enderecoDestinoApi;
+        }
 
         const agoraGeo = Date.now();
         const latRestApi = Number(data?.restaurante?.lat ?? data?.restaurante?.latitude);
@@ -4908,10 +4939,36 @@ async function atualizarStatusPedidoAtual() {
             app.origem = null;
         }
 
-        const latDestinoApi = Number(data?.destino?.lat ?? data?.destino?.latitude ?? data?.destino?.lat_destino);
-        const lonDestinoApi = Number(data?.destino?.lon ?? data?.destino?.lng ?? data?.destino?.longitude ?? data?.destino?.long ?? data?.destino?.lon_destino);
-        // Também tenta extrair do objeto endereco completo (cobre campos como .long, .long_destino etc.)
-        const coordDestinoEndereco = extrairLatLonEndereco(data?.destino?.endereco || {});
+        const latDestinoApi = Number(
+            data?.destino?.lat
+            ?? data?.destino?.latitude
+            ?? data?.destino?.lat_destino
+            ?? data?.pedido?.destino_lat
+            ?? data?.pedido?.lat_destino
+            ?? data?.destino_lat
+            ?? data?.lat_destino
+        );
+        const lonDestinoApi = Number(
+            data?.destino?.lon
+            ?? data?.destino?.lng
+            ?? data?.destino?.longitude
+            ?? data?.destino?.long
+            ?? data?.destino?.lon_destino
+            ?? data?.pedido?.destino_lon
+            ?? data?.pedido?.destino_lng
+            ?? data?.pedido?.destino_long
+            ?? data?.lon_destino
+            ?? data?.destino_lon
+            ?? data?.destino_lng
+            ?? data?.destino_long
+        );
+        // Também tenta extrair de blocos alternativos de endereço/destino
+        const coordDestinoEndereco =
+            extrairLatLonEndereco(data?.destino?.endereco || {})
+            || extrairLatLonEndereco(data?.pedido?.endereco_entrega || {})
+            || extrairLatLonEndereco(data?.endereco_entrega || {})
+            || extrairLatLonEndereco(data?.pedido?.destino || {})
+            || extrairLatLonEndereco(data?.destino || {});
         if (coordenadaValida(latDestinoApi, lonDestinoApi)) {
             app.destino = {
                 lat: latDestinoApi,
@@ -4925,7 +4982,7 @@ async function atualizarStatusPedidoAtual() {
                 label: app.enderecoDestinoTexto || `${coordDestinoEndereco.lat},${coordDestinoEndereco.lon}`,
             };
         } else if (
-            !app.destino
+            (!app.destino || app.ultimoEnderecoDestinoGeocodificado !== app.enderecoDestinoTexto)
             && app.enderecoDestinoTexto
             && (
                 app.ultimoEnderecoDestinoGeocodificado !== app.enderecoDestinoTexto
@@ -4938,7 +4995,7 @@ async function atualizarStatusPedidoAtual() {
                 app.destino = { ...coordDestino, label: app.enderecoDestinoTexto };
                 app.ultimoEnderecoDestinoGeocodificado = app.enderecoDestinoTexto;
             }
-        } else if (!app.enderecoDestinoTexto) {
+        } else if (!app.enderecoDestinoTexto && ['entregue', 'cancelado', 'fechado'].includes(status)) {
             app.destino = null;
         }
 

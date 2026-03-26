@@ -23,6 +23,8 @@
     { "src": "/health", "dest": "https://sistema-restaurante-f87o.onrender.com/health" },
     { "src": "/openapi.json", "dest": "https://sistema-restaurante-f87o.onrender.com/openapi.json" },
     { "src": "/api/(.*)", "dest": "https://sistema-restaurante-f87o.onrender.com/api/$1" },
+    { "src": "/p/([^/?#]+)", "dest": "/index.html?slug=$1&mesa=1" },
+    { "src": "/admin/([^/?#]+)", "dest": "/admin.html?slug=$1" },
     { "src": "/admin", "dest": "/admin.html" },
     { "src": "/entregador", "dest": "/entregador.html" },
     { "src": "/super-admin", "dest": "/super_admin.html" },

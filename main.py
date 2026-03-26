@@ -434,6 +434,7 @@ class RestauranteOut(BaseModel):
     foto_perfil_base64: str | None = None
     admin_url: str | None = None
     cardapio_url: str | None = None
+    entregador_url: str | None = None
 
     class Config:
         from_attributes = True
@@ -1139,6 +1140,12 @@ def _resolver_frontend_base_url(
     frontend_base_url: str | None = None,
     api_base_url: str | None = None,
 ) -> str:
+    frontend_env = _normalizar_base_url(
+        (os.getenv("FRONTEND_PUBLIC_URL") or os.getenv("FRONTEND_BASE_URL") or "")
+    )
+    if frontend_env:
+        return _converter_base_api_para_frontend(frontend_env) or frontend_env
+
     frontend_forcado = _normalizar_base_url(frontend_base_url)
     if frontend_forcado:
         return _converter_base_api_para_frontend(frontend_forcado) or frontend_forcado
@@ -1795,11 +1802,11 @@ def _montar_links_rastreamento(
     api_param = quote(api_base, safe="") if api_base else ""
     query_api = f"&api={api_param}" if api_param else ""
     link_entregador = (
-        f"{frontend_base}/entregador.html"
+        f"{frontend_base}/entregador"
         f"?slug={restaurante.slug}&pedido={pedido.id}&token={token_rastreamento}{query_api}"
     )
     link_cliente_frontend = (
-        f"{frontend_base}/rastreio_entrega.html"
+        f"{frontend_base}/rastreio-entrega"
         f"?slug={restaurante.slug}&pedido={pedido.id}{query_api}"
     )
     link_cliente = (
@@ -1809,9 +1816,9 @@ def _montar_links_rastreamento(
     )
 
     if not frontend_base:
-        link_entregador = f"entregador.html?slug={restaurante.slug}&pedido={pedido.id}&token={token_rastreamento}{query_api}"
+        link_entregador = f"entregador?slug={restaurante.slug}&pedido={pedido.id}&token={token_rastreamento}{query_api}"
         if not link_cliente:
-            link_cliente = f"rastreio_entrega.html?slug={restaurante.slug}&pedido={pedido.id}{query_api}"
+            link_cliente = f"rastreio-entrega?slug={restaurante.slug}&pedido={pedido.id}{query_api}"
 
     return link_entregador, link_cliente
 
@@ -2089,7 +2096,7 @@ def montar_admin_login_url(
     email_admin: str | None = None,
     slug: str | None = None,
 ) -> str | None:
-    base = (base_url or "").rstrip("/")
+    base = _normalizar_base_url(base_url)
     if not base:
         return None
 
@@ -2099,18 +2106,41 @@ def montar_admin_login_url(
         query_parts.append(f"email={quote(email)}")
 
     slug_normalizado = (slug or "").strip().lower()
+    destino = f"{base}/admin"
     if slug_normalizado:
-        query_parts.append(f"slug={quote(slug_normalizado)}")
+        destino = f"{destino}/{quote(slug_normalizado)}"
 
     if query_parts:
-        return f"{base}/admin.html?{'&'.join(query_parts)}"
-    return f"{base}/admin.html"
+        return f"{destino}?{'&'.join(query_parts)}"
+    return destino
+
+
+def montar_cardapio_publico_url(base_url: str | None, slug: str | None) -> str | None:
+    base = _normalizar_base_url(base_url)
+    slug_normalizado = (slug or "").strip().lower()
+    if not base or not slug_normalizado:
+        return None
+    return f"{base}/p/{quote(slug_normalizado)}"
+
+
+def montar_entregador_hub_url(base_url: str | None, slug: str | None, token: str | None = None) -> str | None:
+    base = _normalizar_base_url(base_url)
+    slug_normalizado = (slug or "").strip().lower()
+    if not base or not slug_normalizado:
+        return None
+
+    params = [f"slug={quote(slug_normalizado)}"]
+    token_limpo = (token or "").strip()
+    if token_limpo:
+        params.append(f"token={quote(token_limpo)}")
+    return f"{base}/entregador?{'&'.join(params)}"
 
 
 def serializar_restaurante_out(restaurante: Restaurante, base_url: str | None = None) -> dict:
-    base = (base_url or "").rstrip("/")
+    base = _resolver_frontend_base_url(restaurante, frontend_base_url=base_url)
     admin_url = montar_admin_login_url(base, restaurante.email_admin, restaurante.slug)
-    cardapio_url = f"{base}/index.html?slug={quote(restaurante.slug)}&mesa=1" if base else None
+    cardapio_url = montar_cardapio_publico_url(base, restaurante.slug)
+    entregador_url = montar_entregador_hub_url(base, restaurante.slug) if bool(restaurante.delivery_ativo) else None
     plano_legacy = normalizar_codigo_plano_legacy(getattr(restaurante, "plano", ""), getattr(restaurante, "plan_type", ""))
     return {
         "id": restaurante.id,
@@ -2129,6 +2159,7 @@ def serializar_restaurante_out(restaurante: Restaurante, base_url: str | None = 
         "foto_perfil_base64": restaurante.foto_perfil_base64,
         "admin_url": admin_url,
         "cardapio_url": cardapio_url,
+        "entregador_url": entregador_url,
     }
 
 
@@ -2207,6 +2238,7 @@ def enviar_email_acesso_restaurante(
     nome_unidade: str,
     admin_url: str,
     cardapio_url: str,
+    entregador_url: str | None = None,
     email_admin: str | None = None,
     senha_inicial: str | None = None,
     db: Session | None = None,
@@ -2241,12 +2273,17 @@ def enviar_email_acesso_restaurante(
     termos_url, privacidade_url = _resolver_links_legais_por_admin_url(admin_url)
     termos_bloco = f"\nTermos de Uso: {termos_url}" if termos_url else ""
     privacidade_bloco = f"\nPolitica de Privacidade: {privacidade_url}" if privacidade_url else ""
+    entregador_bloco = (
+        f"\nApp do Entregador:\n{entregador_url}\n"
+        f"(Disponivel para planos com delivery.)\n"
+    ) if str(entregador_url or "").strip() else ""
 
     texto = (
         f"Ola! Seu restaurante agora e digital.\n\n"
         f"Seu FoodOS da unidade {nome_unidade} foi ativado com sucesso.\n\n"
         f"Painel Admin (privado):\n{admin_url}\n\n"
         f"Cardapio Publico:\n{cardapio_url}\n\n"
+        f"{entregador_bloco}"
         f"Dados de acesso:\n"
         f"Login: {email_login}\n"
         f"Senha inicial: {senha_texto or 'A senha definida no momento da compra'}\n\n"
@@ -2284,6 +2321,7 @@ def enviar_email_acesso_restaurante(
                                                     <a href="{cardapio_url}" style="display:inline-block;padding:12px 16px;border-radius:10px;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;">Abrir Cardapio Publico</a>
                                                 </td>
                                             </tr>
+                                            {f'<tr><td style="padding-top:10px;"><a href="{entregador_url}" style="display:inline-block;padding:12px 16px;border-radius:10px;background:#0b7a53;color:#fff;text-decoration:none;font-weight:700;">Abrir App do Entregador</a><div style="font-size:12px;color:#64748b;margin-top:6px;">Disponivel para planos com delivery.</div></td></tr>' if str(entregador_url or '').strip() else ''}
                                         </table>
 
                                         <div style="padding:14px;border:1px solid #dbe3ff;border-radius:12px;background:#f8faff;">
@@ -3198,6 +3236,7 @@ def cadastrar_restaurante(payload: RestauranteCreate, request: Request, db: Sess
             nome_unidade=restaurante.nome_unidade,
             admin_url=out["admin_url"],
             cardapio_url=out["cardapio_url"],
+            entregador_url=out.get("entregador_url"),
             email_admin=restaurante.email_admin,
             senha_inicial=payload.senha_inicial,
             db=db,
@@ -3265,6 +3304,7 @@ def login_admin(payload: AdminLoginPayload, request: Request, db: Session = Depe
     restaurante = garantir_token_acesso_restaurante(restaurante, db)
 
     base_url = str(request.base_url).rstrip("/")
+    frontend_base = _resolver_frontend_base_url(restaurante, request=request, api_base_url=base_url)
     return {
         "ok": True,
         "slug": restaurante.slug,
@@ -3273,8 +3313,9 @@ def login_admin(payload: AdminLoginPayload, request: Request, db: Session = Depe
         "email_admin": restaurante.email_admin,
         "status_assinatura": restaurante.status_assinatura,
         "validade_assinatura": restaurante.validade_assinatura.isoformat() if restaurante.validade_assinatura else None,
-        "admin_url": montar_admin_login_url(base_url, restaurante.email_admin, restaurante.slug),
-        "cardapio_url": f"{base_url}/index.html?slug={quote(restaurante.slug)}",
+        "admin_url": montar_admin_login_url(frontend_base, restaurante.email_admin, restaurante.slug),
+        "cardapio_url": montar_cardapio_publico_url(frontend_base, restaurante.slug),
+        "entregador_url": montar_entregador_hub_url(frontend_base, restaurante.slug) if plano_permite_pedidos_delivery(restaurante) else None,
     }
 
 
@@ -3308,6 +3349,17 @@ def solicitar_reset_senha_admin(
     }
 
 
+@app.get("/api/admin/auth/solicitar-reset-senha")
+def solicitar_reset_senha_admin_get_invalido():
+    return JSONResponse(
+        status_code=405,
+        content={
+            "ok": False,
+            "detail": "Método inválido. Use POST com JSON: {\"email_admin\":\"seu@email.com\"}.",
+        },
+    )
+
+
 @app.post("/api/admin/auth/confirmar-reset-senha")
 def confirmar_reset_senha_admin(
     payload: AdminPasswordResetConfirmPayload,
@@ -3332,6 +3384,20 @@ def confirmar_reset_senha_admin(
         "ok": True,
         "detail": "Senha redefinida com sucesso",
     }
+
+
+@app.get("/api/admin/auth/confirmar-reset-senha")
+def confirmar_reset_senha_admin_get_invalido():
+    return JSONResponse(
+        status_code=405,
+        content={
+            "ok": False,
+            "detail": (
+                "Método inválido. Use POST com JSON: "
+                "{\"token_reset\":\"...\",\"nova_senha\":\"...\"}."
+            ),
+        },
+    )
 
 
 @app.post("/api/public/analytics-evento")
@@ -3500,6 +3566,7 @@ def cadastrar_restaurante_publico(
             nome_unidade=restaurante.nome_unidade,
             admin_url=restaurante_out["admin_url"],
             cardapio_url=restaurante_out["cardapio_url"],
+            entregador_url=restaurante_out.get("entregador_url"),
             email_admin=restaurante.email_admin,
             senha_inicial=payload.senha_inicial,
             db=db,
@@ -3517,6 +3584,7 @@ def cadastrar_restaurante_publico(
         "validade_assinatura": restaurante.validade_assinatura.isoformat(),
         "admin_url": restaurante_out["admin_url"],
         "cardapio_url": restaurante_out["cardapio_url"],
+        "entregador_url": restaurante_out.get("entregador_url"),
     }
 
 
@@ -3687,6 +3755,7 @@ def _tentar_enviar_email_acesso_automatico(
         nome_unidade=restaurante.nome_unidade,
         admin_url=out.get("admin_url") or "",
         cardapio_url=out.get("cardapio_url") or "",
+        entregador_url=out.get("entregador_url"),
         email_admin=restaurante.email_admin,
         senha_inicial=(pendente.dados_json or {}).get("senha_inicial") or "",
         db=db,
@@ -4090,6 +4159,7 @@ def reenviar_email_acesso_restaurante_super_admin(
         nome_unidade=restaurante.nome_unidade,
         admin_url=out.get("admin_url") or "",
         cardapio_url=out.get("cardapio_url") or "",
+        entregador_url=out.get("entregador_url"),
         email_admin=restaurante.email_admin,
         senha_inicial=None,
         db=db,
@@ -4104,6 +4174,7 @@ def reenviar_email_acesso_restaurante_super_admin(
         "email": restaurante.email_admin,
         "admin_url": out.get("admin_url"),
         "cardapio_url": out.get("cardapio_url"),
+        "entregador_url": out.get("entregador_url"),
     }
 
 
@@ -5929,8 +6000,8 @@ def vincular_rastreio_pedido_admin(
         api_base_url=api_base,
     )
 
-    link_entregador = f"entregador.html?slug={restaurante.slug}&pedido={pedido.id}&token={entregador.token_rastreamento}"
-    link_cliente = f"rastreio_entrega.html?slug={restaurante.slug}&pedido={pedido.id}"
+    link_entregador = f"entregador?slug={restaurante.slug}&pedido={pedido.id}&token={entregador.token_rastreamento}"
+    link_cliente = f"rastreio-entrega?slug={restaurante.slug}&pedido={pedido.id}"
     if frontend_base or api_base:
         link_entregador, link_cliente = _montar_links_rastreamento(
             restaurante=restaurante,
@@ -6276,7 +6347,7 @@ def redirecionar_rastreio_publico(
     )
 
     slug_param = quote(slug, safe="")
-    destino = f"/rastreio_entrega.html?slug={slug_param}&pedido={pedido_id}"
+    destino = f"/rastreio-entrega?slug={slug_param}&pedido={pedido_id}"
     if frontend_base:
         destino = f"{frontend_base}{destino}"
 
