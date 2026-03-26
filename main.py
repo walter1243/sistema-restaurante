@@ -1748,7 +1748,7 @@ def _backfill_deliveries_sem_entregador(
         Pedido.restaurante_id == restaurante_id,
         Pedido.tipo_entrega == "delivery",
         Pedido.entregador_id.is_(None),
-        Pedido.status.in_(["em_entrega"]),
+        Pedido.status.in_(["pronto", "em_entrega"]),
     ).order_by(Pedido.created_at.asc(), Pedido.id.asc()).all()
 
     if limite is not None and limite >= 0:
