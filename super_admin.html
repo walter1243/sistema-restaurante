@@ -924,78 +924,78 @@
             letter-spacing: 0.08em;
         }
 
-        .conv-bars {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(26px, 1fr));
-            align-items: end;
-            gap: 0.4rem;
-            min-height: 160px;
-            margin-bottom: 1rem;
-        }
+        .conv-pie-container { padding: 0.5rem 0; }
 
-        .conv-bars-stack {
-            width: 100%;
-            min-height: 130px;
+        .conv-pie-wrap {
             display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            gap: 4px;
-            padding: 0 2px;
-        }
-
-        .conv-bar {
-            width: 10px;
-            min-height: 3px;
-            border-radius: 0.5rem 0.5rem 0.2rem 0.2rem;
-            transition: all 0.25s ease;
-        }
-
-        .conv-bar:hover { 
-            filter: brightness(1.3);
-        }
-
-        .conv-bar.visitas {
-            background: linear-gradient(180deg, #818cf8 0%, #6366f1 100%);
-            border: 1px solid rgba(99, 102, 241, 0.5);
-        }
-
-        .conv-bar.sucessos {
-            background: linear-gradient(180deg, #6ee7b7 0%, #10b981 100%);
-            border: 1px solid rgba(16, 185, 129, 0.5);
-        }
-
-        .conv-day-label {
-            font-size: 0.65rem;
-            color: #94a3b8;
-            letter-spacing: 0.01em;
-            margin-top: 0.35rem;
-        }
-
-        .conv-legend {
-            margin-top: 1rem;
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .conv-legend-item {
-            display: inline-flex;
             align-items: center;
-            gap: 0.45rem;
-            font-size: 0.73rem;
-            color: var(--dark-subtitle);
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            padding: 0.75rem 0;
+        }
+
+        .conv-pie-svg {
+            width: 190px;
+            height: 190px;
+            flex-shrink: 0;
+            filter: drop-shadow(0 4px 24px rgba(99,102,241,0.3));
+        }
+
+        .conv-pie-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+            min-width: 170px;
+        }
+
+        .conv-pie-leg-item {
+            display: grid;
+            grid-template-columns: 12px 1fr auto auto;
+            align-items: center;
+            gap: 0.55rem;
+            font-size: 0.83rem;
+            color: var(--dark-text);
+        }
+
+        .conv-pie-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            display: block;
+            flex-shrink: 0;
+        }
+
+        .conv-pie-leg-label { color: var(--dark-subtitle); }
+
+        .conv-pie-leg-val {
+            font-size: 0.9rem;
+            color: var(--dark-text);
             font-weight: 700;
         }
 
-        .conv-legend-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
+        .conv-pie-leg-pct {
+            font-size: 0.72rem;
+            color: #64748b;
+            min-width: 38px;
+            text-align: right;
         }
 
-        .conv-legend-dot.visitas { background: #818cf8; }
-        .conv-legend-dot.sucessos { background: #6ee7b7; }
+        .conv-pie-leg-total {
+            margin-top: 0.4rem;
+            padding-top: 0.6rem;
+            border-top: 1px solid rgba(99,102,241,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .conv-pie-leg-total strong {
+            color: var(--dark-text);
+            font-size: 0.88rem;
+        }
 
         .plan-basic,
         .plan-pro,
@@ -1011,7 +1011,62 @@
         .plan-pro { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
         .plan-enterprise { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
 
-        .table-wrap { overflow-x: auto; }
+        .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        .rest-name[onclick], .rest-name[style*="cursor:pointer"] {
+            transition: color 0.2s ease;
+        }
+
+        .rest-name[onclick]:hover {
+            color: #a5b4fc;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .confirm-icon {
+            width: 4rem;
+            height: 4rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            margin: 0 auto 1rem;
+        }
+
+        .confirm-icon.danger { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+        .confirm-icon.success { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+
+        .confirm-title {
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--dark-text);
+            margin-bottom: 0.5rem;
+        }
+
+        .confirm-desc {
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--dark-subtitle);
+            line-height: 1.55;
+        }
+
+        .conv-chart-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .form-group { margin-bottom: 1.1rem; }
 
         @media (max-width: 768px) {
             .sidebar {
@@ -1049,19 +1104,54 @@
                 font-size: 0.95rem;
             }
 
-            .content { padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom)); }
-            .kpi-grid { grid-template-columns: 1fr 1fr; }
-            .grid-2, .grid-3 { grid-template-columns: 1fr; }
-            .conv-bars { grid-template-columns: repeat(auto-fit, minmax(20px, 1fr)); }
-            .conv-bars-stack { min-height: 105px; }
-            .conv-bar { width: 7px; }
+            .content { 
+                padding: 1.25rem 1rem calc(1rem + env(safe-area-inset-bottom));
+                max-width: 100%;
+                overflow: hidden;
+            }
 
-            #restaurantes .table-wrap { margin: 0 -0.25rem; }
-            #restaurantes .table { width: 100%; min-width: 0; table-layout: fixed; }
-            #restaurantes .table th,
-            #restaurantes .table td {
-                padding: 0.7rem 0.45rem;
-                font-size: 0.78rem;
+            .page-header { margin-bottom: 1.25rem; }
+            .page-header h2 { font-size: 1.35rem; }
+            .page-header p { font-size: 0.8rem; }
+
+            .kpi-grid { 
+                grid-template-columns: 1fr 1fr;
+                gap: 0.9rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .kpi-card {
+                padding: 1.25rem;
+                gap: 0.75rem;
+            }
+
+            .kpi-icon { width: 2.75rem; height: 2.75rem; }
+            .kpi-info strong { font-size: 1.6rem; }
+
+            .card {
+                padding: 1.35rem;
+                margin-bottom: 1.25rem;
+                border-radius: 1rem;
+            }
+
+            .card-title { font-size: 1rem; margin-bottom: 0.75rem; }
+            .card-desc { font-size: 0.8rem; margin: -0.25rem 0 0.75rem; }
+
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .conv-pie-svg { width: 150px; height: 150px; }
+            .conv-pie-legend { min-width: 140px; }
+
+            .table-wrap { 
+                margin: 0;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .table { width: 100%; min-width: 0; table-layout: auto; }
+            .table th,
+            .table td {
+                padding: 0.65rem 0.5rem;
+                font-size: 0.75rem;
             }
 
             #restaurantes .table th:nth-child(3),
@@ -1074,23 +1164,62 @@
             }
 
             #restaurantes .table th:nth-child(1),
-            #restaurantes .table td:nth-child(1) { width: 44%; }
+            #restaurantes .table td:nth-child(1) { min-width: 100px; }
             #restaurantes .table th:nth-child(2),
-            #restaurantes .table td:nth-child(2) { width: 20%; }
+            #restaurantes .table td:nth-child(2) { min-width: 60px; }
             #restaurantes .table th:nth-child(4),
-            #restaurantes .table td:nth-child(4) { width: 20%; }
+            #restaurantes .table td:nth-child(4) { min-width: 70px; }
             #restaurantes .table th:nth-child(7),
-            #restaurantes .table td:nth-child(7) { width: 16%; text-align: right; }
+            #restaurantes .table td:nth-child(7) { min-width: 70px; text-align: right; }
 
             #restaurantes .action-group {
                 justify-content: flex-end;
-                gap: 0.25rem;
+                gap: 0.3rem;
+                flex-wrap: nowrap;
             }
 
             #restaurantes .btn-icon {
-                width: 1.9rem;
-                height: 1.9rem;
-                font-size: 0.74rem;
+                width: 1.85rem;
+                height: 1.85rem;
+                font-size: 0.7rem;
+                padding: 0;
+            }
+
+            .search-box {
+                min-width: 150px;
+            }
+
+            .search-box input {
+                padding: 0.55rem 0.85rem 0.55rem 2.2rem;
+                font-size: 0.8rem;
+            }
+
+            .filter-bar {
+                gap: 0.4rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .chip {
+                padding: 0.35rem 0.75rem;
+                font-size: 0.7rem;
+            }
+
+            .form-input,
+            .form-select {
+                padding: 0.65rem 0.85rem;
+                font-size: 0.8rem;
+            }
+
+            .form-label { font-size: 0.78rem; margin-bottom: 0.35rem; }
+
+            .btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.8rem;
+            }
+
+            .btn-sm { 
+                padding: 0.3rem 0.65rem;
+                font-size: 0.7rem;
             }
 
             .header {
@@ -1113,6 +1242,7 @@
 
             .header-title {
                 max-width: 160px;
+                font-size: 1rem;
             }
 
             #header-user-name,
@@ -1124,30 +1254,127 @@
             }
 
             #toast {
-                right: 1rem !important;
-                left: 1rem;
-                bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+                right: 0.75rem !important;
+                left: 0.75rem;
+                bottom: calc(0.75rem + env(safe-area-inset-bottom)) !important;
             }
 
             #toast-inner {
                 min-width: 0 !important;
                 width: 100%;
             }
+
+            .modal-content {
+                max-width: 95vw;
+                margin: 0 auto;
+            }
+
+            .modal-body {
+                padding: 1.25rem;
+            }
+
+            .grid-2 { gap: 0.9rem; }
         }
 
         @media (max-width: 480px) {
-            .kpi-grid { grid-template-columns: 1fr; }
-            .header-subtitle { display: none; }
-            .header-title { font-size: 1rem; }
-
-            #restaurantes .table th,
-            #restaurantes .table td {
-                padding: 0.62rem 0.35rem;
+            .content { 
+                padding: 1rem 0.9rem calc(1rem + env(safe-area-inset-bottom));
             }
 
-            #restaurantes .rest-email,
-            #restaurantes .rest-slug {
+            .kpi-grid { 
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
+
+            .header-subtitle { display: none; }
+            .header-title { font-size: 0.95rem; }
+
+            .page-header h2 { font-size: 1.25rem; }
+
+            .card {
+                padding: 1.15rem;
+                margin-bottom: 1rem;
+            }
+
+            .card-title { 
+                font-size: 0.95rem;
+                margin-bottom: 0.65rem;
+                gap: 0.45rem;
+            }
+
+            .kpi-card {
+                padding: 1rem;
+                gap: 0.65rem;
+            }
+
+            .kpi-icon { 
+                width: 2.5rem;
+                height: 2.5rem;
+                font-size: 1rem;
+            }
+
+            .kpi-info strong { font-size: 1.4rem; }
+
+            .table th,
+            .table td {
+                padding: 0.55rem 0.4rem;
                 font-size: 0.7rem;
+            }
+
+            .rest-email,
+            .rest-slug {
+                font-size: 0.65rem !important;
+            }
+
+            #restaurantes .table th:nth-child(1),
+            #restaurantes .table td:nth-child(1) { min-width: 90px; }
+            #restaurantes .table th:nth-child(2),
+            #restaurantes .table td:nth-child(2) { min-width: 55px; }
+
+            .action-group {
+                flex-wrap: nowrap;
+            }
+
+            .btn-icon {
+                width: 1.75rem;
+                height: 1.75rem;
+                font-size: 0.65rem;
+            }
+
+            .form-label { font-size: 0.75rem; }
+            .form-input,
+            .form-select {
+                padding: 0.6rem 0.75rem;
+                font-size: 0.75rem;
+            }
+
+            .search-box input {
+                padding: 0.5rem 0.75rem 0.5rem 2rem;
+                font-size: 0.75rem;
+            }
+
+            .chip {
+                padding: 0.3rem 0.6rem;
+                font-size: 0.65rem;
+            }
+
+            .conv-chart {
+                padding: 1rem;
+            }
+
+            .conv-pie-wrap { gap: 1.25rem; }
+            .conv-pie-svg { width: 140px; height: 140px; }
+
+            .filter-bar {
+                gap: 0.3rem;
+            }
+
+            .empty-state {
+                padding: 2rem 1rem;
+            }
+
+            .empty-state i {
+                font-size: 2rem;
             }
         }
     </style>
@@ -1205,13 +1432,13 @@
                     <p>Visão geral de todos os restaurantes cadastrados no sistema.</p>
                 </div>
 
-                <div class="kpi-grid">
+                <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));">
                     <div class="kpi-card">
                         <div class="kpi-icon purple"><i class="fas fa-store"></i></div>
                         <div class="kpi-info">
                             <span>Total de Lojas</span>
                             <strong id="kpi-total">0</strong>
-                            <small>cadastros</small>
+                            <small>cadastros ativos</small>
                         </div>
                     </div>
                     <div class="kpi-card">
@@ -1238,57 +1465,53 @@
                             <small>faturas em aberto</small>
                         </div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon blue"><i class="fas fa-coins"></i></div>
+                    <div class="kpi-card" style="border-color:rgba(16,185,129,0.35);">
+                        <div class="kpi-icon green"><i class="fas fa-coins"></i></div>
                         <div class="kpi-info">
                             <span>MRR Estimado</span>
-                            <strong id="kpi-mrr">R$ 0</strong>
-                            <small>receita mensal</small>
+                            <strong id="kpi-mrr" style="font-size:1.5rem;">R$ 0</strong>
+                            <small>receita mensal recorrente</small>
                         </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-title"><i class="fas fa-bullseye" style="color:var(--primary);"></i> Funil de Conversão (Site de Vendas)</div>
-                    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));margin-bottom:1rem;">
-                        <div class="kpi-card">
-                            <div class="kpi-icon purple"><i class="fas fa-eye"></i></div>
-                            <div class="kpi-info"><span>Visitas</span><strong id="conv-visitas">0</strong><small>page views</small></div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1rem;margin-bottom:1.5rem;">
+                        <div class="kpi-card" style="padding:1.1rem;">
+                            <div class="kpi-icon purple" style="width:2.5rem;height:2.5rem;font-size:0.95rem;"><i class="fas fa-eye"></i></div>
+                            <div class="kpi-info"><span>Visitas</span><strong id="conv-visitas" style="font-size:1.5rem;">0</strong><small>page views</small></div>
                         </div>
-                        <div class="kpi-card">
-                            <div class="kpi-icon blue"><i class="fas fa-hand-pointer"></i></div>
-                            <div class="kpi-info"><span>Clicks em Assinar</span><strong id="conv-clicks">0</strong><small>ctas</small></div>
+                        <div class="kpi-card" style="padding:1.1rem;">
+                            <div class="kpi-icon blue" style="width:2.5rem;height:2.5rem;font-size:0.95rem;"><i class="fas fa-hand-pointer"></i></div>
+                            <div class="kpi-info"><span>Clicks Assinar</span><strong id="conv-clicks" style="font-size:1.5rem;">0</strong><small>CTAs</small></div>
                         </div>
-                        <div class="kpi-card">
-                            <div class="kpi-icon yellow"><i class="fas fa-paper-plane"></i></div>
-                            <div class="kpi-info"><span>Cadastros Enviados</span><strong id="conv-envios">0</strong><small>submit</small></div>
+                        <div class="kpi-card" style="padding:1.1rem;">
+                            <div class="kpi-icon yellow" style="width:2.5rem;height:2.5rem;font-size:0.95rem;"><i class="fas fa-paper-plane"></i></div>
+                            <div class="kpi-info"><span>Enviados</span><strong id="conv-envios" style="font-size:1.5rem;">0</strong><small>formulários</small></div>
                         </div>
-                        <div class="kpi-card">
-                            <div class="kpi-icon green"><i class="fas fa-circle-check"></i></div>
-                            <div class="kpi-info"><span>Cadastros Concluídos</span><strong id="conv-sucesso">0</strong><small>sucesso</small></div>
+                        <div class="kpi-card" style="padding:1.1rem;">
+                            <div class="kpi-icon green" style="width:2.5rem;height:2.5rem;font-size:0.95rem;"><i class="fas fa-circle-check"></i></div>
+                            <div class="kpi-info"><span>Concluídos</span><strong id="conv-sucesso" style="font-size:1.5rem;">0</strong><small>sucesso</small></div>
                         </div>
-                        <div class="kpi-card">
-                            <div class="kpi-icon" style="background:#ecfeff;color:#155e75;"><i class="fas fa-percent"></i></div>
-                            <div class="kpi-info"><span>Taxa Conversão</span><strong id="conv-taxa">0%</strong><small>sucesso / visitas</small></div>
+                        <div class="kpi-card" style="padding:1.1rem;border-color:rgba(99,102,241,0.35);">
+                            <div class="kpi-icon purple" style="width:2.5rem;height:2.5rem;font-size:0.95rem;"><i class="fas fa-percent"></i></div>
+                            <div class="kpi-info"><span>Conversão</span><strong id="conv-taxa" style="font-size:1.5rem;">0%</strong><small>visitas → sucesso</small></div>
                         </div>
                     </div>
 
                     <div class="conv-chart">
                         <div class="conv-chart-head">
-                            <div class="conv-chart-title">Evolução diária de conversão</div>
+                            <div class="conv-chart-title">Conversão por período</div>
                             <div class="filter-bar" style="margin:0;">
                                 <button id="conv-range-7" class="chip active" onclick="alterarIntervaloConversao(7)">Últimos 7 dias</button>
                                 <button id="conv-range-30" class="chip" onclick="alterarIntervaloConversao(30)">Últimos 30 dias</button>
                             </div>
                         </div>
-                        <div id="conv-bars" class="conv-bars"></div>
-                        <div class="conv-legend">
-                            <span class="conv-legend-item"><span class="conv-legend-dot visitas"></span> Visitas</span>
-                            <span class="conv-legend-item"><span class="conv-legend-dot sucessos"></span> Cadastros concluídos</span>
-                        </div>
+                        <div id="conv-pie-container" class="conv-pie-container"></div>
                         <div id="conv-serie-empty" class="empty-state" style="display:none;padding:1rem 0.5rem;">
-                            <i class="fas fa-chart-column" style="font-size:1.5rem;margin-bottom:0.45rem;"></i>
-                            <p>Sem dados diários para exibir neste período.</p>
+                            <i class="fas fa-chart-pie" style="font-size:1.5rem;margin-bottom:0.45rem;"></i>
+                            <p>Sem dados de conversão para exibir neste período.</p>
                         </div>
                     </div>
 
@@ -1335,7 +1558,7 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-title"><i class="fas fa-store" style="color:var(--primary);"></i> Cadastros Recentes</div>
+                    <div class="card-title"><i class="fas fa-store" style="color:var(--primary);"></i> Cadastros Recentes <small style="font-size:0.7rem;font-weight:600;color:#94a3b8;margin-left:0.5rem;">clique no nome para ver links</small></div>
                     <div class="table-wrap">
                         <table class="table">
                             <thead>
@@ -2072,44 +2295,89 @@
             intervaloConversaoDias = dias === 30 ? 30 : 7;
             document.getElementById('conv-range-7').classList.toggle('active', intervaloConversaoDias === 7);
             document.getElementById('conv-range-30').classList.toggle('active', intervaloConversaoDias === 30);
-            renderSerieConversao();
+            renderPizzaConversao();
         }
 
-        function renderSerieConversao() {
-            const barsEl = document.getElementById('conv-bars');
+        function _pToC(cx, cy, r, ang) {
+            const rad = (ang * Math.PI) / 180;
+            return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+        }
+
+        function _arcDonut(cx, cy, R, ri, a1, a2) {
+            if (a2 - a1 >= 360) a2 = a1 + 359.99;
+            const large = (a2 - a1) > 180 ? 1 : 0;
+            const o1 = _pToC(cx, cy, R, a1), o2 = _pToC(cx, cy, R, a2);
+            const i1 = _pToC(cx, cy, ri, a1), i2 = _pToC(cx, cy, ri, a2);
+            const f = v => v.toFixed(2);
+            return `M${f(o1.x)} ${f(o1.y)} A${R} ${R} 0 ${large} 1 ${f(o2.x)} ${f(o2.y)} L${f(i2.x)} ${f(i2.y)} A${ri} ${ri} 0 ${large} 0 ${f(i1.x)} ${f(i1.y)}Z`;
+        }
+
+        function renderPizzaConversao() {
+            const container = document.getElementById('conv-pie-container');
             const emptyEl = document.getElementById('conv-serie-empty');
-            if (!barsEl || !emptyEl) return;
+            if (!container || !emptyEl) return;
 
             const serie = Array.isArray(serieConversao30Dias) ? serieConversao30Dias.slice(-intervaloConversaoDias) : [];
-            if (!serie.length) {
-                barsEl.innerHTML = '';
+            let totalVisitas = 0, totalSucessos = 0;
+            serie.forEach(item => {
+                totalVisitas += Number(item.visitas || 0);
+                totalSucessos += Number(item.sucessos || 0);
+            });
+
+            if (!totalVisitas && !totalSucessos) {
+                container.innerHTML = '';
                 emptyEl.style.display = 'block';
                 return;
             }
+            emptyEl.style.display = 'none';
 
-            const maxValor = Math.max(1, ...serie.map(item => Math.max(Number(item.visitas || 0), Number(item.sucessos || 0))));
+            const naoConv = Math.max(0, totalVisitas - totalSucessos);
+            const taxa = totalVisitas > 0 ? ((totalSucessos / totalVisitas) * 100).toFixed(1) : '0.0';
+            const cx = 110, cy = 110, R = 90, ri = 60;
 
-            barsEl.innerHTML = serie.map((item) => {
-                const visitas = Number(item.visitas || 0);
-                const sucessos = Number(item.sucessos || 0);
-                const hVisitas = Math.max(3, Math.round((visitas / maxValor) * 100));
-                const hSucessos = Math.max(3, Math.round((sucessos / maxValor) * 100));
-                const dt = item.data ? new Date(`${item.data}T00:00:00`) : null;
-                const label = dt && !Number.isNaN(dt.getTime())
-                    ? dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-                    : '—';
-                const taxa = Number(item.taxa_conversao_percentual || 0).toFixed(2);
+            const segs = [
+                { valor: totalSucessos, cor: '#10b981', label: 'Convertidos' },
+                { valor: naoConv, cor: '#6366f1', label: 'Visualizaram apenas' }
+            ].filter(s => s.valor > 0);
 
-                return `<div class="conv-day" title="${label} · Visitas: ${visitas} · Sucessos: ${sucessos} · Taxa: ${taxa}%">
-                    <div class="conv-bars-stack">
-                        <div class="conv-bar visitas" style="height:${hVisitas}%"></div>
-                        <div class="conv-bar sucessos" style="height:${hSucessos}%"></div>
-                    </div>
-                    <span class="conv-day-label">${label}</span>
+            const total = segs.reduce((a, s) => a + s.valor, 0);
+            let angle = -90;
+
+            const paths = segs.map(seg => {
+                const sweep = (seg.valor / total) * 360;
+                const endAngle = angle + sweep;
+                const d = _arcDonut(cx, cy, R, ri, angle, endAngle);
+                const result = `<path d="${d}" fill="${seg.cor}" style="filter:drop-shadow(0 2px 8px ${seg.cor}66)"/>`;
+                angle = endAngle;
+                return result;
+            }).join('');
+
+            const legendHtml = segs.map(seg => {
+                const pct = ((seg.valor / total) * 100).toFixed(1);
+                return `<div class="conv-pie-leg-item">
+                    <span class="conv-pie-dot" style="background:${seg.cor}"></span>
+                    <span class="conv-pie-leg-label">${seg.label}</span>
+                    <strong class="conv-pie-leg-val">${seg.valor}</strong>
+                    <span class="conv-pie-leg-pct">${pct}%</span>
                 </div>`;
             }).join('');
 
-            emptyEl.style.display = 'none';
+            container.innerHTML = `<div class="conv-pie-wrap">
+                <svg viewBox="0 0 220 220" class="conv-pie-svg">
+                    ${paths}
+                    <circle cx="${cx}" cy="${cy}" r="${ri - 3}" fill="rgba(15,23,42,0.88)"/>
+                    <text x="${cx}" y="${cy - 8}" text-anchor="middle" fill="#f1f5f9" font-size="26" font-weight="800" font-family="system-ui,sans-serif">${taxa}%</text>
+                    <text x="${cx}" y="${cy + 12}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="system-ui,sans-serif">conversão</text>
+                    <text x="${cx}" y="${cy + 28}" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui,sans-serif">${intervaloConversaoDias} dias</text>
+                </svg>
+                <div class="conv-pie-legend">
+                    ${legendHtml}
+                    <div class="conv-pie-leg-total">
+                        <span>Total de visitas</span>
+                        <strong>${totalVisitas}</strong>
+                    </div>
+                </div>
+            </div>`;
         }
 
         async function renderAnalyticsConversao() {
@@ -2124,7 +2392,7 @@
                 setText('conv-envios', resumo.cadastros_enviados ?? 0);
                 setText('conv-sucesso', resumo.cadastros_sucesso ?? 0);
                 setText('conv-taxa', `${Number(resumo.taxa_conversao_percentual || 0).toFixed(2)}%`);
-                renderSerieConversao();
+                renderPizzaConversao();
 
                 const tbody = document.getElementById('conv-eventos-body');
                 const empty = document.getElementById('conv-eventos-empty');
@@ -2153,7 +2421,7 @@
                 setText('conv-sucesso', '0');
                 setText('conv-taxa', '0%');
                 serieConversao30Dias = [];
-                renderSerieConversao();
+                renderPizzaConversao();
                 document.getElementById('conv-eventos-body').innerHTML = '';
                 document.getElementById('conv-eventos-empty').style.display = 'block';
             }
@@ -2262,17 +2530,19 @@
             } else {
                 divAlerta.innerHTML = alertas.map(r => {
                     const sp = statusPagamento(r);
-                    const cor = sp === 'vencida' ? 'var(--danger)' : 'var(--warning)';
-                    const bg = sp === 'vencida' ? '#fef2f2' : '#fffbeb';
+                    const isVencida = sp === 'vencida';
+                    const cor = isVencida ? 'var(--danger)' : 'var(--warning)';
+                    const borderColor = isVencida ? 'rgba(239,68,68,0.35)' : 'rgba(245,158,11,0.35)';
+                    const bgColor = isVencida ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)';
                     const diff = r.vencimento ? Math.round((new Date(r.vencimento + 'T00:00:00') - new Date()) / 86400000) : null;
-                    const msg = sp === 'vencida' ? `Fatura vencida há ${Math.abs(diff)} dia(s)` : `Vence em ${diff} dia(s)`;
+                    const msg = isVencida ? `Fatura vencida há ${Math.abs(diff)} dia(s)` : `Vence em ${diff} dia(s)`;
                     const i = lista.indexOf(r);
 
-                    return `<div style="display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.65rem;background:${bg};margin-bottom:0.5rem;flex-wrap:wrap;">
-                        <i class="fas ${sp === 'vencida' ? 'fa-ban' : 'fa-clock'}" style="color:${cor};font-size:1.1rem;flex-shrink:0;"></i>
-                        <div style="flex:1;min-width:140px;">
-                            <strong style="color:#0f172a;">${r.nome}</strong>
-                            <div style="font-size:0.78rem;color:#64748b;">${msg} · Plano ${(r.plano || 'basic').toUpperCase()}</div>
+                    return `<div style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;border-radius:0.9rem;background:${bgColor};border:1px solid ${borderColor};margin-bottom:0.75rem;flex-wrap:wrap;backdrop-filter:blur(4px);">
+                        <i class="fas ${isVencida ? 'fa-ban' : 'fa-clock'}" style="color:${cor};font-size:1.15rem;flex-shrink:0;"></i>
+                        <div style="flex:1;min-width:120px;">
+                            <strong style="color:var(--dark-text);font-size:0.92rem;">${r.nome}</strong>
+                            <div style="font-size:0.76rem;color:var(--dark-subtitle);margin-top:0.2rem;">${msg} · Plano ${(r.plano || 'basic').toUpperCase()}</div>
                         </div>
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                             <button class="btn btn-sm btn-secondary" onclick="abrirModalFatura(${i})"><i class="fas fa-file-invoice"></i> Renovar</button>
@@ -2297,9 +2567,10 @@
             const recentes = [...lista].reverse().slice(0, 6);
 
             tbody.innerHTML = recentes.map(r => {
+                const idxDash = lista.indexOf(r);
                 const dataFmt = r.vencimento ? new Date(r.vencimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
                 return `<tr>
-                    <td><div class="rest-name">${r.nome}</div><div class="rest-slug">/${r.slug}</div></td>
+                    <td><div class="rest-name" onclick="abrirModalEmailAcesso(${idxDash})" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.5rem;" title="Ver links">${r.nome} <i class="fas fa-link" style="font-size:0.6rem;color:#818cf8;opacity:0.7;"></i></div><div class="rest-slug">/${r.slug}</div></td>
                     <td>${badgePlano(r.plano || 'basic')}</td>
                     <td>${badgeSistema(r)}</td>
                     <td>${dataFmt}</td>
@@ -2346,7 +2617,7 @@
 
                 return `<tr>
                     <td>
-                        <div class="rest-name">${r.nome}</div>
+                        <div class="rest-name" onclick="abrirModalEmailAcesso(${i})" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.5rem;" title="Ver links de acesso">${r.nome} <i class="fas fa-link" style="font-size:0.65rem;color:#818cf8;opacity:0.7;"></i></div>
                         <div class="rest-slug">/${r.slug}</div>
                         <div class="rest-email">${r.email || ''}</div>
                     </td>
