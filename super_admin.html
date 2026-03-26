@@ -1523,40 +1523,49 @@
     </div>
 
     <div class="modal" id="modal-email-acesso">
-        <div class="modal-content" style="max-width:620px;">
+        <div class="modal-content" style="max-width:700px;">
             <div class="modal-header">
-                <h2>Verificar E-mail e Links de Acesso</h2>
+                <h2><i class="fas fa-link" style="margin-right:0.75rem;"></i>Links de Acesso</h2>
                 <button class="close-btn" onclick="fecharModalEmailAcesso()"><i class="fas fa-xmark"></i></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="email-acesso-idx">
                 <div class="form-group">
-                    <label class="form-label">Cliente</label>
-                    <input class="form-input" id="email-acesso-nome" readonly>
+                    <label class="form-label" style="font-weight:700;color:#0f172a;">Cliente: <span id="email-acesso-nome"></span></label>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">E-mail do responsável</label>
-                    <input class="form-input" id="email-acesso-email" readonly>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Link do Admin (privado)</label>
-                    <div style="display:flex;gap:0.5rem;">
-                        <input class="form-input" id="email-acesso-admin-url" readonly>
-                        <button class="btn btn-secondary" style="flex-shrink:0;" onclick="copiarCampo('email-acesso-admin-url')"><i class="fas fa-copy"></i></button>
+                <div style="background:#f1f5f9;padding:1rem;border-radius:0.75rem;display:flex;flex-direction:column;gap:0.75rem;">
+                    <!-- Admin Link -->
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:0.75rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">Admin (Privado)</div>
+                            <input class="form-input" id="email-acesso-admin-url" readonly style="font-size:0.85rem;background:#fff;cursor:text;">
+                        </div>
+                        <button class="btn btn-icon btn-primary" style="flex-shrink:0;height:2.5rem;width:2.5rem;margin-top:1.3rem;" onclick="copiarLinkAutomatico('email-acesso-admin-url')" title="Copiar link"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <!-- Cardápio Link -->
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:0.75rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">Cardápio (Público)</div>
+                            <input class="form-input" id="email-acesso-cardapio-url" readonly style="font-size:0.85rem;background:#fff;cursor:text;">
+                        </div>
+                        <button class="btn btn-icon btn-primary" style="flex-shrink:0;height:2.5rem;width:2.5rem;margin-top:1.3rem;" onclick="copiarLinkAutomatico('email-acesso-cardapio-url')" title="Copiar link"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <!-- Entregador Link (se disponível) -->
+                    <div id="email-acesso-entregador-group" style="display:none;display:flex;align-items:center;gap:0.5rem;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:0.75rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">App do Entregador</div>
+                            <input class="form-input" id="email-acesso-entregador-url" readonly style="font-size:0.85rem;background:#fff;cursor:text;">
+                        </div>
+                        <button class="btn btn-icon btn-primary" style="flex-shrink:0;height:2.5rem;width:2.5rem;margin-top:1.3rem;" onclick="copiarLinkAutomatico('email-acesso-entregador-url')" title="Copiar link"><i class="fas fa-copy"></i></button>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Link do Cardápio (público)</label>
-                    <div style="display:flex;gap:0.5rem;">
-                        <input class="form-input" id="email-acesso-cardapio-url" readonly>
-                        <button class="btn btn-secondary" style="flex-shrink:0;" onclick="copiarCampo('email-acesso-cardapio-url')"><i class="fas fa-copy"></i></button>
-                    </div>
+                <div style="margin-top:1rem;padding:0.75rem;background:#f0fdf4;border-left:3px solid #10b981;border-radius:0.5rem;">
+                    <small style="color:#166534;"><i class="fas fa-check-circle" style="margin-right:0.5rem;"></i>Clique no botão <strong>Copiar</strong> para copiar o link automaticamente.</small>
                 </div>
-                <div id="email-acesso-status" style="font-size:0.82rem;color:var(--text-muted);"></div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="fecharModalEmailAcesso()">Fechar</button>
-                <button class="btn btn-primary" onclick="enviarEmailAcessoSelecionado()"><i class="fas fa-paper-plane"></i> Enviar/Reenviar E-mail</button>
+                <button class="btn btn-primary" onclick="enviarEmailAcessoSelecionado()"><i class="fas fa-paper-plane"></i> Enviar Links por E-mail</button>
             </div>
         </div>
     </div>
@@ -2236,21 +2245,56 @@
         function abrirModalEmailAcesso(i) {
             const r = getRestaurantes()[i];
             if (!r) return;
-            const adminUrl = r.admin_url || `${window.location.origin}/admin.html?email=${encodeURIComponent(r.email || '')}&slug=${encodeURIComponent(r.slug || '')}`;
-            const cardapioUrl = r.cardapio_url || `${window.location.origin}/index.html?slug=${encodeURIComponent(r.slug || '')}`;
+            const adminUrl = r.admin_url || `${window.location.origin}/admin/${encodeURIComponent(r.slug || '')}`;
+            const cardapioUrl = r.cardapio_url || `${window.location.origin}/p/${encodeURIComponent(r.slug || '')}`;
+            const entregadorUrl = r.entregador_url || null;
 
             document.getElementById('email-acesso-idx').value = String(i);
-            document.getElementById('email-acesso-nome').value = r.nome || '';
-            document.getElementById('email-acesso-email').value = r.email || '';
+            document.getElementById('email-acesso-nome').textContent = r.nome || '—';
             document.getElementById('email-acesso-admin-url').value = adminUrl;
             document.getElementById('email-acesso-cardapio-url').value = cardapioUrl;
-            const status = document.getElementById('email-acesso-status');
-            if (status) status.innerHTML = 'Confira os dados e clique em <strong>Enviar/Reenviar E-mail</strong>.';
+
+            // Mostrar/esconder link de entregador
+            const entregadorGroup = document.getElementById('email-acesso-entregador-group');
+            if (entregadorUrl) {
+                document.getElementById('email-acesso-entregador-url').value = entregadorUrl;
+                entregadorGroup.style.display = 'flex';
+            } else {
+                entregadorGroup.style.display = 'none';
+            }
+
             document.getElementById('modal-email-acesso').classList.add('active');
         }
 
         function fecharModalEmailAcesso() {
             document.getElementById('modal-email-acesso').classList.remove('active');
+        }
+
+        function copiarLinkAutomatico(fieldId) {
+            const el = document.getElementById(fieldId);
+            if (!el) return;
+            
+            el.select();
+            el.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                toast('✓ Link copiado para a área de transferência!');
+                
+                // Feedback visual no botão
+                const btn = event.target.closest('button');
+                if (btn) {
+                    const originalHTML = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                    btn.style.background = '#10b981';
+                    setTimeout(() => {
+                        btn.innerHTML = originalHTML;
+                        btn.style.background = '';
+                    }, 1500);
+                }
+            } catch (err) {
+                toast('Erro ao copiar. Tente novamente.', 'erro');
+            }
         }
 
         async function enviarEmailAcessoSelecionado() {
