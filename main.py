@@ -17,6 +17,7 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import quote, unquote, urlparse
 import mercadopago
+import resend
 
 # ── Mercado Pago credentials ─────────────────────────────────────────────────
 MP_ACCESS_TOKEN_DEFAULT = os.getenv(
@@ -85,6 +86,9 @@ def normalizar_database_url(url: str) -> str:
 
 
 DATABASE_URL = normalizar_database_url(DATABASE_URL)
+
+RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip()
+RESEND_FROM_EMAIL = (os.getenv("RESEND_FROM_EMAIL") or "FoodOS <onboarding@resend.dev>").strip()
 
 
 def ambiente_producao() -> bool:
@@ -2233,6 +2237,46 @@ def obter_config_smtp(db: Session | None = None) -> dict:
     }
 
 
+def enviar_email_via_resend(
+    destinatario: str,
+    assunto: str,
+    texto: str,
+    html: str,
+    remetente: str | None = None,
+) -> dict:
+    api_key = (RESEND_API_KEY or "").strip()
+    if not api_key:
+        return {
+            "ok": False,
+            "enviado": False,
+            "detail": "RESEND_API_KEY não configurada",
+            "provider": "resend",
+        }
+
+    try:
+        resend.api_key = api_key
+        resposta = resend.Emails.send({
+            "from": (remetente or RESEND_FROM_EMAIL),
+            "to": [destinatario],
+            "subject": assunto,
+            "text": texto,
+            "html": html,
+        })
+        return {
+            "ok": True,
+            "enviado": True,
+            "provider": "resend",
+            "message_id": resposta.get("id") if isinstance(resposta, dict) else None,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "enviado": False,
+            "detail": str(exc),
+            "provider": "resend",
+        }
+
+
 def enviar_email_acesso_restaurante(
     destinatario: str,
     nome_unidade: str,
@@ -2256,11 +2300,11 @@ def enviar_email_acesso_restaurante(
     usar_ssl = smtp["ssl"]
     usar_tls = smtp["tls"]
 
-    if not host or not remetente or not destinatario:
+    if not destinatario:
         return {
             "ok": False,
             "enviado": False,
-            "detail": "SMTP não configurado",
+            "detail": "Destinatário inválido",
         }
 
     msg = EmailMessage()
@@ -2350,6 +2394,26 @@ def enviar_email_acesso_restaurante(
     </html>
     """
 
+    envio_resend = enviar_email_via_resend(
+        destinatario=destinatario,
+        assunto=msg["Subject"],
+        texto=texto,
+        html=html,
+        remetente=RESEND_FROM_EMAIL,
+    )
+    if envio_resend.get("enviado"):
+        return envio_resend
+    if (RESEND_API_KEY or "").strip():
+        # Se a chave estiver configurada, tratamos Resend como canal principal.
+        return envio_resend
+
+    if not host or not remetente:
+        return {
+            "ok": False,
+            "enviado": False,
+            "detail": "SMTP não configurado",
+        }
+
     msg.set_content(texto)
     msg.add_alternative(html, subtype="html")
 
@@ -2392,8 +2456,8 @@ def enviar_email_reset_senha_admin(
     usar_ssl = smtp["ssl"]
     usar_tls = smtp["tls"]
 
-    if not host or not remetente or not destinatario:
-        return {"ok": False, "enviado": False, "detail": "SMTP não configurado"}
+    if not destinatario:
+        return {"ok": False, "enviado": False, "detail": "Destinatário inválido"}
 
     msg = EmailMessage()
     msg["Subject"] = f"Recuperação de senha - {nome_unidade}"
@@ -2419,6 +2483,21 @@ def enviar_email_reset_senha_admin(
       </body>
     </html>
     """
+
+    envio_resend = enviar_email_via_resend(
+        destinatario=destinatario,
+        assunto=msg["Subject"],
+        texto=texto,
+        html=html,
+        remetente=RESEND_FROM_EMAIL,
+    )
+    if envio_resend.get("enviado"):
+        return envio_resend
+    if (RESEND_API_KEY or "").strip():
+        return envio_resend
+
+    if not host or not remetente:
+        return {"ok": False, "enviado": False, "detail": "SMTP não configurado"}
 
     msg.set_content(texto)
     msg.add_alternative(html, subtype="html")
@@ -3897,6 +3976,8 @@ def diagnostico_email(db: Session = Depends(get_db)):
     usuario = smtp["user"]
     return {
         "ok": True,
+        "resend_configurado": bool((RESEND_API_KEY or "").strip()),
+        "resend_from": RESEND_FROM_EMAIL,
         "smtp_configurado": bool(smtp["configured"]),
         "host": smtp["host"],
         "porta": smtp["port"],
