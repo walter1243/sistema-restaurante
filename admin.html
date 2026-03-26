@@ -5701,6 +5701,9 @@
                     const nomeEntregadorVinculado = String(entregadorVinculado?.nome || '').trim();
                     const pushEnviado = respostaApi?.delivery_despacho?.push?.enviado === true;
                     const whatsappMotoboy = respostaApi?.delivery_despacho?.whatsapp?.motoboy?.enviado === true;
+                    const pushMotivo = String(respostaApi?.delivery_despacho?.push?.motivo || '').trim();
+                    const pushErro = String(respostaApi?.delivery_despacho?.push?.erro || '').trim();
+                    const wppMotivo = String(respostaApi?.delivery_despacho?.whatsapp?.motoboy?.motivo || respostaApi?.delivery_despacho?.whatsapp?.motoboy?.erro || '').trim();
                     if (pushEnviado || whatsappMotoboy) {
                         definirFeedbackPedido(
                             pedidoId,
@@ -5711,13 +5714,18 @@
                             7000
                         );
                     } else {
+                        const diagnostico = [
+                            pushMotivo ? `Push: ${pushMotivo}` : '',
+                            pushErro ? `Erro push: ${pushErro}` : '',
+                            wppMotivo ? `WhatsApp: ${wppMotivo}` : ''
+                        ].filter(Boolean).join(' · ');
                         definirFeedbackPedido(
                             pedidoId,
                             nomeEntregadorVinculado
-                                ? `Pedido em entrega com ${nomeEntregadorVinculado}, mas sem alerta automático enviado ao motoboy.`
-                                : 'Pedido em entrega e entregador vinculado, mas sem alerta automático enviado ao motoboy.',
+                                ? `Pedido em entrega com ${nomeEntregadorVinculado}, mas sem alerta automático enviado ao motoboy.${diagnostico ? ` ${diagnostico}` : ''}`
+                                : `Pedido em entrega e entregador vinculado, mas sem alerta automático enviado ao motoboy.${diagnostico ? ` ${diagnostico}` : ''}`,
                             'info',
-                            9000
+                            12000
                         );
                     }
                 }

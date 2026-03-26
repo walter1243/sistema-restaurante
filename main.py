@@ -1941,13 +1941,16 @@ def _enviar_push_entregador(
     link_entregador: str,
     nome_restaurante: str,
 ) -> dict:
-    webpush_fn = _obter_webpush_fn()
     if not push_habilitado():
         return {"enviado": False, "motivo": "push_desativado", "inscricoes": 0}
 
     subscriptions = _normalizar_subscriptions_push(entregador.push_subscriptions_json)
     if not subscriptions:
         return {"enviado": False, "motivo": "sem_inscricao", "inscricoes": 0}
+
+    webpush_fn = _obter_webpush_fn()
+    if not webpush_fn:
+        return {"enviado": False, "motivo": "pywebpush_indisponivel", "inscricoes": len(subscriptions)}
 
     payload = json.dumps({
         "title": "Entrega",
@@ -1959,6 +1962,8 @@ def _enviar_push_entregador(
 
     enviados = 0
     expirados: set[str] = set()
+    falhas = 0
+    ultimo_erro = ""
 
     for sub in subscriptions:
         endpoint = str(sub.get("endpoint") or "").strip()
@@ -1975,6 +1980,8 @@ def _enviar_push_entregador(
             enviados += 1
         except Exception as erro:
             texto = str(erro)
+            falhas += 1
+            ultimo_erro = texto[:180]
             if "410" in texto or "404" in texto:
                 expirados.add(endpoint)
 
@@ -1984,11 +1991,20 @@ def _enviar_push_entregador(
             if str(item.get("endpoint") or "").strip() not in expirados
         ]
 
-    return {
+    resultado = {
         "enviado": enviados > 0,
         "quantidade_enviada": enviados,
         "inscricoes": len(subscriptions),
+        "falhas": falhas,
+        "inscricoes_expiradas": len(expirados),
     }
+
+    if enviados == 0:
+        resultado["motivo"] = "falha_envio_push"
+        if ultimo_erro:
+            resultado["erro"] = ultimo_erro
+
+    return resultado
 
 
 def slugify_nome(texto: str) -> str:

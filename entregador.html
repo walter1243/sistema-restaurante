@@ -1305,6 +1305,8 @@ const GPS_ACCURACY_MAX_METROS = 200;
 const DESVIO_RECALCULO_METROS = 70;
 const DISTANCIA_MIN_FINALIZACAO_METROS = 120;
 const ZOOM_NAVEGACAO_FIXO = 20;
+const POLLING_ESPERA_PADRAO_MS = 7000;
+const POLLING_ESPERA_FALLBACK_MS = 3000;
 const STORAGE_MOTOBOY = 'entregador_painel_sessao';
 const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
 const STORAGE_SOM_NAV = 'entregador_som_nav_ativo';
@@ -1627,6 +1629,9 @@ const app = {
     pedidoItensResumo: '',
     whatsappPainelAberto: false,
     pushRegistrado: false,
+    pushDisponivel: false,
+    pushFalhaMotivo: '',
+    esperaIntervalMs: 0,
     ultimoCalculoRota: 0,
     googleMapsApiKey: obterGoogleMapsApiKeyEntregador(),
     ultimaRotaGeojson: null,
@@ -2678,7 +2683,21 @@ function definirModoEspera(ativo) {
     if (!app.modoEspera && app.esperaIntervalId) {
         clearInterval(app.esperaIntervalId);
         app.esperaIntervalId = null;
+        app.esperaIntervalMs = 0;
     }
+}
+
+function iniciarPollingEspera(forcarReinicio = false) {
+    const intervalo = app.pushRegistrado ? POLLING_ESPERA_PADRAO_MS : POLLING_ESPERA_FALLBACK_MS;
+    if (!forcarReinicio && app.esperaIntervalId && app.esperaIntervalMs === intervalo) {
+        return;
+    }
+    if (app.esperaIntervalId) {
+        clearInterval(app.esperaIntervalId);
+        app.esperaIntervalId = null;
+    }
+    app.esperaIntervalMs = intervalo;
+    app.esperaIntervalId = setInterval(verificarPedidoNovo, intervalo);
 }
 
 function atualizarRelogioEspera() {
@@ -2758,23 +2777,43 @@ function base64UrlToUint8Array(base64String = '') {
 }
 
 async function registrarPushMotoboy() {
-    if (app.pushRegistrado) return;
-    if (!app.token || !API_URL) return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+    if (app.pushRegistrado) return true;
+    if (!app.token || !API_URL) {
+        app.pushDisponivel = false;
+        app.pushFalhaMotivo = 'token_ou_api_ausente';
+        return false;
+    }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        app.pushDisponivel = false;
+        app.pushFalhaMotivo = 'push_nao_suportado';
+        return false;
+    }
 
     try {
         const cfgRes = await fetchComTimeout(`${API_URL}/api/public/push/config`, {}, 10000);
-        if (!cfgRes.ok) return;
+        if (!cfgRes.ok) {
+            app.pushDisponivel = false;
+            app.pushFalhaMotivo = `push_config_http_${cfgRes.status}`;
+            return false;
+        }
         const cfg = await cfgRes.json();
         const publicKey = String(cfg?.vapid_public_key || '').trim();
-        if (!cfg?.enabled || !publicKey) return;
+        if (!cfg?.enabled || !publicKey) {
+            app.pushDisponivel = false;
+            app.pushFalhaMotivo = 'push_desativado_no_backend';
+            return false;
+        }
 
         const swReg = await navigator.serviceWorker.register('/sw-entregador.js');
         let permission = Notification.permission;
         if (permission === 'default') {
             permission = await Notification.requestPermission();
         }
-        if (permission !== 'granted') return;
+        if (permission !== 'granted') {
+            app.pushDisponivel = false;
+            app.pushFalhaMotivo = 'permissao_notificacao_negada';
+            return false;
+        }
 
         let subscription = await swReg.pushManager.getSubscription();
         if (!subscription) {
@@ -2795,7 +2834,14 @@ async function registrarPushMotoboy() {
         }, 10000);
 
         app.pushRegistrado = true;
-    } catch (_) {}
+        app.pushDisponivel = true;
+        app.pushFalhaMotivo = '';
+        return true;
+    } catch (erro) {
+        app.pushDisponivel = false;
+        app.pushFalhaMotivo = String(erro?.message || 'falha_push').trim() || 'falha_push';
+        return false;
+    }
 }
 
 function configurarListenerPushEmTela() {
@@ -2813,6 +2859,18 @@ function configurarListenerPushEmTela() {
         setBadge('Novo pedido', 'novo');
         setStatus('Entrega recebida. Abra para iniciar.', 'destaque');
     });
+}
+
+function traduzirMotivoPushFalha(motivo = '') {
+    const m = String(motivo || '').trim().toLowerCase();
+    if (!m) return 'motivo desconhecido';
+    if (m.includes('push_config_http_404')) return 'endpoint de push indisponivel na API';
+    if (m.includes('push_config_http_')) return 'falha ao buscar configuracao de push';
+    if (m.includes('push_desativado_no_backend')) return 'push desativado no backend';
+    if (m.includes('permissao_notificacao_negada')) return 'permissao de notificacao negada';
+    if (m.includes('push_nao_suportado')) return 'navegador sem suporte a push';
+    if (m.includes('token_ou_api_ausente')) return 'token/API ausente';
+    return m;
 }
 
 async function ativarAlertasMotoboy() {
@@ -2897,9 +2955,7 @@ function voltarParaTelaEspera() {
     mostrarFeedbackEspera('Entrega finalizada. Voltando para o modo de espera...');
     atualizarRelogioEspera();
 
-    if (!app.esperaIntervalId) {
-        app.esperaIntervalId = setInterval(verificarPedidoNovo, 7000);
-    }
+    iniciarPollingEspera(true);
 }
 
 function renderizarPedidoDisponivel(pedido) {
@@ -5182,7 +5238,7 @@ async function boot() {
         }
 
         await carregarPerfilEntregador();
-        await registrarPushMotoboy();
+        const pushOk = await registrarPushMotoboy();
         atualizarRelogioEspera();
         setInterval(atualizarRelogioEspera, 1000);
         definirModoEspera(app.modoEspera);
@@ -5197,18 +5253,23 @@ async function boot() {
 
         if (app.modoEspera) {
             setBadge('Aguardando', 'aguardando');
-            setStatus('Aguardando novo pedido...', 'aviso');
+            if (pushOk) {
+                setStatus('Aguardando novo pedido...', 'aviso');
+            } else {
+                setStatus('Alerta instantâneo indisponível. Usando varredura rápida de novos pedidos.', 'aviso');
+                const motivoPush = traduzirMotivoPushFalha(app.pushFalhaMotivo);
+                mostrarFeedbackEspera(`Push indisponível (${motivoPush}). O app seguirá verificando novos pedidos automaticamente.`);
+            }
             esconderLoading();
             await verificarPedidoNovo();
-            if (!app.esperaIntervalId) {
-                app.esperaIntervalId = setInterval(verificarPedidoNovo, 7000);
-            }
+            iniciarPollingEspera(true);
         } else {
             await carregarCorrida();
             iniciarAutoRefreshRota();
         }
-    } catch (_) {
-        setStatus('Falha ao inicializar painel. Abra o login e tente novamente.', 'erro');
+    } catch (erro) {
+        const detalhe = String(erro?.message || '').trim();
+        setStatus(detalhe ? `Falha ao inicializar painel: ${detalhe}` : 'Falha ao inicializar painel. Abra o login e tente novamente.', 'erro');
         setBadge('Erro', 'inativo');
         esconderLoading();
     } finally {
