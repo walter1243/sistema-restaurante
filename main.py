@@ -89,6 +89,7 @@ DATABASE_URL = normalizar_database_url(DATABASE_URL)
 
 RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip()
 RESEND_FROM_EMAIL = (os.getenv("RESEND_FROM_EMAIL") or "FoodOS <onboarding@resend.dev>").strip()
+EMAIL_PROVIDER = (os.getenv("EMAIL_PROVIDER") or "auto").strip().lower()
 
 
 def ambiente_producao() -> bool:
@@ -2269,10 +2270,16 @@ def enviar_email_via_resend(
             "message_id": resposta.get("id") if isinstance(resposta, dict) else None,
         }
     except Exception as exc:
+        detalhe = str(exc)
+        if "You can only send testing emails to your own email address" in detalhe:
+            detalhe = (
+                "Resend em modo de teste: o remetente atual so envia para o e-mail dono da conta. "
+                "Verifique um dominio no Resend e configure RESEND_FROM_EMAIL com esse dominio."
+            )
         return {
             "ok": False,
             "enviado": False,
-            "detail": str(exc),
+            "detail": detalhe,
             "provider": "resend",
         }
 
@@ -2394,18 +2401,22 @@ def enviar_email_acesso_restaurante(
     </html>
     """
 
-    envio_resend = enviar_email_via_resend(
-        destinatario=destinatario,
-        assunto=msg["Subject"],
-        texto=texto,
-        html=html,
-        remetente=RESEND_FROM_EMAIL,
-    )
-    if envio_resend.get("enviado"):
-        return envio_resend
-    if (RESEND_API_KEY or "").strip():
-        # Se a chave estiver configurada, tratamos Resend como canal principal.
-        return envio_resend
+    usar_resend = EMAIL_PROVIDER in {"auto", "resend"}
+    if usar_resend:
+        envio_resend = enviar_email_via_resend(
+            destinatario=destinatario,
+            assunto=msg["Subject"],
+            texto=texto,
+            html=html,
+            remetente=RESEND_FROM_EMAIL,
+        )
+        if envio_resend.get("enviado"):
+            return envio_resend
+        if EMAIL_PROVIDER == "resend":
+            return envio_resend
+        if (RESEND_API_KEY or "").strip():
+            # Em modo auto, com chave Resend configurada, mantemos Resend como principal.
+            return envio_resend
 
     if not host or not remetente:
         return {
@@ -2484,17 +2495,21 @@ def enviar_email_reset_senha_admin(
     </html>
     """
 
-    envio_resend = enviar_email_via_resend(
-        destinatario=destinatario,
-        assunto=msg["Subject"],
-        texto=texto,
-        html=html,
-        remetente=RESEND_FROM_EMAIL,
-    )
-    if envio_resend.get("enviado"):
-        return envio_resend
-    if (RESEND_API_KEY or "").strip():
-        return envio_resend
+    usar_resend = EMAIL_PROVIDER in {"auto", "resend"}
+    if usar_resend:
+        envio_resend = enviar_email_via_resend(
+            destinatario=destinatario,
+            assunto=msg["Subject"],
+            texto=texto,
+            html=html,
+            remetente=RESEND_FROM_EMAIL,
+        )
+        if envio_resend.get("enviado"):
+            return envio_resend
+        if EMAIL_PROVIDER == "resend":
+            return envio_resend
+        if (RESEND_API_KEY or "").strip():
+            return envio_resend
 
     if not host or not remetente:
         return {"ok": False, "enviado": False, "detail": "SMTP não configurado"}
@@ -3976,6 +3991,7 @@ def diagnostico_email(db: Session = Depends(get_db)):
     usuario = smtp["user"]
     return {
         "ok": True,
+        "email_provider": EMAIL_PROVIDER,
         "resend_configurado": bool((RESEND_API_KEY or "").strip()),
         "resend_from": RESEND_FROM_EMAIL,
         "smtp_configurado": bool(smtp["configured"]),
