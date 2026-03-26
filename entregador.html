@@ -113,8 +113,8 @@
         body.waiting .bottom-panel {
             display: none;
         }
-        .leaflet-container { background: #dbe4ef; }
-        .leaflet-tile { filter: saturate(1.03) contrast(1.02) brightness(1.02); }
+        .leaflet-container { background: #e8ecf0; }
+        .leaflet-tile { filter: brightness(1.08) saturate(1.1) contrast(0.95); }
         .map-fallback {
             width: 100%;
             height: 100%;
@@ -3721,14 +3721,19 @@ function iniciarMapa() {
 
     const fontesTile = [
         {
-            nome: 'OpenStreetMap',
-            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            options: { maxZoom: 20, subdomains: 'abc', detectRetina: true },
+            nome: 'CARTO Voyager',
+            url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            options: { maxZoom: 20, subdomains: 'abcd', detectRetina: true },
         },
         {
             nome: 'CARTO Light',
             url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
             options: { maxZoom: 20, subdomains: 'abcd', detectRetina: true },
+        },
+        {
+            nome: 'OpenStreetMap',
+            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            options: { maxZoom: 20, subdomains: 'abc', detectRetina: true },
         },
     ];
 
