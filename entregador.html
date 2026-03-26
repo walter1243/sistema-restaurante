@@ -113,8 +113,8 @@
         body.waiting .bottom-panel {
             display: none;
         }
-        .leaflet-container { background: #c8d4e0; }
-        .leaflet-tile { filter: brightness(1.0) saturate(1.15) contrast(1.08); }
+        .leaflet-container { background: #d5dbe4; }
+        .leaflet-tile { filter: brightness(0.98) saturate(0.72) contrast(1.15) hue-rotate(18deg); }
         .map-fallback {
             width: 100%;
             height: 100%;
@@ -3721,6 +3721,11 @@ function iniciarMapa() {
 
     const fontesTile = [
         {
+            nome: 'CARTO Positron',
+            url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+            options: { maxZoom: 20, subdomains: 'abcd', crossOrigin: true },
+        },
+        {
             nome: 'OpenStreetMap',
             url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
             options: { maxZoom: 20, subdomains: 'abc', crossOrigin: true },
@@ -3728,11 +3733,6 @@ function iniciarMapa() {
         {
             nome: 'CARTO Voyager',
             url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-            options: { maxZoom: 20, subdomains: 'abcd', crossOrigin: true },
-        },
-        {
-            nome: 'CARTO Light',
-            url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
             options: { maxZoom: 20, subdomains: 'abcd', crossOrigin: true },
         },
     ];
