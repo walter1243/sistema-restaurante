@@ -1353,44 +1353,21 @@
                 <div class="card">
                     <div class="card-title"><i class="fas fa-paper-plane" style="color:#60a5fa;"></i> SMTP (Envio Automático de E-mail)</div>
                     <p class="card-desc">
-                        Envio 100% automático: escolha apenas qual e-mail será o remetente e salve. O servidor SMTP é configurado automaticamente.
+                        Envio 100% automático: edite somente o e-mail remetente. Todo o restante é configurado automaticamente pelo sistema.
                     </p>
                     <p style="color:#0f172a;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:0.7rem 0.8rem;font-size:0.82rem;margin-bottom:0.9rem;">
-                        Se a senha já estiver salva no sistema, deixe em branco que ela será mantida.
-                    </div>
+                        O envio usa configuração automática de provedor. Basta trocar o remetente quando necessário.
+                    </p>
                     <div class="grid-2">
                         <div class="form-group">
                             <label class="form-label">Remetente do sistema</label>
-                            <select class="form-select" id="smtp-from"></select>
+                            <input class="form-input" id="smtp-from" type="email" list="smtp-from-list" placeholder="seuemail@dominio.com">
+                            <datalist id="smtp-from-list"></datalist>
                             <div class="form-hint">Este e-mail enviará as mensagens automáticas para os assinantes.</div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Senha/App Password</label>
-                            <input class="form-input" id="smtp-pass" type="password" placeholder="Cole somente para atualizar">
-                            <div class="form-hint">Se deixar em branco, a senha atual permanece.</div>
                         </div>
                     </div>
                     <button class="btn btn-primary" onclick="salvarConfigSMTP()"><i class="fas fa-save"></i> Salvar envio automático</button>
-                </div>
-
-                <div class="card">
-                    <div class="card-title"><i class="fas fa-envelope-open-text" style="color:#60a5fa;"></i> E-mail de Acesso (Admin + Cardápio)</div>
-                    <p class="card-desc">
-                        Diagnóstico do SMTP e reenvio manual do e-mail após pagamento aprovado.
-                    </p>
                     <div id="smtp-status" style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;"></div>
-                    <div class="grid-2" style="align-items:end;">
-                        <div class="form-group">
-                            <label class="form-label">pending_id do pagamento</label>
-                            <input class="form-input" id="email-pending-id" placeholder="Ex.: ZxY123...">
-                            <div class="form-hint">Use o pending_id retornado no checkout do cliente.</div>
-                        </div>
-                        <div class="action-bar" style="justify-content:flex-start;gap:0.6rem;">
-                            <button class="btn btn-secondary" onclick="carregarDiagnosticoEmail()"><i class="fas fa-stethoscope"></i> Diagnosticar SMTP</button>
-                            <button class="btn btn-primary" onclick="reenviarEmailPagamento()"><i class="fas fa-paper-plane"></i> Reenviar e-mail</button>
-                        </div>
-                    </div>
-                    <div id="email-reenvio-status" style="font-size:0.82rem;color:var(--text-muted);margin-top:0.5rem;"></div>
                 </div>
             </section>
         </div>
@@ -2696,8 +2673,9 @@
         }
 
         function popularEmailsRemetente(emailSelecionado = '') {
-            const select = document.getElementById('smtp-from');
-            if (!select) return;
+            const input = document.getElementById('smtp-from');
+            const listaEl = document.getElementById('smtp-from-list');
+            if (!input || !listaEl) return;
 
             const emails = new Set();
             const add = (valor) => {
@@ -2712,16 +2690,14 @@
             const lista = Array.from(emails).sort();
             if (!lista.length) lista.push('walterjunnys@gmail.com');
 
-            select.innerHTML = lista.map((email) => `<option value="${email}">${email}</option>`).join('');
-            select.value = String(emailSelecionado || credenciaisSuperAdmin?.email_login || lista[0] || '').toLowerCase();
+            listaEl.innerHTML = lista.map((email) => `<option value="${email}"></option>`).join('');
+            input.value = String(emailSelecionado || credenciaisSuperAdmin?.email_login || lista[0] || '').toLowerCase();
         }
 
         async function carregarConfigSMTP() {
             try {
                 const { data } = await getSuperAdminComFallback('/api/super-admin/config-smtp');
                 popularEmailsRemetente((data.from || data.user || credenciaisSuperAdmin?.email_login || '').toLowerCase());
-                const passEl = document.getElementById('smtp-pass');
-                if (passEl) passEl.placeholder = data.password_configured ? 'Senha já configurada (preencha para trocar)' : 'Cole a senha/app password';
             } catch (_) {}
         }
 
@@ -2737,7 +2713,7 @@
                 host: cfg.host,
                 port: Number(cfg.port || 587),
                 user: remetente,
-                password: (document.getElementById('smtp-pass').value || '').trim(),
+                password: '',
                 from_email: remetente,
                 tls: !!cfg.tls,
                 ssl: !!cfg.ssl,
@@ -2746,7 +2722,6 @@
             try {
                 await postSuperAdminComFallback('/api/super-admin/config-smtp', payload);
                 toast('Envio automático salvo com sucesso.');
-                document.getElementById('smtp-pass').value = '';
                 await carregarConfigSMTP();
                 await carregarDiagnosticoEmail();
             } catch (err) {
@@ -2766,28 +2741,6 @@
                     box.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> SMTP não configurado</span> — selecione o remetente e salve o envio automático.';
                 }
             } catch (_) {}
-        }
-
-        async function reenviarEmailPagamento() {
-            const pendingId = (document.getElementById('email-pending-id').value || '').trim();
-            if (!pendingId) {
-                toast('Informe o pending_id do pagamento aprovado.', 'erro');
-                return;
-            }
-            try {
-                const { data } = await postSuperAdminComFallback(`/api/super-admin/pagamentos/${encodeURIComponent(pendingId)}/reenviar-email-acesso`, {});
-                toast(data.detail || 'E-mail reenviado com sucesso!');
-                const result = document.getElementById('email-reenvio-status');
-                if (result) {
-                    result.innerHTML = `<span style="color:#22c55e;"><i class="fas fa-paper-plane"></i> Enviado para ${data.email || '-'}</span>`;
-                }
-            } catch (err) {
-                toast(err.message || 'Erro ao reenviar e-mail.', 'erro');
-                const result = document.getElementById('email-reenvio-status');
-                if (result) {
-                    result.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-triangle-exclamation"></i> ${err.message || 'Falha no envio'}</span>`;
-                }
-            }
         }
 
         async function carregarCredenciaisSuperAdmin() {
