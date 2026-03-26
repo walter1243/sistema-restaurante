@@ -6272,6 +6272,342 @@ def redirecionar_rastreio_publico(
     return RedirectResponse(url=destino, status_code=307)
 
 
+MAXIM_MAP_STYLE_JSON = [
+    {"elementType": "geometry", "stylers": [{"color": "#1f2937"}]},
+    {"elementType": "labels.text.fill", "stylers": [{"color": "#d1d5db"}]},
+    {"elementType": "labels.text.stroke", "stylers": [{"color": "#111827"}]},
+    {"featureType": "road", "elementType": "geometry", "stylers": [{"color": "#374151"}]},
+    {"featureType": "road.arterial", "elementType": "geometry", "stylers": [{"color": "#4b5563"}]},
+    {"featureType": "road.highway", "elementType": "geometry", "stylers": [{"color": "#6b7280"}]},
+    {"featureType": "poi", "elementType": "labels.text.fill", "stylers": [{"color": "#9ca3af"}]},
+    {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#0f172a"}]},
+]
+
+
+def _plano_permite_logistica_completa(restaurante: Restaurante) -> bool:
+    return obter_plan_type_restaurante(restaurante) in {"standard", "premium"}
+
+
+def _chave_config_zonas_entrega(restaurante_id: str) -> str:
+    return f"delivery_zonas_{restaurante_id}"
+
+
+def _normalizar_ponto_lat_lon(valor) -> tuple[float, float] | None:
+    if isinstance(valor, dict):
+        lat = valor.get("lat", valor.get("latitude"))
+        lon = valor.get("lon", valor.get("lng", valor.get("longitude")))
+    elif isinstance(valor, (list, tuple)) and len(valor) >= 2:
+        lat, lon = valor[0], valor[1]
+    else:
+        return None
+
+    try:
+        lat_n = float(lat)
+        lon_n = float(lon)
+    except (TypeError, ValueError):
+        return None
+
+    if not _coordenada_valida(lat_n, lon_n):
+        return None
+    return lat_n, lon_n
+
+
+def _normalizar_poligono_pontos(pontos) -> list[list[float]]:
+    if not isinstance(pontos, list):
+        return []
+    saida: list[list[float]] = []
+    for item in pontos:
+        ponto = _normalizar_ponto_lat_lon(item)
+        if not ponto:
+            continue
+        saida.append([float(ponto[0]), float(ponto[1])])
+    return saida
+
+
+def _ponto_em_poligono(lat: float, lon: float, poligono: list[list[float]]) -> bool:
+    if len(poligono) < 3:
+        return False
+    dentro = False
+    j = len(poligono) - 1
+    for i in range(len(poligono)):
+        yi, xi = float(poligono[i][0]), float(poligono[i][1])
+        yj, xj = float(poligono[j][0]), float(poligono[j][1])
+        cruza = ((xi > lon) != (xj > lon)) and (lat < (yj - yi) * (lon - xi) / ((xj - xi) or 1e-12) + yi)
+        if cruza:
+            dentro = not dentro
+        j = i
+    return dentro
+
+
+def _obter_zonas_entrega_restaurante(db: Session, restaurante_id: str) -> list[dict]:
+    cfg = db.get(ConfigSistema, _chave_config_zonas_entrega(restaurante_id))
+    if not cfg or not (cfg.valor or "").strip():
+        return []
+    try:
+        bruto = json.loads(cfg.valor)
+    except Exception:
+        return []
+    if not isinstance(bruto, list):
+        return []
+
+    zonas: list[dict] = []
+    for z in bruto:
+        if not isinstance(z, dict):
+            continue
+        nome = str(z.get("nome") or "").strip()[:80]
+        if not nome:
+            continue
+        taxa = z.get("taxa")
+        try:
+            taxa_num = float(taxa)
+        except (TypeError, ValueError):
+            continue
+        poligono = _normalizar_poligono_pontos(z.get("poligono") or z.get("pontos") or [])
+        if len(poligono) < 3:
+            continue
+        zonas.append({
+            "nome": nome,
+            "taxa": round(max(0.0, taxa_num), 2),
+            "cor": str(z.get("cor") or "#0052cc").strip()[:20],
+            "poligono": poligono,
+        })
+    return zonas
+
+
+def _salvar_zonas_entrega_restaurante(db: Session, restaurante_id: str, zonas: list[dict]) -> None:
+    chave = _chave_config_zonas_entrega(restaurante_id)
+    payload = json.dumps(zonas, ensure_ascii=False)
+    obj = db.get(ConfigSistema, chave)
+    if obj:
+        obj.valor = payload
+    else:
+        db.add(ConfigSistema(chave=chave, valor=payload))
+    db.commit()
+
+
+def _resolver_centro_restaurante(restaurante: Restaurante) -> tuple[float | None, float | None]:
+    endereco = restaurante.delivery_endereco_origem or {}
+    lat, lon = _extrair_lat_lon_endereco(endereco)
+    return lat, lon
+
+
+def _google_routes_server_key(db: Session | None = None) -> str:
+    env_key = (os.getenv("GOOGLE_MAPS_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY") or "").strip()
+    if env_key:
+        return env_key
+    if db is None:
+        return ""
+    cfg = db.get(ConfigSistema, "mapas_google_server_key")
+    return (cfg.valor.strip() if cfg and cfg.valor else "")
+
+
+def _calcular_distancia_rota_metros(origem_lat: float, origem_lon: float, destino_lat: float, destino_lon: float, db: Session | None = None) -> tuple[float | None, float | None, str]:
+    key = _google_routes_server_key(db)
+    if key:
+        try:
+            req = urllib_request.Request(
+                "https://routes.googleapis.com/directions/v2:computeRoutes",
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": key,
+                    "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+                },
+                data=json.dumps({
+                    "origin": {"location": {"latLng": {"latitude": origem_lat, "longitude": origem_lon}}},
+                    "destination": {"location": {"latLng": {"latitude": destino_lat, "longitude": destino_lon}}},
+                    "travelMode": "DRIVE",
+                    "routingPreference": "TRAFFIC_AWARE",
+                    "languageCode": "pt-BR",
+                    "regionCode": "BR",
+                }).encode("utf-8"),
+            )
+            with urllib_request.urlopen(req, timeout=8) as resp:
+                bruto = resp.read().decode("utf-8")
+            data = json.loads(bruto)
+            rota = (data.get("routes") or [None])[0] or {}
+            dist = float(rota.get("distanceMeters") or 0)
+            dur_raw = str(rota.get("duration") or "0s")
+            dur = float(dur_raw[:-1]) if dur_raw.endswith("s") else 0.0
+            if dist > 0:
+                return dist, (dur if dur > 0 else None), "google_routes"
+        except Exception:
+            pass
+
+    try:
+        url = (
+            "https://router.project-osrm.org/route/v1/driving/"
+            f"{origem_lon},{origem_lat};{destino_lon},{destino_lat}?overview=false"
+        )
+        with urllib_request.urlopen(url, timeout=8) as resp:
+            bruto = resp.read().decode("utf-8")
+        data = json.loads(bruto)
+        route = (data.get("routes") or [None])[0] or {}
+        dist = float(route.get("distance") or 0)
+        dur = float(route.get("duration") or 0)
+        if dist > 0:
+            return dist, (dur if dur > 0 else None), "osrm"
+    except Exception:
+        pass
+
+    return None, None, "indisponivel"
+
+
+def _resolver_taxa_zona(lat: float, lon: float, zonas: list[dict]) -> tuple[str | None, float | None]:
+    for zona in zonas:
+        poligono = zona.get("poligono") or []
+        if _ponto_em_poligono(lat, lon, poligono):
+            return str(zona.get("nome") or "").strip() or None, float(zona.get("taxa") or 0)
+    return None, None
+
+
+@app.get("/api/admin/logistica/{slug}/zonas")
+def obter_zonas_logistica_admin(
+    slug: str,
+    token_acesso: str = Header(...),
+    db: Session = Depends(get_db),
+):
+    restaurante = garantir_isolamento(slug, token_acesso, db)
+    zonas = _obter_zonas_entrega_restaurante(db, restaurante.restaurante_id)
+    return {"ok": True, "zonas": zonas}
+
+
+@app.post("/api/admin/logistica/{slug}/zonas")
+def salvar_zonas_logistica_admin(
+    slug: str,
+    payload: dict,
+    token_acesso: str = Header(...),
+    db: Session = Depends(get_db),
+):
+    restaurante = garantir_isolamento(slug, token_acesso, db)
+    zonas_raw = payload.get("zonas") if isinstance(payload, dict) else None
+    if not isinstance(zonas_raw, list):
+        raise HTTPException(status_code=400, detail="Payload inválido: envie uma lista em zonas")
+
+    zonas_normalizadas: list[dict] = []
+    for z in zonas_raw:
+        if not isinstance(z, dict):
+            continue
+        nome = str(z.get("nome") or "").strip()[:80]
+        if not nome:
+            continue
+        try:
+            taxa = float(z.get("taxa"))
+        except (TypeError, ValueError):
+            continue
+        poligono = _normalizar_poligono_pontos(z.get("poligono") or z.get("pontos") or [])
+        if len(poligono) < 3:
+            continue
+        zonas_normalizadas.append({
+            "nome": nome,
+            "taxa": round(max(0.0, taxa), 2),
+            "cor": str(z.get("cor") or "#0052cc").strip()[:20],
+            "poligono": poligono,
+        })
+
+    _salvar_zonas_entrega_restaurante(db, restaurante.restaurante_id, zonas_normalizadas)
+    return {"ok": True, "zonas": zonas_normalizadas}
+
+
+@app.get("/api/public/logistica/{slug}/config-mapa")
+def obter_config_mapa_logistica_publico(slug: str, request: Request, db: Session = Depends(get_db)):
+    restaurante = get_restaurante_por_slug(db, slug.strip().lower())
+    if not _plano_permite_logistica_completa(restaurante):
+        raise HTTPException(status_code=403, detail="Mapa logístico completo disponível a partir do plano Standard")
+
+    centro_lat, centro_lon = _resolver_centro_restaurante(restaurante)
+    zonas = _obter_zonas_entrega_restaurante(db, restaurante.restaurante_id)
+
+    return {
+        "ok": True,
+        "slug": restaurante.slug,
+        "api_base": _normalizar_base_url(str(request.base_url)),
+        "map_style": MAXIM_MAP_STYLE_JSON,
+        "rota_cor": "#0052cc",
+        "zonas": zonas,
+        "centro": {"lat": centro_lat, "lon": centro_lon},
+    }
+
+
+@app.post("/api/public/logistica/{slug}/cotar-frete")
+def cotar_frete_logistica_publico(slug: str, payload: dict, db: Session = Depends(get_db)):
+    restaurante = get_restaurante_por_slug(db, slug.strip().lower())
+    if not _plano_permite_logistica_completa(restaurante):
+        raise HTTPException(status_code=403, detail="Frete logístico completo disponível a partir do plano Standard")
+
+    lat_dest, lon_dest = _normalizar_ponto_lat_lon(payload or {}) or (None, None)
+    if lat_dest is None or lon_dest is None:
+        raise HTTPException(status_code=400, detail="Informe latitude e longitude de destino")
+
+    lat_orig, lon_orig = _resolver_centro_restaurante(restaurante)
+    if lat_orig is None or lon_orig is None:
+        raise HTTPException(status_code=400, detail="Restaurante sem coordenadas centrais configuradas")
+
+    dist_m, dur_s, provider = _calcular_distancia_rota_metros(float(lat_orig), float(lon_orig), float(lat_dest), float(lon_dest), db)
+
+    zonas = _obter_zonas_entrega_restaurante(db, restaurante.restaurante_id)
+    zona_nome, taxa_zona = _resolver_taxa_zona(float(lat_dest), float(lon_dest), zonas)
+
+    taxa_base = float(restaurante.delivery_taxa_base or 0)
+    taxa_km = float(restaurante.delivery_taxa_km or 0)
+
+    taxa_distancia = 0.0
+    if dist_m is not None:
+        taxa_distancia = round((dist_m / 1000.0) * taxa_km, 2)
+
+    taxa_final = round(taxa_base + taxa_distancia, 2)
+    if taxa_zona is not None:
+        taxa_final = round(float(taxa_zona), 2)
+
+    return {
+        "ok": True,
+        "slug": restaurante.slug,
+        "provedor_rota": provider,
+        "distancia_metros": dist_m,
+        "duracao_segundos": dur_s,
+        "zona": zona_nome,
+        "taxa_base": taxa_base,
+        "taxa_distancia": taxa_distancia,
+        "taxa_final": taxa_final,
+    }
+
+
+@app.get("/api/public/logistica/geocode-reverso")
+def geocode_reverso_publico(lat: float = Query(...), lon: float = Query(...)):
+    if not _coordenada_valida(lat, lon):
+        raise HTTPException(status_code=400, detail="Coordenadas inválidas")
+    try:
+        url = (
+            "https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1"
+            f"&lat={lat}&lon={lon}&countrycodes=br"
+        )
+        req = urllib_request.Request(url, headers={"User-Agent": "SistemaRestaurante/1.0 (reverse-geocode)"})
+        with urllib_request.urlopen(req, timeout=8) as resp:
+            bruto = resp.read().decode("utf-8")
+        data = json.loads(bruto)
+    except urllib_error.URLError as exc:
+        raise HTTPException(status_code=502, detail=f"Falha no geocode reverso: {exc}")
+    except Exception:
+        raise HTTPException(status_code=502, detail="Falha no geocode reverso")
+
+    endereco = data.get("address") or {}
+    return {
+        "ok": True,
+        "display_name": data.get("display_name") or "",
+        "endereco": {
+            "logradouro": endereco.get("road") or endereco.get("pedestrian") or "",
+            "numero": endereco.get("house_number") or "",
+            "bairro": endereco.get("suburb") or endereco.get("neighbourhood") or "",
+            "cidade": endereco.get("city") or endereco.get("town") or endereco.get("village") or "",
+            "uf": endereco.get("state_code") or "",
+            "cep": endereco.get("postcode") or "",
+            "pais": endereco.get("country") or "Brasil",
+            "latitude": lat,
+            "longitude": lon,
+        },
+    }
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @app.get("/api/public/contato-enterprise")

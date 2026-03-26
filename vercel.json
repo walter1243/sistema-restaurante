@@ -20,9 +20,9 @@
   ],
   "routes": [
     { "src": "/api_config.js", "dest": "/api_config.js" },
-    { "src": "/health", "dest": "https://sistema-restaurante-f87o.onrender.com/health" },
-    { "src": "/openapi.json", "dest": "https://sistema-restaurante-f87o.onrender.com/openapi.json" },
-    { "src": "/api/(.*)", "dest": "https://sistema-restaurante-f87o.onrender.com/api/$1" },
+    { "src": "/health", "dest": "https://sistema-restaurante-api.onrender.com/health" },
+    { "src": "/openapi.json", "dest": "https://sistema-restaurante-api.onrender.com/openapi.json" },
+    { "src": "/api/(.*)", "dest": "https://sistema-restaurante-api.onrender.com/api/$1" },
     { "src": "/admin", "dest": "/admin.html" },
     { "src": "/entregador", "dest": "/entregador.html" },
     { "src": "/super-admin", "dest": "/super_admin.html" },

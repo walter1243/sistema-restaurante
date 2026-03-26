@@ -113,8 +113,8 @@
         body.waiting .bottom-panel {
             display: none;
         }
-        .leaflet-container { background: #dbe7f5; }
-        .leaflet-tile { filter: saturate(1.08) contrast(1.03) brightness(1.02); }
+        .leaflet-container { background: #0b1220; }
+        .leaflet-tile { filter: saturate(1.14) contrast(1.16) brightness(1.04); }
         .map-fallback {
             width: 100%;
             height: 100%;
@@ -677,23 +677,27 @@
             left: 50%;
             transform: translateX(-50%);
             z-index: 1400;
-            display: flex;
-            align-items: center;
+            display: grid;
+            gap: 0.34rem;
+            width: min(520px, calc(100% - 20px));
+            padding: 0.14rem 0;
+        }
+        .map-hud-top {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 0.42rem;
-            max-width: calc(100% - 20px);
-            overflow-x: auto;
-            padding: 0.14rem;
         }
         .map-hud-chip {
             background: rgba(8, 15, 28, 0.88);
             border: 1px solid rgba(96, 165, 250, 0.36);
             color: #dbeafe;
-            border-radius: 999px;
-            padding: 0.32rem 0.58rem;
+            border-radius: 12px;
+            padding: 0.38rem 0.58rem;
             font-size: 0.72rem;
             font-weight: 700;
             white-space: nowrap;
             box-shadow: 0 8px 22px rgba(2, 6, 23, 0.42);
+            text-align: center;
         }
         button.map-hud-chip {
             cursor: pointer;
@@ -704,16 +708,49 @@
             color: #93c5fd;
             margin-right: 0.2rem;
         }
+        .map-hud-pedido {
+            display: none;
+            background: rgba(8, 15, 28, 0.9);
+            border: 1px solid rgba(34, 197, 94, 0.42);
+            border-radius: 12px;
+            padding: 0.42rem 0.56rem;
+            box-shadow: 0 8px 22px rgba(2, 6, 23, 0.42);
+            color: #d1fae5;
+            line-height: 1.28;
+            text-align: left;
+        }
+        .map-hud-pedido.active {
+            display: block;
+        }
+        .map-hud-pedido-title {
+            font-size: 0.76rem;
+            font-weight: 800;
+            color: #bbf7d0;
+            margin-bottom: 0.14rem;
+        }
+        .map-hud-pedido-sub {
+            font-size: 0.72rem;
+            color: #d1e4fb;
+            max-height: 2.6em;
+            overflow: hidden;
+        }
         @media (max-width: 560px) {
             .map-hud {
-                flex-wrap: wrap;
-                justify-content: center;
-                overflow: visible;
+                width: calc(100% - 16px);
+                gap: 0.26rem;
+            }
+            .map-hud-top {
                 gap: 0.3rem;
             }
             .map-hud-chip {
                 font-size: 0.66rem;
-                padding: 0.24rem 0.48rem;
+                padding: 0.28rem 0.44rem;
+            }
+            .map-hud-pedido-title {
+                font-size: 0.72rem;
+            }
+            .map-hud-pedido-sub {
+                font-size: 0.68rem;
             }
         }
         body.waiting .map-hud {
@@ -731,7 +768,7 @@
         .whatsapp-fab {
             position: fixed;
             right: 14px;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 188px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 230px);
             z-index: 1510;
             width: 48px;
             height: 48px;
@@ -831,7 +868,7 @@
         @media (max-width: 560px) {
             .whatsapp-fab {
                 right: 10px;
-                bottom: calc(env(safe-area-inset-bottom, 0px) + 178px);
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 220px);
             }
             .whatsapp-drawer {
                 right: 10px;
@@ -1060,8 +1097,8 @@
             box-shadow: 0 10px 24px rgba(2, 6, 23, 0.35) !important;
         }
         .leaflet-control-zoom a {
-            background: rgba(255, 255, 255, 0.92) !important;
-            color: #0f172a !important;
+            background: rgba(10, 19, 36, 0.92) !important;
+            color: #dbeafe !important;
             border: 0 !important;
             width: 34px !important;
             height: 34px !important;
@@ -1069,7 +1106,7 @@
             font-weight: 800;
         }
         .leaflet-control-zoom a:hover {
-            background: #ffffff !important;
+            background: rgba(15, 27, 49, 0.98) !important;
         }
     </style>
 </head>
@@ -1192,10 +1229,14 @@
 <button id="btn-som-toggle" class="btn-som-fab" title="Som da navegação" onclick="alternarSomNavegacao()"><span id="hud-som">🔊</span></button>
 
 <div class="map-hud" id="map-hud" aria-live="polite">
-    <div class="map-hud-chip"><strong>Base</strong><span id="hud-base">Restaurante → Cliente</span></div>
-    <div class="map-hud-chip"><strong>Dist</strong><span id="hud-distancia">--</span></div>
-    <div class="map-hud-chip"><strong>Tempo</strong><span id="hud-tempo">--</span></div>
-    <div class="map-hud-chip"><strong>Status</strong><span id="hud-modo-camera">Seguindo</span></div>
+    <div class="map-hud-top">
+        <div class="map-hud-chip"><strong>Dist</strong><span id="hud-distancia">--</span></div>
+        <div class="map-hud-chip"><strong>Tempo</strong><span id="hud-tempo">--</span></div>
+    </div>
+    <div class="map-hud-pedido" id="hud-pedido-box">
+        <div class="map-hud-pedido-title" id="hud-pedido-title">Pedido atual</div>
+        <div class="map-hud-pedido-sub" id="hud-pedido-sub">Aguardando corrida...</div>
+    </div>
 </div>
 
 <!-- Wait screen (sem pedido ativo) -->
@@ -1263,7 +1304,7 @@ const params = new URLSearchParams(window.location.search);
 const GPS_ACCURACY_MAX_METROS = 200;
 const DESVIO_RECALCULO_METROS = 70;
 const DISTANCIA_MIN_FINALIZACAO_METROS = 120;
-const ZOOM_NAVEGACAO_FIXO = 18;
+const ZOOM_NAVEGACAO_FIXO = 20;
 const STORAGE_MOTOBOY = 'entregador_painel_sessao';
 const STORAGE_ACTIVE_RESTAURANTE_LINK = 'restaurante_vinculo_ativo';
 const STORAGE_SOM_NAV = 'entregador_som_nav_ativo';
@@ -1622,6 +1663,7 @@ const app = {
     tileLayerAtiva: null,
     rotaCalculoEmAndamento: false,
     rotaAtualizacaoPendente: null,
+    enquadrarRotaNoAceitePendente: false,
 };
 
 if (app.token || app.slug) {
@@ -2456,20 +2498,17 @@ function esconderLoading() {
 }
 
 function atualizarHudRota() {
-    const baseEl = document.getElementById('hud-base');
     const distEl = document.getElementById('hud-distancia');
     const tempoEl = document.getElementById('hud-tempo');
-    const cameraEl = document.getElementById('hud-modo-camera');
+    const pedidoBox = document.getElementById('hud-pedido-box');
+    const pedidoTitleEl = document.getElementById('hud-pedido-title');
+    const pedidoSubEl = document.getElementById('hud-pedido-sub');
 
     // Distância em tempo real: driver→cliente (Haversine) quando GPS ativo
     const driverLat = Array.isArray(app.driverLatLon) ? Number(app.driverLatLon[0]) : NaN;
     const driverLon = Array.isArray(app.driverLatLon) ? Number(app.driverLatLon[1]) : NaN;
     const hasDriver = coordenadaValida(driverLat, driverLon);
     const hasDestino = app.destino && coordenadaValida(Number(app.destino.lat), Number(app.destino.lon));
-
-    if (baseEl) {
-        baseEl.textContent = hasDriver ? 'Você → Cliente' : 'Restaurante → Cliente';
-    }
 
     let distMetros = null;
     let durSegundos = null;
@@ -2491,9 +2530,17 @@ function atualizarHudRota() {
     if (tempoEl) {
         tempoEl.textContent = Number.isFinite(durSegundos) && durSegundos > 0 ? fmtDur(durSegundos) : '--';
     }
-    if (cameraEl) {
-        const pausado = Date.now() < Number(app.pausaCameraAte || 0);
-        cameraEl.textContent = pausado ? 'Manual' : 'Seguindo';
+    const pedidoNum = Number(app.pedidoId || 0);
+    const cliente = String(app.pedidoClienteNome || '').trim();
+    const itensResumo = String(app.pedidoItensResumo || '').trim();
+    const corridaAtiva = ['pronto', 'em_entrega'].includes(String(app.statusPedido || '').toLowerCase()) && pedidoNum > 0;
+
+    if (pedidoBox && pedidoTitleEl && pedidoSubEl) {
+        pedidoBox.classList.toggle('active', corridaAtiva);
+        if (corridaAtiva) {
+            pedidoTitleEl.textContent = `Pedido #${pedidoNum}${cliente ? ` · ${cliente}` : ''}`;
+            pedidoSubEl.textContent = itensResumo || 'Itens do pedido não informados.';
+        }
     }
     atualizarHudSom();
 }
@@ -2512,11 +2559,48 @@ function atualizarHudSom() {
 
 function alternarSomNavegacao() {
     app.somNavegacaoAtivo = !app.somNavegacaoAtivo;
+    if (app.somNavegacaoAtivo) {
+        desbloquearAudioNavegacao();
+    }
     try {
         localStorage.setItem(STORAGE_SOM_NAV, app.somNavegacaoAtivo ? '1' : '0');
     } catch (_) {}
     atualizarHudSom();
     setStatus(app.somNavegacaoAtivo ? 'Som da navegação ativado.' : 'Som da navegação desativado.', 'ok');
+}
+
+function desbloquearAudioNavegacao() {
+    try {
+        if ('speechSynthesis' in window) {
+            const u = new SpeechSynthesisUtterance('');
+            u.volume = 0;
+            window.speechSynthesis.speak(u);
+            window.speechSynthesis.cancel();
+        }
+    } catch (_) {}
+
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+        }
+        setTimeout(() => {
+            try { ctx.close(); } catch (_) {}
+        }, 300);
+    } catch (_) {}
+}
+
+function inicializarVozNavegacao() {
+    if (!('speechSynthesis' in window)) return;
+    const handler = () => {
+        desbloquearAudioNavegacao();
+        window.removeEventListener('touchstart', handler, true);
+        window.removeEventListener('click', handler, true);
+    };
+    window.addEventListener('touchstart', handler, true);
+    window.addEventListener('click', handler, true);
 }
 
 function iniciarAutoRefreshRota() {
@@ -2913,6 +2997,7 @@ async function abrirTelaEntrega() {
     atualizarUrlComPedido(pedidoId);
     app.pausaCameraAte = 0;
     app.seguirEntregador = true;
+    app.enquadrarRotaNoAceitePendente = true;
     app.ultimaCentralizacaoMapa = 0;
     atualizarHudRota();
 
@@ -3578,7 +3663,7 @@ function iniciarMapa() {
     app.mapaDisponivel = true;
     inicializarIconesMapa();
 
-    const layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    const layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 20,
         subdomains: 'abcd',
         detectRetina: true
@@ -4064,15 +4149,29 @@ async function buscarRotaGoogle(latA, lonA, latB, lonB) {
 }
 
 async function buscarRotaOsrm(latA, lonA, latB, lonB) {
-    try {
-        const r = await fetchComAbortTimeout(
-            `https://router.project-osrm.org/route/v1/driving/${lonA},${latA};${lonB},${latB}?overview=full&geometries=geojson&steps=true`,
-            {},
-            8000
-        );
-        const d = await r.json();
-        if (d.code === 'Ok' && d.routes.length > 0) {
+    const bases = [
+        'https://router.project-osrm.org',
+        'https://routing.openstreetmap.de/routed-car',
+    ];
+
+    for (const base of bases) {
+        try {
+            const r = await fetchComAbortTimeout(
+                `${base}/route/v1/driving/${lonA},${latA};${lonB},${latB}?overview=full&geometries=geojson&steps=true`,
+                {},
+                8000
+            );
+            const d = await r.json();
+            if (d.code !== 'Ok' || !Array.isArray(d.routes) || !d.routes.length) {
+                continue;
+            }
+
             const route = d.routes[0] || {};
+            const geo = route.geometry;
+            if (!geo || geo.type !== 'LineString' || !Array.isArray(geo.coordinates) || geo.coordinates.length < 2) {
+                continue;
+            }
+
             const leg = Array.isArray(route?.legs) ? route.legs[0] : null;
             const steps = Array.isArray(leg?.steps) ? leg.steps : [];
             const primeiroPasso = steps.find((s) => {
@@ -4082,14 +4181,16 @@ async function buscarRotaOsrm(latA, lonA, latB, lonB) {
             const tipo = String(primeiroPasso?.maneuver?.type || '').toLowerCase();
             const mod = String(primeiroPasso?.maneuver?.modifier || '').toLowerCase();
             const instrucao = mapearManobraParaPt(`${tipo}_${mod}`, primeiroPasso?.name || '');
+
             return {
-                geojson: route.geometry,
-                dist: route.distance,
-                dur: route.duration,
+                geojson: geo,
+                dist: Number(route.distance || 0),
+                dur: Number(route.duration || 0),
                 instrucao,
             };
-        }
-    } catch (_) {}
+        } catch (_) {}
+    }
+
     return null;
 }
 
@@ -4191,6 +4292,14 @@ function falarInstrucaoNavegacao(instrucao = '') {
         u.lang = 'pt-BR';
         u.rate = 1.0;
         u.pitch = 1.0;
+        const vozes = window.speechSynthesis.getVoices?.() || [];
+        const vozPtBr = vozes.find((v) => /^pt(-|_)?br$/i.test(String(v.lang || '')))
+            || vozes.find((v) => /^pt/i.test(String(v.lang || '')))
+            || null;
+        if (vozPtBr) u.voice = vozPtBr;
+        if (window.speechSynthesis.paused) {
+            try { window.speechSynthesis.resume(); } catch (_) {}
+        }
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
         app.ultimaInstrucaoFalada = texto;
@@ -4365,12 +4474,11 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
             const ida = await buscarRota(from.lat, from.lon, to.lat, to.lon);
             if (rotaSeqLocal !== rotaRequestSeq) return;
 
-            if (camadaRota) {
-                app.mapa.removeLayer(camadaRota);
-                camadaRota = null;
-            }
-
             if (ida) {
+                if (camadaRota) {
+                    app.mapa.removeLayer(camadaRota);
+                    camadaRota = null;
+                }
                 app.ultimaRotaGeojson = ida.geojson || null;
                 camadaRota = L.geoJSON(ida.geojson, { style: { color: '#ef4444', weight: 6, opacity: 0.92 } })
                     .addTo(app.mapa)
@@ -4393,16 +4501,12 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
                     aplicarZoomFixoCorrida(true);
                 }
             } else {
-                app.ultimaRotaGeojson = {
-                    type: 'LineString',
-                    coordinates: [[from.lon, from.lat], [to.lon, to.lat]],
-                };
-                camadaRota = L.polyline(
-                    [[from.lat, from.lon], [to.lat, to.lon]],
-                    { color: '#ef4444', weight: 4, opacity: 0.85, dashArray: '8 6' }
-                ).addTo(app.mapa);
                 if (forceFit || recalculoForcado) {
-                    setStatus('Rota viária indisponível agora. Exibindo linha direta temporária.', 'aviso');
+                    if (camadaRota && app.ultimaRotaGeojson) {
+                        setStatus('Falha momentânea ao atualizar rota. Mantendo última rota viária válida.', 'aviso');
+                    } else {
+                        setStatus('Rota viária indisponível no momento. Verifique conexão/GPS e tente novamente.', 'aviso');
+                    }
                 }
             }
         } else {
@@ -4418,15 +4522,31 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
         }
 
         if (forceFit) {
-            if (Array.isArray(app.driverLatLon) && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]))) {
-                app.mapa.setView(app.driverLatLon, Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
-            } else if (from) {
-                app.mapa.setView([from.lat, from.lon], Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
+            if (app.enquadrarRotaNoAceitePendente && from && to) {
+                app.mapa.fitBounds(
+                    L.latLngBounds([from.lat, from.lon], [to.lat, to.lon]),
+                    { padding: [56, 56], maxZoom: 18 }
+                );
+                app.enquadrarRotaNoAceitePendente = false;
+                setTimeout(() => {
+                    if (!app.mapa) return;
+                    if (Array.isArray(app.driverLatLon) && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]))) {
+                        app.mapa.setView(app.driverLatLon, Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
+                    }
+                    app.ultimaCentralizacaoMapa = Date.now();
+                    aplicarZoomFixoCorrida(false);
+                }, 1100);
             } else {
-                app.mapa.setView([to.lat, to.lon], Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
+                if (Array.isArray(app.driverLatLon) && coordenadaValida(Number(app.driverLatLon[0]), Number(app.driverLatLon[1]))) {
+                    app.mapa.setView(app.driverLatLon, Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
+                } else if (from) {
+                    app.mapa.setView([from.lat, from.lon], Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
+                } else {
+                    app.mapa.setView([to.lat, to.lon], Number(ZOOM_NAVEGACAO_FIXO) || 18, { animate: true });
+                }
+                app.ultimaCentralizacaoMapa = Date.now();
+                aplicarZoomFixoCorrida(false);
             }
-            app.ultimaCentralizacaoMapa = Date.now();
-            aplicarZoomFixoCorrida(false);
         }
     } finally {
         app.rotaCalculoEmAndamento = false;
@@ -5038,6 +5158,10 @@ function fecharModalGPS() {
 async function boot() {
     try {
         inicializarElementosUI();
+        inicializarVozNavegacao();
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = () => {};
+        }
         atualizarHudSom();
         configurarAutocompleteCodigoCadastro();
         atualizarCabecalhoEntregador({
