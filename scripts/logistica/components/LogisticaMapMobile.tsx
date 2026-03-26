@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
-const API_BASE = 'https://sistema-restaurante-api.onrender.com';
+const API_BASE = 'https://sistema-restaurante-f87o.onrender.com';
 
 type Cotacao = {
   distancia_metros?: number;

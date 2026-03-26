@@ -15,7 +15,7 @@ from typing import Any
 
 import requests
 
-API_BASE = "https://sistema-restaurante-api.onrender.com"
+API_BASE = "https://sistema-restaurante-f87o.onrender.com"
 
 
 @dataclass

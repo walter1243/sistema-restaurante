@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-const API_BASE = 'https://sistema-restaurante-api.onrender.com';
+const API_BASE = 'https://sistema-restaurante-f87o.onrender.com';
 
 export default function LogisticaMapWeb({ slug = 'solar', destino }) {
   const [config, setConfig] = useState(null);
