@@ -1353,50 +1353,24 @@
                 <div class="card">
                     <div class="card-title"><i class="fas fa-paper-plane" style="color:#60a5fa;"></i> SMTP (Envio Automático de E-mail)</div>
                     <p class="card-desc">
-                        Configure aqui para que, ao pagamento ser aprovado, o cliente receba automaticamente os links do Admin e do Cardápio no e-mail.
+                        Envio 100% automático: escolha apenas qual e-mail será o remetente e salve. O servidor SMTP é configurado automaticamente.
                     </p>
                     <p style="color:#0f172a;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:0.7rem 0.8rem;font-size:0.82rem;margin-bottom:0.9rem;">
-                        Dica rapida: use o preset do Gmail abaixo. Depois, cole apenas a senha de app do Google e clique em salvar.
-                    </p>
-                    <div class="action-bar" style="justify-content:flex-start;margin-bottom:0.75rem;">
-                        <button class="btn btn-secondary" onclick="aplicarPresetSmtpWalter()"><i class="fas fa-wand-magic-sparkles"></i> Preencher Gmail automaticamente</button>
-                    </div>
-                    <div class="grid-3">
-                        <div class="form-group">
-                            <label class="form-label">SMTP Host</label>
-                            <input class="form-input" id="smtp-host" placeholder="smtp.gmail.com">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Porta</label>
-                            <input class="form-input" id="smtp-port" type="number" value="587" min="1" max="65535">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Usuário</label>
-                            <input class="form-input" id="smtp-user" placeholder="seuemail@gmail.com">
-                        </div>
+                        Se a senha já estiver salva no sistema, deixe em branco que ela será mantida.
                     </div>
                     <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Remetente do sistema</label>
+                            <select class="form-select" id="smtp-from"></select>
+                            <div class="form-hint">Este e-mail enviará as mensagens automáticas para os assinantes.</div>
+                        </div>
                         <div class="form-group">
                             <label class="form-label">Senha/App Password</label>
                             <input class="form-input" id="smtp-pass" type="password" placeholder="Cole somente para atualizar">
                             <div class="form-hint">Se deixar em branco, a senha atual permanece.</div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Remetente (From)</label>
-                            <input class="form-input" id="smtp-from" type="email" placeholder="seuemail@gmail.com">
-                        </div>
                     </div>
-                    <div class="grid-2">
-                        <label class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
-                            <input id="smtp-tls" type="checkbox" checked>
-                            <span class="form-label" style="margin:0;">Usar TLS (recomendado)</span>
-                        </label>
-                        <label class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
-                            <input id="smtp-ssl" type="checkbox">
-                            <span class="form-label" style="margin:0;">Usar SSL</span>
-                        </label>
-                    </div>
-                    <button class="btn btn-primary" onclick="salvarConfigSMTP()"><i class="fas fa-save"></i> Salvar SMTP</button>
+                    <button class="btn btn-primary" onclick="salvarConfigSMTP()"><i class="fas fa-save"></i> Salvar envio automático</button>
                 </div>
 
                 <div class="card">
@@ -1633,6 +1607,9 @@
         let serieConversao30Dias = [];
         let credenciaisSuperAdmin = null;
         let painelInicializado = false;
+        let autenticadoSuperAdmin = false;
+        let restaurantesCache = [];
+        let planosCache = { basic: 97, pro: 197, enterprise: 397 };
 
         const PLANOS_DEFAULT = { basic: 97, pro: 197, enterprise: 397 };
 
@@ -1646,7 +1623,6 @@
             add(window.resolveApiBase ? window.resolveApiBase() : '');
             add(API_URL_ATIVO);
             add(API_URL);
-            add(localStorage.getItem('api_base_url') || '');
             add('https://sistema-restaurante-f87o.onrender.com');
             add(window.location.origin || '');
 
@@ -1658,12 +1634,6 @@
             }
 
             return bases;
-        }
-
-        function credencialSupremaLocalValida(email, senha) {
-            const e = String(email || '').trim().toLowerCase();
-            const s = String(senha || '').trim();
-            return e === 'walterjunnys@gmail.com' && s === 'wj92486656';
         }
 
         async function postSuperAdminComFallback(path, payload) {
@@ -1691,7 +1661,6 @@
                     try { data = await res.json(); } catch (_) {}
 
                     if (res.ok) {
-                        localStorage.setItem('api_base_url', base);
                         API_URL_ATIVO = base;
                         return { res, data, base };
                     }
@@ -1721,7 +1690,7 @@
         }
 
         function getPlanos() {
-            return JSON.parse(localStorage.getItem('sa_planos') || JSON.stringify(PLANOS_DEFAULT));
+            return { ...planosCache };
         }
 
         function inferirPlanoPorValor(valorMensalidade) {
@@ -1764,17 +1733,17 @@
                 const listaNormalizada = Array.isArray(listaApi) ? listaApi.map(normalizarRestauranteApi) : [];
                 salvarRestaurantes(listaNormalizada);
             } catch (erro) {
-                toast('Sem conexão com API. Exibindo dados locais.', 'aviso');
+                restaurantesCache = [];
+                toast('Sem conexão com API. Exibindo lista vazia até reconectar.', 'aviso');
             }
         }
 
         function getRestaurantes() {
-            const lista = JSON.parse(localStorage.getItem('sa_restaurantes') || '[]');
-            return removerClientesFake(lista);
+            return removerClientesFake(restaurantesCache);
         }
 
         function salvarRestaurantes(lista) {
-            localStorage.setItem('sa_restaurantes', JSON.stringify(removerClientesFake(lista)));
+            restaurantesCache = removerClientesFake(Array.isArray(lista) ? lista : []);
         }
 
         function removerClientesFake(lista) {
@@ -2032,6 +2001,26 @@
                     cor: 'var(--warning)',
                     titulo: 'Sem diagnóstico SMTP agora',
                     detalhe: 'Não foi possível validar envio de e-mail neste momento.'
+                });
+            }
+
+            try {
+                const { data: envData } = await getSuperAdminComFallback('/api/debug/env');
+                const dbBackend = String(envData?.db_backend || '').toLowerCase();
+                if (dbBackend && dbBackend !== 'postgres') {
+                    alertas.push({
+                        icone: 'fa-database',
+                        cor: 'var(--danger)',
+                        titulo: 'Banco de dados não está no PostgreSQL',
+                        detalhe: `Conexão atual: ${dbBackend}. Ajuste DATABASE_URL no ambiente de produção.`
+                    });
+                }
+            } catch (_) {
+                alertas.push({
+                    icone: 'fa-database',
+                    cor: 'var(--warning)',
+                    titulo: 'Sem verificação de banco agora',
+                    detalhe: 'Não foi possível validar o backend do banco neste momento.'
                 });
             }
 
@@ -2590,8 +2579,8 @@
                     .slice(0, 2)
                     .toUpperCase();
 
-                localStorage.setItem('sa_nome', credenciaisSuperAdmin.nome_exibicao || 'Super Admin');
                 if (senha) document.getElementById('sa-senha').value = '';
+                popularEmailsRemetente();
                 toast('Credenciais do Super Admin salvas no sistema.');
                 renderAlertasOperacionais(getRestaurantes());
             } catch (err) {
@@ -2610,8 +2599,11 @@
                 const { data } = await postSuperAdminComFallback('/api/super-admin/planos', payload);
 
                 const planos = data.planos || payload;
-                localStorage.setItem('sa_planos', JSON.stringify(planos));
-                localStorage.setItem('sa_planos_updated_at', String(Date.now()));
+                planosCache = {
+                    basic: Number(planos.basic || payload.basic || PLANOS_DEFAULT.basic),
+                    pro: Number(planos.pro || payload.pro || PLANOS_DEFAULT.pro),
+                    enterprise: Number(planos.enterprise || payload.enterprise || PLANOS_DEFAULT.enterprise),
+                };
                 document.getElementById('plano-basic').value = Number(planos.basic || payload.basic);
                 document.getElementById('plano-pro').value = Number(planos.pro || payload.pro);
                 document.getElementById('plano-enterprise').value = Number(planos.enterprise || payload.enterprise);
@@ -2685,57 +2677,75 @@
             }
         }
 
+        function inferirSmtpAutomatico(emailRemetente) {
+            const email = String(emailRemetente || '').trim().toLowerCase();
+            const dominio = email.includes('@') ? email.split('@')[1] : '';
+            if (!dominio) {
+                return { host: 'smtp.gmail.com', port: 587, tls: true, ssl: false };
+            }
+            if (dominio.includes('gmail.com') || dominio.includes('googlemail.com')) {
+                return { host: 'smtp.gmail.com', port: 587, tls: true, ssl: false };
+            }
+            if (dominio.includes('outlook.com') || dominio.includes('hotmail.com') || dominio.includes('live.com')) {
+                return { host: 'smtp-mail.outlook.com', port: 587, tls: true, ssl: false };
+            }
+            if (dominio.includes('yahoo.com')) {
+                return { host: 'smtp.mail.yahoo.com', port: 587, tls: true, ssl: false };
+            }
+            return { host: `smtp.${dominio}`, port: 587, tls: true, ssl: false };
+        }
+
+        function popularEmailsRemetente(emailSelecionado = '') {
+            const select = document.getElementById('smtp-from');
+            if (!select) return;
+
+            const emails = new Set();
+            const add = (valor) => {
+                const email = String(valor || '').trim().toLowerCase();
+                if (email) emails.add(email);
+            };
+
+            add(credenciaisSuperAdmin?.email_login || '');
+            getRestaurantes().forEach((r) => add(r?.email));
+            add(emailSelecionado);
+
+            const lista = Array.from(emails).sort();
+            if (!lista.length) lista.push('walterjunnys@gmail.com');
+
+            select.innerHTML = lista.map((email) => `<option value="${email}">${email}</option>`).join('');
+            select.value = String(emailSelecionado || credenciaisSuperAdmin?.email_login || lista[0] || '').toLowerCase();
+        }
+
         async function carregarConfigSMTP() {
             try {
                 const { data } = await getSuperAdminComFallback('/api/super-admin/config-smtp');
-                document.getElementById('smtp-host').value = data.host || 'smtp.gmail.com';
-                document.getElementById('smtp-port').value = Number(data.port || 587);
-                document.getElementById('smtp-user').value = data.user || 'walterjunnys@gmail.com';
-                document.getElementById('smtp-from').value = data.from || 'walterjunnys@gmail.com';
-                document.getElementById('smtp-tls').checked = !!data.tls;
-                document.getElementById('smtp-ssl').checked = !!data.ssl;
+                popularEmailsRemetente((data.from || data.user || credenciaisSuperAdmin?.email_login || '').toLowerCase());
                 const passEl = document.getElementById('smtp-pass');
                 if (passEl) passEl.placeholder = data.password_configured ? 'Senha já configurada (preencha para trocar)' : 'Cole a senha/app password';
             } catch (_) {}
         }
 
-        function aplicarPresetSmtpWalter() {
-            document.getElementById('smtp-host').value = 'smtp.gmail.com';
-            document.getElementById('smtp-port').value = 587;
-            document.getElementById('smtp-user').value = 'walterjunnys@gmail.com';
-            document.getElementById('smtp-from').value = 'walterjunnys@gmail.com';
-            document.getElementById('smtp-tls').checked = true;
-            document.getElementById('smtp-ssl').checked = false;
-            const passEl = document.getElementById('smtp-pass');
-            if (passEl && !passEl.value) {
-                passEl.focus();
-            }
-            toast('Campos SMTP preenchidos. Agora cole a senha de app do Gmail e salve.');
-        }
-
         async function salvarConfigSMTP() {
-            const payload = {
-                host: (document.getElementById('smtp-host').value || '').trim(),
-                port: Number(document.getElementById('smtp-port').value || 587),
-                user: (document.getElementById('smtp-user').value || '').trim(),
-                password: (document.getElementById('smtp-pass').value || '').trim(),
-                from_email: (document.getElementById('smtp-from').value || '').trim(),
-                tls: !!document.getElementById('smtp-tls').checked,
-                ssl: !!document.getElementById('smtp-ssl').checked,
-            };
-
-            if (!payload.from_email) {
-                payload.from_email = payload.user || (credenciaisSuperAdmin?.email_login || 'walterjunnys@gmail.com');
-            }
-
-            if (!payload.host) {
-                toast('Preencha SMTP Host.', 'erro');
+            const remetente = (document.getElementById('smtp-from').value || '').trim().toLowerCase();
+            if (!remetente) {
+                toast('Selecione o e-mail remetente.', 'erro');
                 return;
             }
 
+            const cfg = inferirSmtpAutomatico(remetente);
+            const payload = {
+                host: cfg.host,
+                port: Number(cfg.port || 587),
+                user: remetente,
+                password: (document.getElementById('smtp-pass').value || '').trim(),
+                from_email: remetente,
+                tls: !!cfg.tls,
+                ssl: !!cfg.ssl,
+            };
+
             try {
                 await postSuperAdminComFallback('/api/super-admin/config-smtp', payload);
-                toast('SMTP salvo com sucesso! O envio automático de e-mail já está ativo.');
+                toast('Envio automático salvo com sucesso.');
                 document.getElementById('smtp-pass').value = '';
                 await carregarConfigSMTP();
                 await carregarDiagnosticoEmail();
@@ -2753,7 +2763,7 @@
                 if (data.smtp_configurado) {
                     box.innerHTML = `<span style="color:#22c55e;"><i class="fas fa-check-circle"></i> SMTP configurado</span> • ${data.host}:${data.porta} • From: <strong>${data.from || '-'}</strong>`;
                 } else {
-                    box.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> SMTP não configurado</span> — configure SMTP_HOST, SMTP_USER, SMTP_PASS e SMTP_FROM no deploy.';
+                    box.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-times-circle"></i> SMTP não configurado</span> — selecione o remetente e salve o envio automático.';
                 }
             } catch (_) {}
         }
@@ -2789,7 +2799,7 @@
                 };
             } catch (_) {
                 credenciaisSuperAdmin = {
-                    nome_exibicao: localStorage.getItem('sa_nome') || 'Super Admin',
+                    nome_exibicao: 'Super Admin',
                     email_login: 'walterjunnys@gmail.com',
                 };
             }
@@ -2809,6 +2819,7 @@
 
             const loginInput = document.getElementById('login-super-admin-email');
             if (loginInput) loginInput.value = email;
+            popularEmailsRemetente(email);
         }
 
         async function autenticarSuperAdmin() {
@@ -2829,27 +2840,13 @@
                     nome_exibicao: data.nome_exibicao || credenciaisSuperAdmin?.nome_exibicao || 'Super Admin',
                     email_login: data.email_login || email,
                 };
-                sessionStorage.setItem('sa_auth_ok', '1');
+                autenticadoSuperAdmin = true;
                 document.getElementById('modal-login-super-admin').classList.remove('active');
                 if (statusEl) statusEl.innerHTML = '';
                 document.getElementById('header-user-name').textContent = credenciaisSuperAdmin.nome_exibicao;
                 await inicializarPainelDepoisLogin();
                 return true;
             } catch (err) {
-                if (credencialSupremaLocalValida(email, senha)) {
-                    credenciaisSuperAdmin = {
-                        nome_exibicao: credenciaisSuperAdmin?.nome_exibicao || 'Super Admin',
-                        email_login: email,
-                    };
-                    sessionStorage.setItem('sa_auth_ok', '1');
-                    document.getElementById('modal-login-super-admin').classList.remove('active');
-                    if (statusEl) {
-                        statusEl.innerHTML = '<span style="color:var(--warning);"><i class="fas fa-circle-exclamation"></i> Login local liberado. API de autenticação indisponível no momento.</span>';
-                    }
-                    await inicializarPainelDepoisLogin();
-                    return true;
-                }
-
                 if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-circle-xmark"></i> ${err.message || 'Credencial inválida.'}</span>`;
                 return false;
             }
@@ -2859,7 +2856,7 @@
             const modal = document.getElementById('modal-login-super-admin');
             if (!modal) return true;
 
-            if (sessionStorage.getItem('sa_auth_ok') === '1') {
+            if (autenticadoSuperAdmin) {
                 modal.classList.remove('active');
                 return true;
             }
@@ -2883,7 +2880,11 @@
                 const { data: dataPlanos } = await getSuperAdminComFallback('/api/super-admin/planos');
                 const mapa = dataPlanos.planos || {};
                 if (mapa.basic && mapa.pro && mapa.enterprise) {
-                    localStorage.setItem('sa_planos', JSON.stringify(mapa));
+                    planosCache = {
+                        basic: Number(mapa.basic),
+                        pro: Number(mapa.pro),
+                        enterprise: Number(mapa.enterprise),
+                    };
                 }
             } catch (_) {}
 
@@ -2902,7 +2903,7 @@
 
         function logout() {
             if (confirm('Sair do Super Admin?')) {
-                sessionStorage.removeItem('sa_auth_ok');
+                autenticadoSuperAdmin = false;
                 window.location.href = 'index.html';
             }
         }
