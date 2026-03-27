@@ -31,6 +31,8 @@
     { "source": "/", "has": [{ "type": "host", "value": "foodos.com.br" }], "destination": "/site_vendas.html" },
     { "source": "/", "has": [{ "type": "host", "value": "www.foodos.com.br" }], "destination": "/site_vendas.html" },
 
+    { "source": "/", "destination": "/site_vendas.html" },
+
     { "source": "/p/:slug", "destination": "/index.html?slug=:slug&mesa=1" },
     { "source": "/admin/:slug", "destination": "/admin.html?slug=:slug" },
     { "source": "/admin", "destination": "/admin.html" },
