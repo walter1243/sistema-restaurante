@@ -22,9 +22,19 @@
     { "source": "/api/:path*", "destination": "https://sistema-restaurante-f87o.onrender.com/api/:path*" },
     
     {
-      "source": "/",
+      "source": "/:path*",
       "has": [{ "type": "host", "value": "admin.foodos.com.br" }],
       "destination": "/super_admin.html"
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "entregador.foodos.com.br" }],
+      "destination": "/entregador.html"
+    },
+    {
+      "source": "/:slug",
+      "has": [{ "type": "host", "value": "app.foodos.com.br" }],
+      "destination": "/index.html?slug=:slug&mesa=1"
     },
     {
       "source": "/",
@@ -32,23 +42,17 @@
       "destination": "/admin.html"
     },
     {
-      "source": "/",
-      "has": [{ "type": "host", "value": "entregador.foodos.com.br" }],
-      "destination": "/entregador.html"
-    },
-    {
-      "source": "/",
+      "source": "/:path*",
       "has": [{ "type": "host", "value": "foodos.com.br" }],
       "destination": "/site_vendas.html"
     },
     {
-      "source": "/",
+      "source": "/:path*",
       "has": [{ "type": "host", "value": "www.foodos.com.br" }],
       "destination": "/site_vendas.html"
     },
     
     { "source": "/p/:slug", "destination": "/index.html?slug=:slug&mesa=1" },
-    { "source": "/admin/:slug", "destination": "/admin.html?slug=:slug" },
-    { "source": "/:slug", "destination": "/index.html?slug=:slug&mesa=1" }
+    { "source": "/admin/:slug", "destination": "/admin.html?slug=:slug" }
   ]
 }
