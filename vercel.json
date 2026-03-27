@@ -42,14 +42,14 @@
       "destination": "/site_vendas.html"
     },
     {
-      "source": "/:slug",
-      "has": [{ "type": "host", "value": "app.foodos.com.br" }],
-      "destination": "/index.html?slug=:slug&mesa=1"
-    },
-    {
       "source": "/",
       "has": [{ "type": "host", "value": "app.foodos.com.br" }],
       "destination": "/admin.html"
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "app.foodos.com.br" }],
+      "destination": "/index.html"
     },
     
     { "source": "/p/:slug", "destination": "/index.html?slug=:slug&mesa=1" },
