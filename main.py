@@ -2101,19 +2101,20 @@ def montar_admin_login_url(
     email_admin: str | None = None,
     slug: str | None = None,
 ) -> str | None:
-    base = _normalizar_base_url(base_url)
+    base = _normalizar_base_url(os.getenv("APP_PUBLIC_URL") or "https://app.foodos.com.br") or _normalizar_base_url(base_url)
     if not base:
         return None
 
     query_parts: list[str] = []
+    slug_normalizado = (slug or "").strip().lower()
+    if slug_normalizado:
+        query_parts.append(f"slug={quote(slug_normalizado)}")
+
     email = (email_admin or "").strip().lower()
     if email:
         query_parts.append(f"email={quote(email)}")
 
-    slug_normalizado = (slug or "").strip().lower()
-    destino = f"{base}/admin"
-    if slug_normalizado:
-        destino = f"{destino}/{quote(slug_normalizado)}"
+    destino = base
 
     if query_parts:
         return f"{destino}?{'&'.join(query_parts)}"
@@ -2121,15 +2122,15 @@ def montar_admin_login_url(
 
 
 def montar_cardapio_publico_url(base_url: str | None, slug: str | None) -> str | None:
-    base = _normalizar_base_url(base_url)
+    base = _normalizar_base_url(os.getenv("APP_PUBLIC_URL") or "https://app.foodos.com.br") or _normalizar_base_url(base_url)
     slug_normalizado = (slug or "").strip().lower()
     if not base or not slug_normalizado:
         return None
-    return f"{base}/p/{quote(slug_normalizado)}"
+    return f"{base}/{quote(slug_normalizado)}"
 
 
 def montar_entregador_hub_url(base_url: str | None, slug: str | None, token: str | None = None) -> str | None:
-    base = _normalizar_base_url(base_url)
+    base = _normalizar_base_url(os.getenv("DELIVERY_PUBLIC_URL") or "https://entregador.foodos.com.br") or _normalizar_base_url(base_url)
     slug_normalizado = (slug or "").strip().lower()
     if not base or not slug_normalizado:
         return None
