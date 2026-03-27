@@ -1,4 +1,59 @@
 ﻿{
-  "cleanUrls": true,
-  "trailingSlash": false
+  "version": 2,
+  "builds": [
+    {
+      "src": "**.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "**.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "**.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "**.webmanifest",
+      "use": "@vercel/static"
+    }
+  ],
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://sistema-restaurante-f87o.onrender.com/api/:path*" },
+
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "admin.foodos.com.br" }],
+      "destination": "/super_admin.html"
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "entregador.foodos.com.br" }],
+      "destination": "/entregador.html"
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "foodos.com.br" }],
+      "destination": "/site_vendas.html"
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.foodos.com.br" }],
+      "destination": "/site_vendas.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "app.foodos.com.br" }],
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/:slug",
+      "has": [{ "type": "host", "value": "app.foodos.com.br" }],
+      "destination": "/cardapio.html?slug=:slug&mesa=1"
+    },
+
+    { "source": "/p/:slug", "destination": "/cardapio.html?slug=:slug&mesa=1" },
+    { "source": "/admin/:slug", "destination": "/admin.html?slug=:slug" },
+    { "source": "/admin", "destination": "/admin.html" }
+  ]
 }
