@@ -1,51 +1,39 @@
 ﻿{
   "version": 2,
-  "builds": [
+  "redirects": [
     {
-      "src": "**.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "**.js",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "**.css",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "**.webmanifest",
-      "use": "@vercel/static"
-    }
-  ],
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "https://sistema-restaurante-f87o.onrender.com/api/:path*" },
-
-    {
-      "source": "/:path*",
+      "source": "/",
       "has": [{ "type": "host", "value": "admin.foodos.com.br" }],
-      "destination": "/super_admin.html"
+      "destination": "/super_admin.html",
+      "permanent": false
     },
     {
-      "source": "/:path*",
+      "source": "/",
       "has": [{ "type": "host", "value": "entregador.foodos.com.br" }],
-      "destination": "/entregador.html"
+      "destination": "/entregador.html",
+      "permanent": false
     },
     {
-      "source": "/:path*",
+      "source": "/",
       "has": [{ "type": "host", "value": "foodos.com.br" }],
-      "destination": "/site_vendas.html"
+      "destination": "/site_vendas.html",
+      "permanent": false
     },
     {
-      "source": "/:path*",
+      "source": "/",
       "has": [{ "type": "host", "value": "www.foodos.com.br" }],
-      "destination": "/site_vendas.html"
+      "destination": "/site_vendas.html",
+      "permanent": false
     },
     {
       "source": "/",
       "has": [{ "type": "host", "value": "app.foodos.com.br" }],
-      "destination": "/admin.html"
-    },
+      "destination": "/admin.html",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://sistema-restaurante-f87o.onrender.com/api/:path*" },
     {
       "source": "/:slug",
       "has": [{ "type": "host", "value": "app.foodos.com.br" }],
