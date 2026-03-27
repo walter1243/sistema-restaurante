@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -577,7 +577,7 @@
                     localStorage.setItem(STORAGE_ACTIVE_RESTAURANTE_LINK, JSON.stringify({
                         ...(vinculoLocal || {}),
                         slug,
-                        cardapio_url: `${origem}/index.html?slug=${encodeURIComponent(slug)}&mesa=1`,
+                        cardapio_url: `${origem}/cardapio.html?slug=${encodeURIComponent(slug)}&mesa=1`,
                         admin_url: `${origem}/admin.html?slug=${encodeURIComponent(slug)}`,
                         atualizado_em: Date.now()
                     }));
@@ -1049,7 +1049,7 @@
                     localStorage.setItem(STORAGE_ACTIVE_RESTAURANTE_LINK, JSON.stringify({
                         ...(vinculoRestauranteAtivo || {}),
                         slug: app.slug,
-                        cardapio_url: `${window.location.origin}/index.html?slug=${encodeURIComponent(app.slug)}&mesa=${encodeURIComponent(app.mesa || '1')}`,
+                        cardapio_url: `${window.location.origin}/cardapio.html?slug=${encodeURIComponent(app.slug)}&mesa=${encodeURIComponent(app.mesa || '1')}`,
                         atualizado_em: Date.now()
                     }));
                     if ((!data.categorias || data.categorias.length === 0) && configLocal.categorias) {

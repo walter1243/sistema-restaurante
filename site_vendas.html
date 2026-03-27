@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -2294,7 +2294,7 @@
             const inputSlug = document.getElementById('f-slug');
             const inputPreview = document.getElementById('f-slug-preview');
             if (inputSlug) inputSlug.value = slug;
-            if (inputPreview) inputPreview.value = `${window.location.origin}/index.html?slug=${slug}`;
+            if (inputPreview) inputPreview.value = `${window.location.origin}/cardapio.html?slug=${slug}`;
         }
 
         async function enviarCadastro(event) {
@@ -2367,7 +2367,7 @@
                 const origem = window.location.origin;
                 const payload = {
                     slug,
-                    cardapio_url: dados.cardapio_url || `${origem}/index.html?slug=${encodeURIComponent(slug)}&mesa=1`,
+                    cardapio_url: dados.cardapio_url || `${origem}/cardapio.html?slug=${encodeURIComponent(slug)}&mesa=1`,
                     admin_url: dados.admin_url || `${origem}/admin.html?slug=${encodeURIComponent(slug)}`,
                     atualizado_em: Date.now()
                 };

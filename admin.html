@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -1704,7 +1704,7 @@
                 email_admin: String(contexto.email_admin || '').trim().toLowerCase(),
                 token: String(contexto.token || '').trim(),
                 api_base_url: String(API_URL || '').trim(),
-                cardapio_url: `${base}/index.html?slug=${encodeURIComponent(slug)}&mesa=1`,
+                cardapio_url: `${base}/cardapio.html?slug=${encodeURIComponent(slug)}&mesa=1`,
                 delivery_url: `${base}/entregador.html?slug=${encodeURIComponent(slug)}`,
                 atualizado_em: Date.now()
             };
@@ -1741,7 +1741,7 @@
                 email_admin: String(contexto.email_admin || atual.email_admin || '').trim().toLowerCase(),
                 token: String(contexto.token || atual.token || '').trim(),
                 api_base_url: apiNormalizada || String(atual.api_base_url || '').trim(),
-                cardapio_url: atual.cardapio_url || `${base}/index.html?slug=${encodeURIComponent(slug)}&mesa=1`,
+                cardapio_url: atual.cardapio_url || `${base}/cardapio.html?slug=${encodeURIComponent(slug)}&mesa=1`,
                 delivery_url: url.toString(),
                 delivery_token_ultimo: token || String(atual.delivery_token_ultimo || '').trim(),
                 delivery_pedido_ultimo: pedidoId ? Number(pedidoId) : Number(atual.delivery_pedido_ultimo || 0) || null,
@@ -1766,7 +1766,7 @@
                 slug,
                 email_admin: email || atual.email_admin || '',
                 api_base_url: String(API_URL || atual.api_base_url || '').trim(),
-                cardapio_url: `${window.location.origin}/index.html?slug=${encodeURIComponent(slug)}&mesa=1`,
+                cardapio_url: `${window.location.origin}/cardapio.html?slug=${encodeURIComponent(slug)}&mesa=1`,
                 delivery_url: `${window.location.origin}/entregador.html?slug=${encodeURIComponent(slug)}`,
                 atualizado_em: Date.now()
             }));
@@ -2310,15 +2310,15 @@
         }
 
         function obterLinkCardapioPublico() {
-            return `${obterOrigemBase()}/index.html?slug=${encodeURIComponent(contexto.slug)}&mesa=1`;
+            return `${obterOrigemBase()}/cardapio.html?slug=${encodeURIComponent(contexto.slug)}&mesa=1`;
         }
 
         function obterLinkCardapioPreview() {
-            return `${obterOrigemBase()}/index.html?slug=${encodeURIComponent(contexto.slug)}&mesa=1&preview=1&t=${Date.now()}`;
+            return `${obterOrigemBase()}/cardapio.html?slug=${encodeURIComponent(contexto.slug)}&mesa=1&preview=1&t=${Date.now()}`;
         }
 
         function obterLinkCardapioPorMesa(mesa = 1) {
-            return `${obterOrigemBase()}/index.html?slug=${encodeURIComponent(contexto.slug)}&mesa=${encodeURIComponent(mesa)}`;
+            return `${obterOrigemBase()}/cardapio.html?slug=${encodeURIComponent(contexto.slug)}&mesa=${encodeURIComponent(mesa)}`;
         }
 
         function renderizarSeletorMesaPublica() {

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -2703,7 +2703,7 @@
         function abrirCardapioRestaurante(i) {
             const r = getRestaurantes()[i];
             if (!r) return;
-            const url = r.cardapio_url || `${window.location.origin}/index.html?slug=${encodeURIComponent(r.slug)}`;
+            const url = r.cardapio_url || `${window.location.origin}/cardapio.html?slug=${encodeURIComponent(r.slug)}`;
             window.open(url, '_blank');
         }
 
@@ -3375,7 +3375,7 @@
         function logout() {
             if (confirm('Sair do Super Admin?')) {
                 autenticadoSuperAdmin = false;
-                window.location.href = 'index.html';
+                window.location.href = 'cardapio.html';
             }
         }
 

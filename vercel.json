@@ -1,4 +1,4 @@
-{
+﻿{
   "version": 2,
   "builds": [
     {
@@ -49,10 +49,10 @@
     {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "app.foodos.com.br" }],
-      "destination": "/index.html"
+      "destination": "/cardapio.html"
     },
     
-    { "source": "/p/:slug", "destination": "/index.html?slug=:slug&mesa=1" },
+    { "source": "/p/:slug", "destination": "/cardapio.html?slug=:slug&mesa=1" },
     { "source": "/admin/:slug", "destination": "/admin.html?slug=:slug" },
     { "source": "/admin", "destination": "/admin.html" }
   ]

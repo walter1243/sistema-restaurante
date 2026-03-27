@@ -1,4 +1,4 @@
-// CONTEXTO
+﻿// CONTEXTO
         const queryParams = new URLSearchParams(window.location.search);
         const slugAtual = queryParams.get('slug') || 'demo';
         const tokenUrl = queryParams.get('token') || '';
@@ -290,15 +290,15 @@
         }
 
         function obterLinkCardapioPublico() {
-            return `${obterOrigemBase()}/index.html?slug=${encodeURIComponent(contexto.slug)}&mesa=1`;
+            return `${obterOrigemBase()}/cardapio.html?slug=${encodeURIComponent(contexto.slug)}&mesa=1`;
         }
 
         function obterLinkCardapioPreview() {
-            return `${obterOrigemBase()}/index.html?slug=${encodeURIComponent(contexto.slug)}&mesa=1&preview=1&t=${Date.now()}`;
+            return `${obterOrigemBase()}/cardapio.html?slug=${encodeURIComponent(contexto.slug)}&mesa=1&preview=1&t=${Date.now()}`;
         }
 
         function obterLinkCardapioPorMesa(mesa = 1) {
-            return `${obterOrigemBase()}/index.html?slug=${encodeURIComponent(contexto.slug)}&mesa=${encodeURIComponent(mesa)}`;
+            return `${obterOrigemBase()}/cardapio.html?slug=${encodeURIComponent(contexto.slug)}&mesa=${encodeURIComponent(mesa)}`;
         }
 
         function renderizarSeletorMesaPublica() {
