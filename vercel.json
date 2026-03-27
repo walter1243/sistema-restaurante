@@ -53,6 +53,7 @@
     },
     
     { "source": "/p/:slug", "destination": "/index.html?slug=:slug&mesa=1" },
-    { "source": "/admin/:slug", "destination": "/admin.html?slug=:slug" }
+    { "source": "/admin/:slug", "destination": "/admin.html?slug=:slug" },
+    { "source": "/admin", "destination": "/admin.html" }
   ]
 }
