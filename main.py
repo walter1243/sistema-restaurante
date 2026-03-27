@@ -110,8 +110,8 @@ def obter_origens_cors() -> list[str]:
         return [origem.strip().rstrip("/") for origem in bruto.split(",") if origem.strip()]
 
     return [
-        "https://sistema-restaurante-sigma.vercel.app",
-        "https://sistema-restaurante.vercel.app",
+        "https://foodos.com.br",
+        "https://www.foodos.com.br",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
@@ -120,7 +120,7 @@ def obter_origens_cors() -> list[str]:
 
 
 CORS_ALLOWED_ORIGINS = obter_origens_cors()
-CORS_ALLOWED_ORIGIN_REGEX = os.getenv("CORS_ALLOWED_ORIGIN_REGEX") or r"https://.*\.vercel\.app$"
+CORS_ALLOWED_ORIGIN_REGEX = os.getenv("CORS_ALLOWED_ORIGIN_REGEX") or r"https://(.*\.vercel\.app|([a-z0-9-]+\.)?foodos\.com\.br)$"
 DEFAULT_PUSH_VAPID_PUBLIC_KEY = "BKsSyK2PVl66Xpo3e02aZi8MEnzaBJEqhqa8O9fdJLIAzDELTlm5CN2UpxvwAFtCsU5dqH_W3gZc8IXiIy-gY9I"
 DEFAULT_PUSH_VAPID_PRIVATE_KEY = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgD0DmaOHZ54MbZCLjSUi4ARfykKYDWahFHJaFyswCImmhRANCAASrEsitj1Zeul6aN3tNmmYvDBJ82gSRKoamvDvX3SSyAMwxC05ZuQjdlKcb8ABbQrFOXah_1t4GXPCF4iMvoGPS"
 PUSH_VAPID_PUBLIC_KEY = os.getenv("PUSH_VAPID_PUBLIC_KEY", DEFAULT_PUSH_VAPID_PUBLIC_KEY).strip()

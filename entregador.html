@@ -1385,7 +1385,7 @@ function obterBasesApiEntregador() {
     const resolved = window.resolveApiBase ? window.resolveApiBase() : window.location.origin;
     const salvoApiBase = localStorage.getItem('api_base_url') || '';
     const vinculoApi = String(vinculoAtivo.api_base_url || '').trim();
-    const origemVercel = 'https://sistema-restaurante-sigma.vercel.app';
+    const origemVercel = 'https://foodos.com.br';
     const host = window.location.hostname || '127.0.0.1';
     const ambienteLocal = host === 'localhost' || host === '127.0.0.1';
 
