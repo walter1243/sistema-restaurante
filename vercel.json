@@ -1,23 +1,5 @@
 ﻿{
   "version": 2,
-  "builds": [
-    {
-      "src": "**.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "**.js",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "**.css",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "**.webmanifest",
-      "use": "@vercel/static"
-    }
-  ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://sistema-restaurante-f87o.onrender.com/api/:path*" },
     
