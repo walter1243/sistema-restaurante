@@ -19,26 +19,36 @@
     }
   ],
   "rewrites": [
-    { "source": "/api_config.js", "destination": "/api_config.js" },
-    { "source": "/health", "destination": "https://sistema-restaurante-f87o.onrender.com/health" },
-    { "source": "/openapi.json", "destination": "https://sistema-restaurante-f87o.onrender.com/openapi.json" },
     { "source": "/api/:path*", "destination": "https://sistema-restaurante-f87o.onrender.com/api/:path*" },
-
-    { "source": "/(.*)", "has": [{ "type": "host", "value": "admin.foodos.com.br" }], "destination": "/super_admin.html" },
-    { "source": "/:slug", "has": [{ "type": "host", "value": "app.foodos.com.br" }], "destination": "/index.html?slug=:slug&mesa=1" },
-    { "source": "/", "has": [{ "type": "host", "value": "app.foodos.com.br" }], "destination": "/admin.html" },
-    { "source": "/(.*)", "has": [{ "type": "host", "value": "entregador.foodos.com.br" }], "destination": "/entregador.html" },
-    { "source": "/(.*)", "has": [{ "type": "host", "value": "foodos.com.br" }], "destination": "/site_vendas.html" },
-    { "source": "/(.*)", "has": [{ "type": "host", "value": "www.foodos.com.br" }], "destination": "/site_vendas.html" },
-
-    { "source": "/", "destination": "/site_vendas.html" },
-
+    
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "admin.foodos.com.br" }],
+      "destination": "/super_admin.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "app.foodos.com.br" }],
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "entregador.foodos.com.br" }],
+      "destination": "/entregador.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "foodos.com.br" }],
+      "destination": "/site_vendas.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "www.foodos.com.br" }],
+      "destination": "/site_vendas.html"
+    },
+    
     { "source": "/p/:slug", "destination": "/index.html?slug=:slug&mesa=1" },
     { "source": "/admin/:slug", "destination": "/admin.html?slug=:slug" },
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/entregador", "destination": "/entregador.html" },
-    { "source": "/super-admin", "destination": "/super_admin.html" },
-    { "source": "/site-vendas", "destination": "/site_vendas.html" },
-    { "source": "/rastreio-entrega", "destination": "/rastreio_entrega.html" }
+    { "source": "/:slug", "destination": "/index.html?slug=:slug&mesa=1" }
   ]
 }
