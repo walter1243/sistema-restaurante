@@ -88,7 +88,17 @@ def normalizar_database_url(url: str) -> str:
 DATABASE_URL = normalizar_database_url(DATABASE_URL)
 
 RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip()
-RESEND_FROM_EMAIL = (os.getenv("RESEND_FROM_EMAIL") or "FoodOS <onboarding@resend.dev>").strip()
+def _sanitizar_from_email(valor: str) -> str:
+    """Corrige formatos comuns de from email: garante que Name <email> tenha > no final."""
+    v = valor.strip()
+    if not v:
+        return v
+    # Se tem < mas não fecha com >, adiciona >
+    if "<" in v and not v.endswith(">"):
+        v = v + ">"
+    return v
+
+RESEND_FROM_EMAIL = _sanitizar_from_email(os.getenv("RESEND_FROM_EMAIL") or "FoodOS <onboarding@resend.dev>")
 EMAIL_PROVIDER = (os.getenv("EMAIL_PROVIDER") or "auto").strip().lower()
 
 
