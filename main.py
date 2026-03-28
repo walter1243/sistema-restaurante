@@ -2392,7 +2392,9 @@ def enviar_email_acesso_restaurante(
         }
 
     msg = EmailMessage()
-    msg["Subject"] = f"Acesso FoodOS | {nome_unidade}"
+    protocolo_envio = uuid.uuid4().hex[:10].upper()
+    assunto_email = f"Acesso FoodOS | {nome_unidade} | ID {protocolo_envio}"
+    msg["Subject"] = assunto_email
     msg["From"] = remetente
     msg["To"] = destinatario
 
@@ -2486,6 +2488,8 @@ def enviar_email_acesso_restaurante(
             remetente=RESEND_FROM_EMAIL,
         )
         if envio_resend.get("enviado"):
+            envio_resend["subject"] = assunto_email
+            envio_resend["protocolo"] = protocolo_envio
             return envio_resend
         if EMAIL_PROVIDER == "resend":
             return envio_resend
@@ -2518,12 +2522,14 @@ def enviar_email_acesso_restaurante(
                 if usuario and senha:
                     server.login(usuario, senha)
                 server.send_message(msg)
-        return {"ok": True, "enviado": True}
+        return {"ok": True, "enviado": True, "subject": assunto_email, "protocolo": protocolo_envio}
     except Exception as exc:
         return {
             "ok": False,
             "enviado": False,
             "detail": str(exc),
+            "subject": assunto_email,
+            "protocolo": protocolo_envio,
         }
 
 
@@ -4375,6 +4381,8 @@ def reenviar_email_acesso_restaurante_super_admin(
         "detail": envio.get("detail") or ("E-mail enviado com sucesso" if envio.get("enviado") else "Falha ao enviar e-mail"),
         "provider": envio.get("provider") or ("smtp" if envio.get("enviado") else None),
         "message_id": envio.get("message_id"),
+        "subject": envio.get("subject"),
+        "protocolo": envio.get("protocolo"),
         "restaurante_id": restaurante.id,
         "nome_unidade": restaurante.nome_unidade,
         "email_destinatario": destinatario_final,
