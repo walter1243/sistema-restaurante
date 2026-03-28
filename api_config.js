@@ -1,6 +1,6 @@
 (function () {
     const RENDER_PRIMARY_API_URL = 'https://sistema-restaurante-f87o.onrender.com';
-    const RESTAURANT_SLUG = '';
+    const RESTAURANT_SLUG = 'solar';
     const host = String(window.location.hostname || '').toLowerCase();
     const runningOnHostedFrontend =
         host.endsWith('.vercel.app')
@@ -9,7 +9,8 @@
         || host.endsWith('.foodos.com.br');
     const DEFAULT_API_URL = String(
         window.__APP_API_URL__
-        || (runningOnHostedFrontend ? RENDER_PRIMARY_API_URL : window.location.origin)
+        || window.NEXT_PUBLIC_API_URL
+        || RENDER_PRIMARY_API_URL
     ).trim();
 
     function readNextPublicGoogleMapsApiKey() {

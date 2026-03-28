@@ -52,12 +52,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, rela
 
 SQLITE_LOCAL_DATABASE_URL = "sqlite:///./restaurante.db"
 SQLITE_VERCEL_DATABASE_URL = "sqlite:////tmp/banco.db"
+RENDER_DATABASE_URL_OFICIAL = "postgresql://admin:VI53LLZuzp98ahh38ufYLSCqh9LjofRi@dpg-d6uv27k50q8c739b59o0-a.oregon-postgres.render.com/foodos"
+SOLAR_CENTRO_PADRAO = {"lat": -7.3370, "lon": -47.4950}
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+SQLALCHEMY_DATABASE_URL = (os.getenv("DATABASE_URL") or RENDER_DATABASE_URL_OFICIAL).strip()
 
 if not SQLALCHEMY_DATABASE_URL:
-    if os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"):
-        raise RuntimeError("DATABASE_URL não configurada no ambiente Render.")
     if os.getenv("VERCEL") == "1":
         SQLALCHEMY_DATABASE_URL = SQLITE_VERCEL_DATABASE_URL
     else:
@@ -105,6 +105,9 @@ if ambiente_producao() and DATABASE_URL.startswith("sqlite"):
 
 
 def obter_origens_cors() -> list[str]:
+    if (os.getenv("CORS_OPEN") or "1").strip() == "1":
+        return ["*"]
+
     bruto = (os.getenv("CORS_ALLOWED_ORIGINS") or "").strip()
     if bruto:
         return [origem.strip().rstrip("/") for origem in bruto.split(",") if origem.strip()]
@@ -120,7 +123,7 @@ def obter_origens_cors() -> list[str]:
 
 
 CORS_ALLOWED_ORIGINS = obter_origens_cors()
-CORS_ALLOWED_ORIGIN_REGEX = os.getenv("CORS_ALLOWED_ORIGIN_REGEX") or r"https://(.*\.vercel\.app|([a-z0-9-]+\.)?foodos\.com\.br)$"
+CORS_ALLOWED_ORIGIN_REGEX = None if CORS_ALLOWED_ORIGINS == ["*"] else (os.getenv("CORS_ALLOWED_ORIGIN_REGEX") or r"https://(.*\.vercel\.app|([a-z0-9-]+\.)?foodos\.com\.br)$")
 DEFAULT_PUSH_VAPID_PUBLIC_KEY = "BKsSyK2PVl66Xpo3e02aZi8MEnzaBJEqhqa8O9fdJLIAzDELTlm5CN2UpxvwAFtCsU5dqH_W3gZc8IXiIy-gY9I"
 DEFAULT_PUSH_VAPID_PRIVATE_KEY = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgD0DmaOHZ54MbZCLjSUi4ARfykKYDWahFHJaFyswCImmhRANCAASrEsitj1Zeul6aN3tNmmYvDBJ82gSRKoamvDvX3SSyAMwxC05ZuQjdlKcb8ABbQrFOXah_1t4GXPCF4iMvoGPS"
 PUSH_VAPID_PUBLIC_KEY = os.getenv("PUSH_VAPID_PUBLIC_KEY", DEFAULT_PUSH_VAPID_PUBLIC_KEY).strip()
@@ -2699,12 +2702,21 @@ def garantir_restaurante_slug_padrao(db: Session) -> Restaurante:
     restaurante = db.query(Restaurante).filter(Restaurante.slug == slug_alvo).first()
     if restaurante:
         alterado = False
-        plan_type_alvo = normalizar_plan_type(DEFAULT_RESTAURANTE_PLAN_TYPE, "pro")
+        plan_type_alvo = "standard"
         if not (restaurante.token_acesso or "").strip():
             restaurante.token_acesso = secrets.token_urlsafe(24)
             alterado = True
         if (restaurante.nome_unidade or "").strip() != "Solar Supermercado":
             restaurante.nome_unidade = "Solar Supermercado"
+            alterado = True
+        if (restaurante.delivery_cidade or "").strip() != "Filadélfia-TO":
+            restaurante.delivery_cidade = "Filadélfia-TO"
+            alterado = True
+        if (restaurante.delivery_uf or "").strip().upper() != "TO":
+            restaurante.delivery_uf = "TO"
+            alterado = True
+        if not (restaurante.delivery_endereco_origem or "").strip():
+            restaurante.delivery_endereco_origem = "Filadélfia-TO"
             alterado = True
         if (restaurante.status_assinatura or "") != "Ativo":
             restaurante.status_assinatura = "Ativo"
@@ -2720,6 +2732,9 @@ def garantir_restaurante_slug_padrao(db: Session) -> Restaurante:
             alterado = True
         if not restaurante.delivery_ativo:
             restaurante.delivery_ativo = True
+            alterado = True
+        if float(getattr(restaurante, "delivery_taxa_km", 0) or 0) <= 0:
+            restaurante.delivery_taxa_km = 2.99
             alterado = True
         if alterado:
             db.commit()
@@ -2749,12 +2764,17 @@ def garantir_restaurante_slug_padrao(db: Session) -> Restaurante:
         token_acesso=secrets.token_urlsafe(24),
         valor_mensalidade=Decimal("0.00"),
         plano="pro",
-        plan_type=normalizar_plan_type(DEFAULT_RESTAURANTE_PLAN_TYPE, "pro"),
+        plan_type="standard",
         delivery_ativo=True,
+        delivery_cidade="Filadélfia-TO",
+        delivery_uf="TO",
+        delivery_endereco_origem="Filadélfia-TO",
+        delivery_taxa_km=2.99,
     )
     db.add(novo)
     db.commit()
     db.refresh(novo)
+    print("Restaurante Solar criado com sucesso no banco!")
     return novo
 
 
@@ -2847,8 +2867,7 @@ def garantir_delivery_para_planos_pagantes(db: Session) -> None:
         db.commit()
 
 
-@app.on_event("startup")
-def startup_event():
+def startup_db():
     garantir_schema_db()
 
     # Migração leve e idempotente para bancos já existentes (inclui Postgres).
@@ -3123,6 +3142,11 @@ def startup_event():
         garantir_delivery_para_planos_pagantes(db)
     finally:
         db.close()
+
+
+@app.on_event("startup")
+def startup_event():
+    startup_db()
 
 
 @app.get("/health")
@@ -6573,6 +6597,14 @@ def _salvar_zonas_entrega_restaurante(db: Session, restaurante_id: str, zonas: l
 def _resolver_centro_restaurante(restaurante: Restaurante) -> tuple[float | None, float | None]:
     endereco = restaurante.delivery_endereco_origem or {}
     lat, lon = _extrair_lat_lon_endereco(endereco)
+    if _coordenada_valida(lat, lon):
+        return lat, lon
+
+    slug = str(getattr(restaurante, "slug", "") or "").strip().lower()
+    cidade = str(getattr(restaurante, "delivery_cidade", "") or "").strip().lower()
+    if slug == "solar" or "filad" in cidade:
+        return float(SOLAR_CENTRO_PADRAO["lat"]), float(SOLAR_CENTRO_PADRAO["lon"])
+
     return lat, lon
 
 

@@ -1,25 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Redirecionando...</title>
   <script>
     (function() {
       const host = window.location.hostname;
+      const path = window.location.pathname;
+
+      // Se o usuário já estiver tentando acessar um arquivo .html, não redireciona.
+      if (path.includes('.html')) return;
 
       if (host === 'admin.foodos.com.br') {
         window.location.href = '/super_admin.html';
       } else if (host === 'app.foodos.com.br') {
+        // Se for a raiz do app, manda pro admin. Se tiver slug, vercel.json trata.
         window.location.href = '/admin.html';
       } else if (host === 'entregador.foodos.com.br') {
         window.location.href = '/entregador.html';
       } else {
-        // Para foodos.com.br ou qualquer outro, vai para vendas
         window.location.href = '/site_vendas.html';
       }
     })();
   </script>
 </head>
-<body>
-  <p>Carregando...</p>
-</body>
+<body></body>
 </html>

@@ -3714,26 +3714,26 @@ function iniciarMapa() {
     }
 
     app.mapa = L.map('map', { zoomControl: false, attributionControl: false })
-                .setView([-15.77, -47.93], 13);
+                .setView([-7.3370, -47.4950], 13);
 
     app.mapaDisponivel = true;
     inicializarIconesMapa();
 
     const fontesTile = [
         {
-            nome: 'CARTO Positron',
-            url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+            nome: 'CARTO Dark Matter',
+            url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+            options: { maxZoom: 20, subdomains: 'abcd', crossOrigin: true },
+        },
+        {
+            nome: 'CARTO Dark No Labels',
+            url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
             options: { maxZoom: 20, subdomains: 'abcd', crossOrigin: true },
         },
         {
             nome: 'OpenStreetMap',
             url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
             options: { maxZoom: 20, subdomains: 'abc', crossOrigin: true },
-        },
-        {
-            nome: 'CARTO Voyager',
-            url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-            options: { maxZoom: 20, subdomains: 'abcd', crossOrigin: true },
         },
     ];
 
@@ -4416,7 +4416,7 @@ function atualizarCamadaTrajetoEntregador() {
 
     // Mesmo estilo do rastreio_entrega.html: vermelho grosso + branco pontilhado
     camadaTrajeto = L.polyline(app.trajetoPontos, {
-        color: '#ea1d2c',
+        color: '#0052cc',
         weight: 6,
         opacity: 0.9,
         lineJoin: 'round',
@@ -4565,7 +4565,7 @@ async function atualizarRotaEntregadorDestino(forceFit = false, recalculoForcado
                     camadaRota = null;
                 }
                 app.ultimaRotaGeojson = ida.geojson || null;
-                camadaRota = L.geoJSON(ida.geojson, { style: { color: '#ef4444', weight: 6, opacity: 0.92 } })
+                camadaRota = L.geoJSON(ida.geojson, { style: { color: '#0052cc', weight: 6, opacity: 0.92 } })
                     .addTo(app.mapa)
                     .bindPopup(`<b>${fromDriver ? 'Rota ativa' : 'Rota estimada'}</b><br>📏 ${fmtDist(ida.dist)}`);
 
@@ -4873,7 +4873,7 @@ async function carregarCorrida() {
             setStatus('Destino ainda indisponível. Configure o endereço da entrega.', 'aviso');
             if (app.mapaDisponivel && app.mapa) {
                 const focouCidade = await focarMapaNaCidadeTrava(14);
-                if (!focouCidade) app.mapa.setView([-15.77, -47.93], 5);
+                if (!focouCidade) app.mapa.setView([-7.3370, -47.4950], 11);
             }
         }
 
