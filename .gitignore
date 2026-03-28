@@ -4,3 +4,4 @@ __pycache__/
 .env
 test.db
 restaurante.db
+.vercel

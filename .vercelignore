@@ -1,0 +1,12 @@
+# Ignora backend Python no deploy da Vercel (frontend estático apenas)
+main.py
+requirements.txt
+runtime.txt
+render.yaml
+_test_delivery_flow.py
+criar_admin.py
+criar_admin_painel.py
+scripts/
+__pycache__/
+*.pyc
+.venv/
