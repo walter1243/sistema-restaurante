@@ -2298,6 +2298,69 @@ def enviar_email_via_resend(
         }
 
 
+def consultar_status_email_resend(message_id: str) -> dict:
+    mid = (message_id or "").strip()
+    if not mid:
+        return {
+            "ok": False,
+            "provider": "resend",
+            "detail": "message_id inválido",
+        }
+
+    api_key = (RESEND_API_KEY or "").strip()
+    if not api_key:
+        return {
+            "ok": False,
+            "provider": "resend",
+            "message_id": mid,
+            "detail": "RESEND_API_KEY não configurada",
+        }
+
+    req = urllib_request.Request(
+        f"https://api.resend.com/emails/{quote(mid)}",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    try:
+        with urllib_request.urlopen(req, timeout=12) as resposta:
+            bruto = resposta.read().decode("utf-8", errors="ignore")
+        dados = json.loads(bruto) if bruto else {}
+        status = ""
+        if isinstance(dados, dict):
+            status = str(dados.get("last_event") or dados.get("status") or dados.get("state") or "").strip().lower()
+        return {
+            "ok": True,
+            "provider": "resend",
+            "message_id": mid,
+            "status": status or None,
+            "raw": dados if isinstance(dados, dict) else {},
+        }
+    except urllib_error.HTTPError as exc:
+        corpo = ""
+        try:
+            corpo = exc.read().decode("utf-8", errors="ignore")
+        except Exception:
+            corpo = ""
+        detalhe = corpo or str(exc)
+        return {
+            "ok": False,
+            "provider": "resend",
+            "message_id": mid,
+            "http_status": int(getattr(exc, "code", 0) or 0),
+            "detail": detalhe,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "provider": "resend",
+            "message_id": mid,
+            "detail": str(exc),
+        }
+
+
 def enviar_email_acesso_restaurante(
     destinatario: str,
     nome_unidade: str,
@@ -4322,6 +4385,11 @@ def reenviar_email_acesso_restaurante_super_admin(
         "cardapio_url": out.get("cardapio_url"),
         "entregador_url": out.get("entregador_url"),
     }
+
+
+@app.get("/api/super-admin/email-status/{message_id}")
+def consultar_status_email_super_admin(message_id: str):
+    return consultar_status_email_resend(message_id)
 
 
 @app.patch("/api/super-admin/restaurantes/{restaurante_id}")
