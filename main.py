@@ -4312,6 +4312,8 @@ def reenviar_email_acesso_restaurante_super_admin(
         "ok": bool(envio.get("ok")),
         "enviado": bool(envio.get("enviado")),
         "detail": envio.get("detail") or ("E-mail enviado com sucesso" if envio.get("enviado") else "Falha ao enviar e-mail"),
+        "provider": envio.get("provider") or ("smtp" if envio.get("enviado") else None),
+        "message_id": envio.get("message_id"),
         "restaurante_id": restaurante.id,
         "nome_unidade": restaurante.nome_unidade,
         "email_destinatario": destinatario_final,
