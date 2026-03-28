@@ -4265,19 +4265,21 @@ def listar_restaurantes(request: Request, db: Session = Depends(get_db)):
 def reenviar_email_acesso_restaurante_super_admin(
     restaurante_id: int,
     request: Request,
+    destinatario_override: str | None = None,
     db: Session = Depends(get_db),
 ):
     restaurante = db.get(Restaurante, restaurante_id)
     if not restaurante:
         raise HTTPException(status_code=404, detail="Restaurante não encontrado")
 
-    if not restaurante.email_admin:
+    destinatario_final = (destinatario_override or restaurante.email_admin or "").strip().lower()
+    if not destinatario_final:
         raise HTTPException(status_code=400, detail="Restaurante sem e-mail de responsável cadastrado")
 
     base_url = str(request.base_url).rstrip("/")
     out = serializar_restaurante_out(restaurante, base_url)
     envio = enviar_email_acesso_restaurante(
-        destinatario=restaurante.email_admin,
+        destinatario=destinatario_final,
         nome_unidade=restaurante.nome_unidade,
         admin_url=out.get("admin_url") or "",
         cardapio_url=out.get("cardapio_url") or "",
@@ -4293,7 +4295,8 @@ def reenviar_email_acesso_restaurante_super_admin(
         "detail": envio.get("detail") or ("E-mail enviado com sucesso" if envio.get("enviado") else "Falha ao enviar e-mail"),
         "restaurante_id": restaurante.id,
         "nome_unidade": restaurante.nome_unidade,
-        "email": restaurante.email_admin,
+        "email_destinatario": destinatario_final,
+        "email_admin_original": restaurante.email_admin,
         "admin_url": out.get("admin_url"),
         "cardapio_url": out.get("cardapio_url"),
         "entregador_url": out.get("entregador_url"),
