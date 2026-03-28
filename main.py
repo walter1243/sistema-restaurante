@@ -2392,7 +2392,7 @@ def enviar_email_acesso_restaurante(
         }
 
     msg = EmailMessage()
-    msg["Subject"] = f"Seu FoodOS esta pronto! Acesse seu Painel e Cardapio - {nome_unidade}"
+    msg["Subject"] = f"Acesso FoodOS | {nome_unidade}"
     msg["From"] = remetente
     msg["To"] = destinatario
 
@@ -2407,66 +2407,64 @@ def enviar_email_acesso_restaurante(
     ) if str(entregador_url or "").strip() else ""
 
     texto = (
-        f"Ola! Seu restaurante agora e digital.\n\n"
-        f"Seu FoodOS da unidade {nome_unidade} foi ativado com sucesso.\n\n"
-        f"Painel Admin (privado):\n{admin_url}\n\n"
-        f"Cardapio Publico:\n{cardapio_url}\n\n"
+        f"Ola,\n\n"
+        f"Seu acesso ao FoodOS da unidade {nome_unidade} foi liberado.\n\n"
+        f"Painel administrativo:\n{admin_url}\n\n"
+        f"Cardapio publico:\n{cardapio_url}\n\n"
         f"{entregador_bloco}"
-        f"Dados de acesso:\n"
+        f"Credenciais:\n"
         f"Login: {email_login}\n"
         f"Senha inicial: {senha_texto or 'A senha definida no momento da compra'}\n\n"
-        f"Dica: altere sua senha no primeiro acesso."
+        f"Recomendacao: altere sua senha no primeiro acesso."
         f"{termos_bloco}"
         f"{privacidade_bloco}"
     )
 
     html = f"""
     <html>
-            <body style=\"margin:0;padding:0;background:#f3f6ff;font-family:Segoe UI,Arial,Helvetica,sans-serif;color:#0f172a;\">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f6ff;padding:24px 0;">
+            <body style=\"margin:0;padding:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#111827;\">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f5f5;padding:24px 0;">
                     <tr>
                         <td align="center">
-                            <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;background:#0b1220;border-radius:18px;overflow:hidden;border:1px solid #1f2a44;">
+                            <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
                                 <tr>
-                                    <td style="padding:26px 28px;background:linear-gradient(135deg,#4f46e5,#c026d3);color:#fff;">
-                                        <div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;opacity:.92;">FoodOS</div>
-                                        <h1 style="margin:8px 0 6px;font-size:24px;line-height:1.2;">Seu restaurante agora e digital</h1>
-                                        <p style="margin:0;font-size:14px;opacity:.96;">{nome_unidade} foi ativado com sucesso.</p>
+                                    <td style="padding:24px 28px;background:#ffffff;color:#111827;border-bottom:1px solid #e5e7eb;">
+                                        <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">FoodOS</div>
+                                        <h1 style="margin:8px 0 6px;font-size:22px;line-height:1.2;font-weight:700;">Acesso liberado</h1>
+                                        <p style="margin:0;font-size:14px;color:#374151;">Os links de acesso da unidade {nome_unidade} estao abaixo.</p>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style="padding:24px 28px;background:#ffffff;">
-                                        <p style="margin:0 0 14px;color:#334155;font-size:15px;">Seu pagamento foi confirmado e seus acessos ja estao prontos.</p>
+                                        <p style="margin:0 0 16px;color:#374151;font-size:15px;">Este email contem seus links de acesso ao sistema.</p>
 
-                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:14px 0 20px;">
-                                            <tr>
-                                                <td style="padding-bottom:10px;">
-                                                    <a href="{admin_url}" style="display:inline-block;padding:12px 16px;border-radius:10px;background:#4f46e5;color:#fff;text-decoration:none;font-weight:700;">Abrir Painel Admin (Privado)</a>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>
-                                                    <a href="{cardapio_url}" style="display:inline-block;padding:12px 16px;border-radius:10px;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;">Abrir Cardapio Publico</a>
-                                                </td>
-                                            </tr>
-                                            {f'<tr><td style="padding-top:10px;"><a href="{entregador_url}" style="display:inline-block;padding:12px 16px;border-radius:10px;background:#0b7a53;color:#fff;text-decoration:none;font-weight:700;">Abrir App do Entregador</a><div style="font-size:12px;color:#64748b;margin-top:6px;">Disponivel para planos com delivery.</div></td></tr>' if str(entregador_url or '').strip() else ''}
-                                        </table>
-
-                                        <div style="padding:14px;border:1px solid #dbe3ff;border-radius:12px;background:#f8faff;">
-                                            <div style="font-size:13px;color:#475569;margin-bottom:6px;">Dados de acesso</div>
-                                            <div style="font-size:14px;color:#0f172a;"><strong>Login:</strong> {email_login}</div>
-                                            <div style="font-size:14px;color:#0f172a;"><strong>Senha inicial:</strong> {senha_texto or 'A senha definida no momento da compra'}</div>
+                                        <div style="margin:0 0 18px;">
+                                            <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Painel administrativo</div>
+                                            <div style="font-size:14px;word-break:break-all;"><a href="{admin_url}" style="color:#1d4ed8;text-decoration:underline;">{admin_url}</a></div>
                                         </div>
 
-                                        <p style="margin:14px 0 0;font-size:13px;color:#64748b;">Dica de seguranca: altere sua senha no primeiro acesso.</p>
+                                        <div style="margin:0 0 18px;">
+                                            <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Cardapio publico</div>
+                                            <div style="font-size:14px;word-break:break-all;"><a href="{cardapio_url}" style="color:#1d4ed8;text-decoration:underline;">{cardapio_url}</a></div>
+                                        </div>
+
+                                        {f'<div style="margin:0 0 18px;"><div style="font-size:13px;color:#6b7280;margin-bottom:4px;">App do entregador</div><div style="font-size:14px;word-break:break-all;"><a href="{entregador_url}" style="color:#1d4ed8;text-decoration:underline;">{entregador_url}</a></div></div>' if str(entregador_url or '').strip() else ''}
+
+                                        <div style="padding:14px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;">
+                                            <div style="font-size:13px;color:#4b5563;margin-bottom:6px;">Credenciais</div>
+                                            <div style="font-size:14px;color:#111827;"><strong>Login:</strong> {email_login}</div>
+                                            <div style="font-size:14px;color:#111827;"><strong>Senha inicial:</strong> {senha_texto or 'A senha definida no momento da compra'}</div>
+                                        </div>
+
+                                        <p style="margin:14px 0 0;font-size:13px;color:#6b7280;">Recomendacao: altere sua senha no primeiro acesso.</p>
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-                                        <div style="font-size:12px;color:#64748b;line-height:1.6;">
-                                            Este e-mail contem links de acesso da sua conta.
-                                            {f'<br><a href="{termos_url}" style="color:#334155;">Termos de Uso</a>' if termos_url else ''}
-                                            {f' | <a href="{privacidade_url}" style="color:#334155;">Politica de Privacidade</a>' if privacidade_url else ''}
+                                    <td style="padding:16px 28px;background:#ffffff;border-top:1px solid #e5e7eb;">
+                                        <div style="font-size:12px;color:#6b7280;line-height:1.6;">
+                                            Mensagem transacional de acesso ao sistema.
+                                            {f'<br><a href="{termos_url}" style="color:#4b5563;">Termos de Uso</a>' if termos_url else ''}
+                                            {f' | <a href="{privacidade_url}" style="color:#4b5563;">Politica de Privacidade</a>' if privacidade_url else ''}
                                         </div>
                                     </td>
                                 </tr>
