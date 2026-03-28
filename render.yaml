@@ -44,6 +44,18 @@ services:
         sync: false
       - key: DEFAULT_RESTAURANTE_PLAN_TYPE
         sync: false
+        - key: RESEND_API_KEY
+          sync: false
+        - key: RESEND_FROM_EMAIL
+          sync: false
+        - key: EMAIL_PROVIDER
+          sync: false
+        - key: FRONTEND_PUBLIC_URL
+          value: https://app.foodos.com.br
+        - key: DELIVERY_PUBLIC_URL
+          value: https://entregador.foodos.com.br
+        - key: APP_PUBLIC_URL
+          value: https://app.foodos.com.br
       - key: MP_ACCESS_TOKEN
         sync: false
       - key: MP_PUBLIC_KEY

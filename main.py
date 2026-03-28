@@ -3190,6 +3190,15 @@ def diagnostico_runtime_publico():
             "DEFAULT_RESTAURANTE_EMAIL": bool((os.getenv("DEFAULT_RESTAURANTE_EMAIL") or "").strip()),
             "DEFAULT_RESTAURANTE_SENHA": bool((os.getenv("DEFAULT_RESTAURANTE_SENHA") or "").strip()),
             "DEFAULT_RESTAURANTE_PLAN_TYPE": bool((os.getenv("DEFAULT_RESTAURANTE_PLAN_TYPE") or "").strip()),
+            "RESEND_API_KEY": bool((os.getenv("RESEND_API_KEY") or "").strip()),
+            "RESEND_FROM_EMAIL": bool((os.getenv("RESEND_FROM_EMAIL") or "").strip()),
+            "EMAIL_PROVIDER": bool((os.getenv("EMAIL_PROVIDER") or "").strip()),
+        },
+        "email_config": {
+            "provider": os.getenv("EMAIL_PROVIDER") or "auto",
+            "resend_api_key_set": bool((os.getenv("RESEND_API_KEY") or "").strip()),
+            "resend_from_email": os.getenv("RESEND_FROM_EMAIL") or "FoodOS <onboarding@resend.dev> (padrao)",
+            "smtp_host_set": bool((os.getenv("SMTP_HOST") or "").strip()),
         },
     }
 
