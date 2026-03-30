@@ -1167,7 +1167,7 @@
             <input id="cadastro-restaurante" class="conta-input" type="text" placeholder="Nome do restaurante">
             <input id="cadastro-nome" class="conta-input" type="text" placeholder="Nome completo do entregador">
             <input id="cadastro-telefone" class="conta-input" type="text" placeholder="Telefone / WhatsApp">
-            <button class="btn btn-stop" id="btn-solicitar-codigo-cadastro" type="button" onclick="solicitarCodigoCadastroEntregador()">Solicitar código de 5 dígitos</button>
+            <button class="btn btn-stop" id="btn-solicitar-codigo-cadastro" type="button" onclick="solicitarCodigoCadastroEntregador()">Enviar código por SMS</button>
             <div class="conta-row">
                 <input id="cadastro-codigo" class="conta-input" type="text" inputmode="numeric" maxlength="5" autocomplete="one-time-code" placeholder="Código de verificação (5 dígitos)">
                 <button class="btn btn-map" type="button" onclick="abrirPopupCodigo()">Digitar código</button>
@@ -2261,9 +2261,9 @@ async function solicitarCodigoCadastroEntregador() {
 
     if (botao) {
         botao.disabled = true;
-        botao.textContent = 'Gerando código...';
+        botao.textContent = 'Enviando SMS...';
     }
-    setContaFeedback('Gerando código de cadastro...');
+    setContaFeedback('Enviando código por SMS...');
 
     try {
         const basesCompativeis = await obterBasesCompativeisEntregador('/api/public/entregadores/solicitar-codigo', 'post');
@@ -2318,19 +2318,19 @@ async function solicitarCodigoCadastroEntregador() {
         if (inputCodigo) inputCodigo.value = '';
         preencherPopupCodigo('');
 
-        if (data?.codigo_enviado_whatsapp) {
-            setContaFeedback('Código enviado por WhatsApp. Digite os 5 números recebidos para concluir o cadastro.', false);
+        if (data?.codigo_enviado_sms) {
+            setContaFeedback('Código enviado por SMS. Digite os 5 números recebidos para concluir o cadastro.', false);
             abrirPopupCodigo('');
         } else {
-            const motivo = String(data?.whatsapp_envio?.erro || data?.whatsapp_envio?.motivo || '').trim();
-            throw new Error(motivo ? `WhatsApp não enviou o código: ${motivo}` : 'WhatsApp não enviou o código.');
+            const motivo = String(data?.sms_envio?.erro || '').trim();
+            throw new Error(motivo ? `SMS não enviado: ${motivo}` : 'Não foi possível enviar o código por SMS.');
         }
     } catch (erro) {
         setContaFeedback(erro.message || 'Falha ao solicitar código.', true);
     } finally {
         if (botao) {
             botao.disabled = false;
-            botao.textContent = 'Solicitar código de 5 dígitos';
+            botao.textContent = 'Enviar código por SMS';
         }
     }
 }

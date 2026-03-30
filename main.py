@@ -101,6 +101,37 @@ def _sanitizar_from_email(valor: str) -> str:
 RESEND_FROM_EMAIL = _sanitizar_from_email(os.getenv("RESEND_FROM_EMAIL") or "FoodOS <onboarding@resend.dev>")
 EMAIL_PROVIDER = (os.getenv("EMAIL_PROVIDER") or "auto").strip().lower()
 
+TWILIO_ACCOUNT_SID = (os.getenv("TWILIO_ACCOUNT_SID") or "").strip()
+TWILIO_AUTH_TOKEN  = (os.getenv("TWILIO_AUTH_TOKEN") or "").strip()
+TWILIO_FROM_PHONE  = (os.getenv("TWILIO_FROM_PHONE") or "").strip()
+
+
+def enviar_sms_twilio(telefone_destino: str, mensagem: str) -> dict:
+    """Envia SMS via Twilio REST API usando requests (sem lib twilio)."""
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_FROM_PHONE:
+        return {"ok": False, "erro": "Credenciais Twilio não configuradas (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_PHONE)."}
+
+    digitos = "".join(ch for ch in str(telefone_destino or "") if ch.isdigit())
+    if not digitos.startswith("55"):
+        digitos = "55" + digitos
+    telefone_e164 = "+" + digitos
+
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
+    import requests as _req
+    try:
+        resp = _req.post(
+            url,
+            auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+            data={"From": TWILIO_FROM_PHONE, "To": telefone_e164, "Body": mensagem},
+            timeout=15,
+        )
+        payload = resp.json() if resp.content else {}
+        if resp.status_code in (200, 201):
+            return {"ok": True, "sid": payload.get("sid"), "status": payload.get("status")}
+        return {"ok": False, "erro": payload.get("message") or f"HTTP {resp.status_code}", "code": payload.get("code")}
+    except Exception as exc:
+        return {"ok": False, "erro": str(exc)}
+
 
 def ambiente_producao() -> bool:
     marcadores = ["VERCEL", "RENDER", "RENDER_EXTERNAL_URL", "VERCEL_ENV"]
@@ -5931,20 +5962,6 @@ def solicitar_codigo_entregador_publico(
     if not assinatura_ativa(restaurante):
         raise HTTPException(status_code=403, detail="Restaurante com assinatura inativa")
 
-    if not restaurante.whatsapp_api_ativo:
-        raise HTTPException(
-            status_code=400,
-            detail="Envio por WhatsApp está desativado para este restaurante. Ative no painel Admin antes de solicitar código.",
-        )
-
-    phone_number_id = (restaurante.whatsapp_phone_number_id or "").strip()
-    access_token = (restaurante.whatsapp_access_token or "").strip()
-    if not phone_number_id or not access_token:
-        raise HTTPException(
-            status_code=400,
-            detail="Configuração do WhatsApp incompleta no Admin (phone number id/token).",
-        )
-
     existe = db.query(Entregador).filter(
         Entregador.restaurante_id == restaurante.restaurante_id,
         (Entregador.whatsapp == telefone) | (Entregador.email_login == telefone),
@@ -5955,20 +5972,11 @@ def solicitar_codigo_entregador_publico(
     codigo = _gerar_codigo_entregador()
     expira_em = datetime.utcnow() + timedelta(minutes=8)
 
-    mensagem = (
-        f"Código de cadastro do entregador: {codigo}. "
-        f"Validade: 8 minutos."
-    )
-    telefone_whatsapp = normalizar_telefone_whatsapp(telefone)
-    envio = enviar_whatsapp_cloud_message(
-        phone_number_id=phone_number_id,
-        access_token=access_token,
-        telefone_destino=telefone_whatsapp,
-        mensagem=mensagem,
-    )
+    mensagem = f"FoodOS: seu código de cadastro é {codigo}. Válido por 8 minutos."
+    envio = enviar_sms_twilio(telefone, mensagem)
     if not envio.get("ok"):
-        motivo = str(envio.get("erro") or envio.get("motivo") or "Falha no envio via WhatsApp").strip()
-        raise HTTPException(status_code=503, detail=f"Não foi possível enviar o código por WhatsApp: {motivo}")
+        motivo = str(envio.get("erro") or "Falha no envio do SMS").strip()
+        raise HTTPException(status_code=503, detail=f"Não foi possível enviar o código por SMS: {motivo}")
 
     chave = _chave_codigo_entregador(restaurante.restaurante_id, telefone)
     ENTREGADOR_CODIGOS_CACHE[chave] = {
@@ -5983,9 +5991,9 @@ def solicitar_codigo_entregador_publico(
         "slug": restaurante.slug,
         "restaurante_nome": restaurante.nome_unidade,
         "telefone": telefone,
-        "codigo_enviado_whatsapp": True,
-        "whatsapp_envio": envio,
-        "mensagem_codigo": "Código enviado para o WhatsApp do entregador. Digite os 5 números recebidos para confirmar.",
+        "codigo_enviado_sms": True,
+        "sms_envio": envio,
+        "mensagem_codigo": "Código enviado por SMS. Digite os 5 números recebidos para concluir o cadastro.",
         "expira_em": expira_em.isoformat(),
     }
 
